@@ -380,12 +380,9 @@ def neighborhood_analysis(path_to_data, X = 'x', Y = 'y', reg = 'unique_region',
     #modify figure size aesthetics for each neighborhood
     figs = catplot(cells,X = X,Y=Y,exp = reg,hue = 'neighborhood'+str(k),invert_y=True,size = 5,)
 
-    if save_to_csv == True:
-        if save_path == True:
-            cells.to_csv(save_path + "/" + 'neighborhood.csv')
+    if save_to_csv is True:
+        cells.to_csv(save_path + 'neighborhood.csv')
         
-        else:
-            print("No save_path provided")
     else: 
         print("results will not be stored as csv file")
 
