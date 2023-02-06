@@ -20,7 +20,7 @@ calculate_triangulation_distances <- function(df_input,
                                               cell_type, 
                                               region) {
   # Compute the rdelaun distances
-  vtress <- deldir(df_input[[x_pos]], df_input[[y_pos]])
+  vtress <- deldir::deldir(df_input[[x_pos]], df_input[[y_pos]])
   rdelaun_result <- vtress$delsgs
   
   # Get interactions going both directions
@@ -91,6 +91,17 @@ get_triangulation_distances <- function(df_input,
                                         num_cores = NULL,
                                         calc_avg_distance = TRUE,
                                         csv_output = getwd()) {
+  
+  if(class(df_input[,x_pos]) != "integer"){
+    
+    warning("This function expects integer values for xy coordinates.")
+    warning("Class will be changed to integer. Please check the generated output!")
+    
+    i <- c(x_pos, y_pos)   
+    df_input[ , i] <- apply(df_input[ , i], 2,            # Specify own function within apply
+                        function(x) as.integer(x))
+  }
+  
   library(doSNOW)
   library(foreach)
   library(parallel)
@@ -413,7 +424,7 @@ Dumbbell_plot_interactions <- function(triangulation_distances = triangulation_d
     dplyr::filter(!is.na(interaction))
   
   distance_pvals$pairs = paste0(distance_pvals$celltype1, "_", distance_pvals$celltype2)
-  distance_pvals_sub = distance_pvals[distance_pvals$pairs %in%  pair_to, ]
+  distance_pvals_sub = distance_pvals[distance_pvals$celltype1 %in%  pair_to, ]
   
   ggplot2::ggplot(data = distance_pvals_sub %>%
            dplyr::filter(!is.na(interaction))) +
