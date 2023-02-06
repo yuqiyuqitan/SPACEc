@@ -285,7 +285,7 @@ n_neighborhoods: an integer to be used as the number of neighborhoods to be prod
 
 """
 
-def neighborhood_analysis(path_to_data, X = 'x', Y = 'y', reg = 'unique_region', cluster_col = 'Cell Type', ks = [20, 30, 35], save_path = None, k = 35, n_neighborhoods = 30):
+def neighborhood_analysis(path_to_data, X = 'x', Y = 'y', reg = 'unique_region', cluster_col = 'Cell Type', ks = [20, 30, 35], save_path = None, k = 35, n_neighborhoods = 30, save_to_csv = False):
 
     neighborhood_name = "neighborhood"+str(k)
 
@@ -379,6 +379,15 @@ def neighborhood_analysis(path_to_data, X = 'x', Y = 'y', reg = 'unique_region',
 
     #modify figure size aesthetics for each neighborhood
     figs = catplot(cells,X = X,Y=Y,exp = reg,hue = 'neighborhood'+str(k),invert_y=True,size = 5,)
+
+    if save_to_csv == True:
+        if save_path == True:
+            cells.to_csv(save_path + "/" + 'neighborhood.csv')
+        
+        else:
+            print("No save_path provided")
+    else: 
+        print("results will not be stored as csv file")
 
     #Save Plots for Publication
     for n,f in enumerate(figs):
