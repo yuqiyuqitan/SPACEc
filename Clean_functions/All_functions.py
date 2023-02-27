@@ -24,6 +24,11 @@ from sklearn.cluster import MiniBatchKMeans
 import scanpy as sc
 from scipy import stats
 from statsmodels.stats.multicomp import pairwise_tukeyhsd
+import statsmodels.api as sm
+from sklearn.cross_decomposition import CCA
+import networkx as nx
+from scipy.stats import pearsonr,spearmanr
+from scipy.spatial.distance import cdist
 
 # load functions 
 def stacked_bar_plot(data, per_cat, grouping, cell_list, norm=True, save_name=None,\
@@ -414,6 +419,386 @@ def neighborhood_analysis(df, X = 'x', Y = 'y', reg = 'unique_region', cluster_c
     
     return(cells)
 
+
+##########################################################################################################
+
+def xycorr(df, sample_col, y_rows, x_columns, X_pix, Y_pix):
+    
+    #Make a copy for xy correction
+    df_XYcorr = df.copy()
+    
+    df_XYcorr["Xcorr"] = 0
+    df_XYcorr["Ycorr"] = 0
+    
+    for sample in df_XYcorr[sample_col].unique():
+        df_sub = df_XYcorr.loc[df_XYcorr[sample_col]==sample]
+        region_num = df_sub.region.max().astype(int)
+
+        #first value of tuple is y and second is x
+        d = list(product(range(0,y_rows,1),range(0,x_columns,1)))
+        e = list(range(1,region_num+1,1))
+        dict_corr = {}
+        dict_corr = dict(zip(e, d)) 
+
+        #Adding the pixels with the dictionary
+        for x in range(1,region_num+1,1):
+            df_XYcorr["Xcorr"].loc[(df_XYcorr["region"]== x)&(df_XYcorr[sample_col]==sample)] = df_XYcorr['x'].loc[(df_XYcorr['region']==x)&(df_XYcorr[sample_col]==sample)] +dict_corr[x][1]*X_pix
+
+        for x in range(1,region_num+1,1):
+            df_XYcorr["Ycorr"].loc[(df_XYcorr["region"]== x)&(df_XYcorr[sample_col]==sample)] = df_XYcorr['y'].loc[(df_XYcorr['region']==x)&(df_XYcorr[sample_col]==sample)] +dict_corr[x][0]*Y_pix
+
+    return df_XYcorr
+
+
+##########################################################################################################
+
+'''
+data: Pandas data frame which is used as input for plotting.
+
+
+group1: Categorical column in data that will be used as the x-axis in the pairplot.
+
+per_cat: Categorical column in data that will be used to calculate the correlation between categories in group1.
+
+sub_col (optional): Categorical column in data that is used to subset the data.
+
+sub_list (optional): List of values that is used to select a subset of data based on the sub_col.
+
+norm (optional): Boolean that determines if the data should be normalized or not.
+
+group2 (optional): Categorical column in data that is used to group the data.
+
+count (optional): Boolean that determines if the count of each category in per_cat should be used instead of the percentage.
+
+plot_scatter (optional): Boolean that determines if the scatterplot should be plotted or not.
+
+cor_mat: Output data frame containing the correlation matrix.
+
+mp: Output data frame containing the pivot table of the count or percentage of each category in per_cat based on group1.
+
+
+Returns:
+cor_mat (pandas dataframe): Correlation matrix.
+mp (pandas dataframe): Data after pivoting and grouping.
+'''
+
+def cor_plot(data, group1,per_cat, sub_col=None,sub_list=None,norm=False,\
+             group2=None, count=False, plot_scatter=True):
+    if group2:
+        plt.rcParams["legend.markerscale"] = 1
+        tf = data.groupby([group1,group2]).apply(lambda x: x[per_cat].value_counts(normalize = True,sort = False)*100).to_frame()
+        tf.columns = tf.columns.astype(str)
+        tf.reset_index(inplace=True)
+        mp = pd.pivot_table(tf, columns = ['level_2'], index=[group1,group2], values=[per_cat])
+        mp.columns = mp.columns.droplevel(0)
+        mp.reset_index(inplace=True)
+        mp2 = mp.fillna(0)
+        cor_mat = mp2.corr()
+        mask = np.triu(np.ones_like(cor_mat, dtype=bool))
+        plt.figure(figsize = (len(cor_mat.index),len(cor_mat.columns)*0.8))
+        sns.heatmap(cor_mat, cmap='coolwarm',center=0,vmin=-1,vmax=1,mask=mask)
+        if plot_scatter:
+            sns.pairplot(mp,diag_kind = 'kde',
+                     plot_kws ={'alpha': 0.6, 's': 80, 'edgecolor': 'k'},
+                     size = 4, hue=group2)
+    else:
+        if count:
+                tf = data.groupby([group1,per_cat]).count()['region'].to_frame()
+                tf.reset_index(inplace=True)
+                mp = pd.pivot_table(tf, columns = [per_cat], index=[group1], values=['region'])
+                mp.columns = mp.columns.droplevel(0)
+                mp.reset_index(inplace=True)
+                mp2 = mp.fillna(0)
+                cor_mat = mp2.corr()
+                mask = np.triu(np.ones_like(cor_mat, dtype=bool))
+                plt.figure(figsize = (len(cor_mat.index),len(cor_mat.columns)*0.8))
+                sns.heatmap(cor_mat, cmap='coolwarm',center=0,vmin=-1,vmax=1,mask=mask)
+                if plot_scatter:
+                    sns.pairplot(mp,diag_kind = 'kde',
+                                 plot_kws = {'scatter_kws':{'alpha': 0.6, 's': 80, 'edgecolor': 'k'}},
+                                 size = 4, kind='reg')
+        else:
+            #Find Percentage of cell type
+            test= data.copy()
+            sub_list1 = sub_list.copy()
+
+            if norm==True:
+                test1 = test.loc[test[sub_col].isin(sub_list1)]
+                immune_list = list(test1[per_cat].unique())
+            else:
+                test1=test.copy()
+                immune_list = list(test.loc[test[sub_col].isin(sub_list1)][per_cat].unique())
+
+            test1[per_cat] = test1[per_cat].astype('category')
+            tf = test1.groupby([group1]).apply(lambda x: x[per_cat].value_counts(normalize = True,sort = False)*100)
+            tf.columns = tf.columns.astype(str)
+            mp = tf[immune_list]
+            mp.reset_index(inplace=True)
+            cor_mat = mp.corr()
+            mask = np.triu(np.ones_like(cor_mat, dtype=bool))
+            plt.figure(figsize = (len(cor_mat.index),len(cor_mat.columns)*0.8))
+            sns.heatmap(cor_mat, cmap='coolwarm',center=0,vmin=-1,vmax=1,mask=mask)
+            if plot_scatter:
+                sns.pairplot(mp,diag_kind = 'kde',
+                             plot_kws = {'scatter_kws':{'alpha': 0.6, 's': 80, 'edgecolor': 'k'}},
+                             size = 4, kind='reg')
+
+        
+    return cor_mat, mp
+
+
+##########################################################################################################
+
+def cor_subset(cor_mat, threshold, cell_type):
+    pairs = get_top_abs_correlations(cor_mat,thresh=threshold)
+    
+    piar1 = pairs.loc[pairs['col1']==cell_type]
+    piar2 = pairs.loc[pairs['col2']==cell_type]
+    piar=pd.concat([piar1,piar2])
+    
+    pair_list = list(set(list(piar['col1'].unique())+list(piar['col2'].unique())))
+    
+    return pair_list, piar, pairs
+
+
+##########################################################################################################
+
+"""
+mp: A pandas dataframe from which a subset of columns will be selected and plotted.
+sub_list: A list of column names from the dataframe mp that will be selected and plotted.
+save_name (optional): A string that specifies the file name for saving the plot. 
+If save_name is not provided, the plot will not be saved.
+"""
+def cor_subplot(mp, sub_list,save_name=None):
+    sub_cor = mp[sub_list]
+    sns.pairplot(sub_cor,diag_kind = 'kde',
+                             plot_kws = {'scatter_kws':{'alpha': 0.6, 's': 80, 'edgecolor': 'k'}},
+                             size = 4, kind='reg', corner=True)
+    if save_name:
+        plt.savefig(output_filepath+save_name+'_corrplot.png', format='png', dpi=300, transparent=True, bbox_inches='tight')
+
+
+##########################################################################################################
+
+"""
+data: the input pandas data frame.
+sub_l2: a list of subcategories to be considered.
+per_categ: the categorical column in the data frame to be used.
+group2: the grouping column in the data frame.
+repl: the replicate column in the data frame.
+sub_collumn: the subcategory column in the data frame.
+cell: the cell type column in the data frame.
+thres (optional): the threshold for the correlation, default is 0.9.
+normed (optional): if the percentage should be normalized, default is True.
+cell2 (optional): the second cell type column in the data frame.
+"""
+def corr_cell(data,  sub_l2, per_categ, group2, repl, sub_collumn, cell,\
+              thres = 0.9, normed=True, cell2=None):
+    result = per_only1(data = df, per_cat = per_categ, grouping=group2,\
+                      sub_list=sub_l2, replicate=repl, sub_col = sub_collumn, norm=normed)
+
+    #Format for correlation function
+    mp = pd.pivot_table(result, columns = [per_categ], index=[group2,repl], values=['percentage'])
+    mp.columns = mp.columns.droplevel(0)
+    cc = mp.reset_index()
+    cmat = cc.corr()
+
+    #Plot
+    sl2, pair2, all_pairs = cor_subset(cor_mat=cmat, threshold = thres, cell_type=cell)
+    
+    if cell2:
+        sl3 = [cell2, cell]
+        cor_subplot(mp=cc, sub_list=sl3, save_name=cell+'_'+cell2)
+    else:
+        cor_subplot(mp=cc, sub_list=sl2, save_name=cell)
+    
+    return all_pairs, pair2
+
+##########################################################################################################
+
+def cor_subplot(mp, sub_list,save_name=None):
+    sub_cor = mp[sub_list]
+    sns.pairplot(sub_cor,diag_kind = 'kde',
+                             plot_kws = {'scatter_kws':{'alpha': 0.6, 's': 80, 'edgecolor': 'k'}},
+                             size = 4, kind='reg', corner=True)
+    if save_name:
+        plt.savefig(save_path+save_name+'_corrplot.png', format='png', dpi=300, transparent=True, bbox_inches='tight')
+
+##########################################################################################################
+# Cell type differential enrichment 
+def normalize(X):
+    arr = np.array(X.fillna(0).values)
+    return pd.DataFrame(np.log2(1e-3 + arr/arr.sum(axis =1, keepdims = True)), index = X.index.values, columns = X.columns).fillna(0)
+
+
+def cell_types_de_helper(df, ID_component1, ID_component2, neighborhood_col, group_col, group_dict, cell_type_col):
+    
+    # read data 
+    cells2 = df
+    cells2.reset_index(inplace=True, drop=True)
+    cells2
+    
+    # generate unique ID
+    cells2['donor_tis'] = cells2[ID_component1]+'_'+cells2[ID_component2]
+    
+    # This code is creating a dictionary called neigh_num that maps each unique value 
+    #in the Neighborhood column of a pandas DataFrame cells2 to a unique integer index 
+    #starting from 0.
+    neigh_num = {list(cells2[neighborhood_col].unique())[i]:i for i in range(len(cells2[neighborhood_col].unique()))}
+    cells2['neigh_num'] = cells2[neighborhood_col].map(neigh_num)
+    cells2['neigh_num'].unique()
+    
+    '''
+    This Python code is performing the following data transformation operations on a pandas DataFrame named cells2:
+    The first three lines of code create a dictionary called treatment_dict that maps two specific strings, 'SB' and 'CL', to the integers 0 and 1, respectively. Then, the map() method is used to create a new column called group, where each value in the tissue column is replaced with its corresponding integer value from the treatment_dict dictionary.
+    The fourth to seventh lines of code create a new dictionary called pat_dict that maps each unique value in the donor_tis column of the cells2 DataFrame to a unique integer index starting from 0. The for loop loops through the range object and assigns each integer to the corresponding unique value in the donor_tis column, creating a dictionary that maps each unique value to a unique integer index.
+    The last two lines of code create a new column called patients in the cells2 DataFrame, where each value in the donor_tis column is replaced with its corresponding integer index from the pat_dict dictionary. This code assigns these integer indices to each patient in the donor_tis column. The unique() method is used to return an array of unique values in the patients column to verify that each unique value in the donor_tis column has been mapped to a unique integer index in the patients column.
+    Overall, the code is converting categorical data in the tissue and donor_tis columns to numerical data in the group and patients columns, respectively, which could be useful for certain types of analysis.
+    '''
+    # Code treatment/group with number
+    cells2['group']=cells2[group_col].map(group_dict)
+    cells2['group'].unique()
+    
+    pat_dict = {}
+    for i in range(len(list(cells2['donor_tis'].unique()))):
+        pat_dict[list(cells2['donor_tis'].unique())[i]] = i
+    pat_dict
+    
+    cells2['patients']=cells2['donor_tis'].map(pat_dict)
+    cells2['patients'].unique()
+    
+    # drop duplicates 
+    pat_gp = cells2[['patients','group']].drop_duplicates()
+    pat_to_gp= {a:b for a,b in pat_gp.values}
+    
+    # get cell type (ct) frequences per patient 
+    ct_freq1 = cells2.groupby(['patients']).apply(lambda x: x[cell_type_col].value_counts(normalize = True,sort = False)*100)
+    #ct_freq = ct_freq1.to_frame()
+    ct_freq = ct_freq1.unstack().fillna(0)
+    ct_freq.reset_index(inplace=True)
+    ct_freq.rename(columns={'level_1':'cell_type', 'Cell Type':'Percentage'}, inplace=True)
+    ct_freq
+    
+    # Get frequences for every neighborhood per patient 
+    all_freqs1 = cells2.groupby(['patients','neigh_num']).apply(lambda x: x[cell_type_col].value_counts(normalize = True,sort = False)*100)
+    #all_freqs = all_freqs1.to_frame()
+    all_freqs = all_freqs1.unstack().fillna(0)
+    all_freqs.reset_index(inplace=True)
+    all_freqs.rename(columns={'level_2':'cell_type', cell_type_col:'Percentage'}, inplace=True)
+    all_freqs
+    
+    return(cells2, ct_freq, all_freqs, pat_to_gp, neigh_num)
+
+
+def cell_types_de(ct_freq, all_freqs, neighborhood_num, nbs, patients, group, cells, cells1, neigh_num):
+    
+    # data prep
+    # normalized overall cell type frequencies
+    X_cts = normalize(ct_freq.reset_index().set_index('patients').loc[patients,cells])
+    
+    # normalized neighborhood specific cell type frequencies
+    df_list = []
+    
+    for nb in nbs:
+        cond_nb = all_freqs.loc[all_freqs[neighborhood_num]==nb,cells1].rename({col: col+'_'+str(nb) for col in cells}, axis = 1).set_index('patients')
+        df_list.append(normalize(cond_nb))
+    
+    X_cond_nb = pd.concat(df_list, axis = 1).loc[patients]
+    
+    #differential enrichment for all cell subsets
+    changes = {}
+    #nbs =[0, 2, 3, 4, 6, 7, 8, 9]
+    for col in cells:
+        for nb in nbs:
+            #build a design matrix with a constant, group 0 or 1 and the overall frequencies
+            X = pd.concat([X_cts[col], group.astype('int'),pd.Series(np.ones(len(group)), index = group.index.values)], axis = 1).values
+            if col+'_%d'%nb in X_cond_nb.columns:
+                #set the neighborhood specific ct freqs as the outcome
+                Y = X_cond_nb[col+'_%d'%nb].values
+                X = X[~pd.isna(Y)]
+                Y = Y[~pd.isna(Y)]
+                #fit a linear regression model
+                results = sm.OLS(Y,X).fit()
+                #find the params and pvalues for the group coefficient
+                changes[(col,nb)] = (results.pvalues[1], results.params[1])
+            
+    
+    #make a dataframe with coeffs and pvalues
+    dat = (pd.DataFrame(changes).loc[1].unstack())
+    dat = pd.DataFrame(np.nan_to_num(dat.values),index = dat.index, columns = dat.columns).T.sort_index(ascending=True).loc[:,X_cts.columns]
+    pvals = (pd.DataFrame(changes).loc[0].unstack()).T.sort_index(ascending=True).loc[:,X_cts.columns]
+    
+    #this is where you should correct pvalues for multiple testing 
+    
+    
+    #plot as heatmap
+    f, ax = plt.subplots(figsize = (20,10))
+    g = sns.heatmap(dat,cmap = 'bwr', vmin = -1, vmax = 1,cbar=False,ax = ax)
+    for a,b in zip(*np.where (pvals<0.05)):
+        plt.text(b+.5,a+.55,'*',fontsize = 20,ha = 'center',va = 'center')
+    plt.tight_layout()
+    
+    inv_map = {v: k for k, v in neigh_num.items()}
+    inv_map
+    
+    #plot as heatmap
+    plt.style.use(['default'])
+    #GENERAL GRAPH SETTINGs
+    #font size of graph
+    SMALL_SIZE = 14
+    MEDIUM_SIZE = 16
+    BIGGER_SIZE = 18
+    
+    #Settings for graph
+    plt.rc('font', size=SMALL_SIZE)          # controls default text sizes
+    plt.rc('axes', titlesize=SMALL_SIZE)     # fontsize of the axes title
+    plt.rc('axes', labelsize=MEDIUM_SIZE)    # fontsize of the x and y labels
+    plt.rc('xtick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
+    plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
+    plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
+    plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
+    
+    data_2 = dat.rename(index=inv_map)
+    
+    
+    #Sort both axes
+    sort_sum = data_2.abs().sum(axis=1).to_frame()
+    sort_sum.columns = ['sum_col']
+    xx = sort_sum.sort_values(by='sum_col')
+    sort_x = xx.index.values.tolist()
+    sort_sum_y = data_2.abs().sum(axis=0).to_frame()
+    sort_sum_y.columns = ['sum_col']
+    yy = sort_sum_y.sort_values(by='sum_col')
+    sort_y = yy.index.values.tolist()
+    df_sort = data_2.reindex(index = sort_x, columns =sort_y)
+    
+    
+    f, ax = plt.subplots(figsize = (15,10))
+    g = sns.heatmap(df_sort,cmap = 'bwr', vmin = -1, vmax = 1,cbar=True,ax = ax)
+    for a,b in zip(*np.where (pvals<0.05)):
+        plt.text(b+.5,a+.55,'*',fontsize = 20,ha = 'center',va = 'center')
+    plt.tight_layout()
+    
+    f.savefig(save_path+"tissue_neighborhood_coeff_pvalue_bar.png", format='png', dpi=300, transparent=True, bbox_inches='tight')
+    
+    df_sort.abs().sum()
+
+########################################################################################################## Cell_distance 
+def get_distances(df, cell_list, cell_type_col):
+    names = cell_list
+    cls = {}
+    for i,cname in enumerate(names):
+        cls[i] = df[["x","y"]][df[cell_type_col]==cname].to_numpy()
+        cls[i] = cls[i][~np.isnan(cls[i]).any(axis=1), :]
+
+    dists = {}
+
+    for i in range(5):
+        for j in range(0,i):
+            dists[(j,i)] = (cdist(cls[j], cls[i]))
+            dists[(i,j)] = dists[(j,i)]
+    return cls, dists    
+    
 ##########################################################################################################
 # Helper Functions
 ##########################################################################################################
@@ -442,9 +827,9 @@ def get_pathcells(query_database, query_dict_list):
 # annotated 
 '''
 def get_pathcells(query_database: Union[Dict, List[Dict]], query_dict_list: List[Dict]) -> Union[Dict, List[Dict]]:
-    '''
-    Return set of cells that match query_dict path.
-    '''
+    
+    #Return set of cells that match query_dict path.
+    
     out: List[Dict] = []   # initialize an empty list to store results
     
     if type(query_dict_list) == dict:    # if query_dict_list is a dictionary, convert it into a list
@@ -780,5 +1165,27 @@ def catplot(df,hue,exp = 'Exp',X = 'X',Y = 'Y',invert_y = False,size = 3,legend 
 
 
 
+##########################################################################################################
+# correlation analysis 
+def get_redundant_pairs(df):
+    '''Get diagonal and lower triangular pairs of correlation matrix'''
+    pairs_to_drop = set()
+    cols = df.columns
+    for i in range(0, df.shape[1]):
+        for j in range(0, i+1):
+            pairs_to_drop.add((cols[i], cols[j]))
+    return pairs_to_drop
 
+#############
+
+def get_top_abs_correlations(df, thresh=0.5):
+    au_corr = df.corr().unstack()
+    labels_to_drop = get_redundant_pairs(df)
+    au_corr = au_corr.drop(labels=labels_to_drop).sort_values(ascending=False)
+    cc = au_corr.to_frame()
+    cc.index.rename(['col1','col2'],inplace=True)
+    cc.reset_index(inplace=True)
+    cc.rename(columns={0:'value'},inplace=True)
+    gt_pair = cc.loc[cc['value'].abs().gt(thresh)]
+    return gt_pair
 
