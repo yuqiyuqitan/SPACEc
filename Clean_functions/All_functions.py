@@ -798,7 +798,99 @@ def get_distances(df, cell_list, cell_type_col):
             dists[(j,i)] = (cdist(cls[j], cls[i]))
             dists[(i,j)] = dists[(j,i)]
     return cls, dists    
+
+########################################################################################################## Community analysis 
+
+def community_analysis(df, X = 'x', Y = 'y', reg = 'unique_region', cluster_col = 'neigh_name', ks = [20, 30, 35], save_path = None, k = 35, n_neighborhoods = 30, save_to_csv = False):
+
+    cells = df.copy()
+
+    neighborhood_name = "community"+str(k)
+
+    keep_cols = [X ,Y ,reg,cluster_col]
+
+    n_neighbors = max(ks)
+
+    cells[reg] = cells[reg].astype('str')
+
+    #Get each region
+    tissue_group = cells[[X,Y,reg]].groupby(reg)
+    exps = list(cells[reg].unique())
+    tissue_chunks = [(time.time(),exps.index(t),t,a) for t,indices in tissue_group.groups.items() for a in np.array_split(indices,1)] 
+
+    tissues = [get_windows(job, n_neighbors, exps= exps, tissue_group = tissue_group) for job in tissue_chunks]
+
+    #Loop over k to compute neighborhoods
+    out_dict = {}
+    for k in ks:
+        for neighbors,job in zip(tissues,tissue_chunks):
+
+            chunk = np.arange(len(neighbors))#indices
+            tissue_name = job[2]
+            indices = job[3]
+            window = values[neighbors[chunk,:k].flatten()].reshape(len(chunk),k,len(sum_cols)).sum(axis = 1)
+            out_dict[(tissue_name,k)] = (window.astype(np.float16),indices)
+            
+    windows = {}
+    for k in ks:
     
+        window = pd.concat([pd.DataFrame(out_dict[(exp,k)][0],index = out_dict[(exp,k)][1].astype(int),columns = sum_cols) for exp in exps],0)
+        window = window.loc[cells.index.values]
+        window = pd.concat([cells[keep_cols],window],1)
+        windows[k] = window
+
+    #Fill in based on above
+    k_centroids = {}
+
+    #producing what to plot
+    windows2 = windows[k]
+    windows2[cluster_col] = cells[cluster_col]
+
+    km = MiniBatchKMeans(n_clusters = n_neighborhoods,random_state=0)
+
+    labels = km.fit_predict(windows2[sum_cols].values)
+    k_centroids[k] = km.cluster_centers_
+    cells[neighborhood_name] = labels
+
+    #modify figure size aesthetics for each neighborhood
+    figs = catplot(cells,X = X,Y=Y,exp = reg,hue = 'community'+str(k),invert_y=True,size = 5,)
+    if save_to_csv is True:
+        cells.to_csv(save_path + 'community.csv')
+        
+    else: 
+        print("results will not be stored as csv file")
+
+    #Save Plots for Publication
+    for n,f in enumerate(figs):
+        f.savefig(save_path+'community'+str(k)+'_id{}.png'.format(n))
+
+    #this plot shows the types of cells (ClusterIDs) in the different niches (0-9)
+    k_to_plot = k
+    niche_clusters = (k_centroids[k_to_plot])
+    tissue_avgs = values.mean(axis = 0)
+    fc = np.log2(((niche_clusters+tissue_avgs)/(niche_clusters+tissue_avgs).sum(axis = 1, keepdims = True))/tissue_avgs)
+    fc = pd.DataFrame(fc,columns = sum_cols)
+    s=sns.clustermap(fc, vmin =-3,vmax = 3,cmap = 'bwr')
+    s.savefig(save_path+"celltypes_perniche_"+"_"+str(k)+".png", dpi=600)
+
+    #this plot shows the types of cells (ClusterIDs) in the different niches (0-9)
+    k_to_plot = k
+    niche_clusters = (k_centroids[k_to_plot])
+    tissue_avgs = values.mean(axis = 0)
+    fc = np.log2(((niche_clusters+tissue_avgs)/(niche_clusters+tissue_avgs).sum(axis = 1, keepdims = True))/tissue_avgs)
+    fc = pd.DataFrame(fc,columns = sum_cols)
+    s=sns.clustermap(fc.iloc[[0,4,],:], vmin =-3,vmax = 3,cmap = 'bwr')
+    s.savefig(save_path+"celltypes_perniche_"+"_"+str(k)+".png", dpi=600)
+    
+    return(cells)
+
+##########################################################################################################
+
+def annotate_communities(df, community_column, annotations):
+    df['community']=df['community100'].map(annotations)
+    print(df['community'].unique())
+    return(df)
+
 ##########################################################################################################
 # Helper Functions
 ##########################################################################################################
