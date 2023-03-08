@@ -29,6 +29,11 @@ from sklearn.cross_decomposition import CCA
 import networkx as nx
 from scipy.stats import pearsonr,spearmanr
 from scipy.spatial.distance import cdist
+import graphviz
+from tensorly.decomposition import non_negative_tucker
+import tensorly as tl
+import itertools
+%pylab inline
 
 # load functions 
 def stacked_bar_plot(data, per_cat, grouping, cell_list, norm=True, save_name=None,\
@@ -801,30 +806,32 @@ def get_distances(df, cell_list, cell_type_col):
 
 ########################################################################################################## Community analysis 
 
-def community_analysis(df, X = 'x', Y = 'y', reg = 'unique_region', cluster_col = 'neigh_name', ks = [20, 30, 35], save_path = None, k = 35, n_neighborhoods = 30, save_to_csv = False):
 
+def community_analysis(df, X = 'x', Y = 'y', reg = 'unique_region', cluster_col = 'neigh_name', ks = [100], save_path = None, k = 100, n_neighborhoods = 30):
+    
     cells = df.copy()
-
-    neighborhood_name = "community"+str(k)
-
+    cells = pd.concat([cells,pd.get_dummies(cells[cluster_col])],1)
+    sum_cols = cells[cluster_col].unique()
+    values = cells[sum_cols].values
+    
     keep_cols = [X ,Y ,reg,cluster_col]
-
+    
     n_neighbors = max(ks)
 
     cells[reg] = cells[reg].astype('str')
-
+    
     #Get each region
     tissue_group = cells[[X,Y,reg]].groupby(reg)
     exps = list(cells[reg].unique())
     tissue_chunks = [(time.time(),exps.index(t),t,a) for t,indices in tissue_group.groups.items() for a in np.array_split(indices,1)] 
-
-    tissues = [get_windows(job, n_neighbors, exps= exps, tissue_group = tissue_group) for job in tissue_chunks]
-
+    tissues = [get_windows(job, n_neighborhoods, exps= exps, tissue_group = tissue_group) for job in tissue_chunks]
+    
+    
     #Loop over k to compute neighborhoods
     out_dict = {}
     for k in ks:
         for neighbors,job in zip(tissues,tissue_chunks):
-
+    
             chunk = np.arange(len(neighbors))#indices
             tissue_name = job[2]
             indices = job[3]
@@ -833,54 +840,58 @@ def community_analysis(df, X = 'x', Y = 'y', reg = 'unique_region', cluster_col 
             
     windows = {}
     for k in ks:
-    
+       
         window = pd.concat([pd.DataFrame(out_dict[(exp,k)][0],index = out_dict[(exp,k)][1].astype(int),columns = sum_cols) for exp in exps],0)
         window = window.loc[cells.index.values]
         window = pd.concat([cells[keep_cols],window],1)
         windows[k] = window
-
-    #Fill in based on above
+        
+        
+    neighborhood_name = "community"+str(k)
     k_centroids = {}
-
+    
+    
     #producing what to plot
     windows2 = windows[k]
     windows2[cluster_col] = cells[cluster_col]
-
+    
     km = MiniBatchKMeans(n_clusters = n_neighborhoods,random_state=0)
-
+    
     labels = km.fit_predict(windows2[sum_cols].values)
     k_centroids[k] = km.cluster_centers_
     cells[neighborhood_name] = labels
-
+    
+    
     #modify figure size aesthetics for each neighborhood
-    figs = catplot(cells,X = X,Y=Y,exp = reg,hue = 'community'+str(k),invert_y=True,size = 5,)
-    if save_to_csv is True:
-        cells.to_csv(save_path + 'community.csv')
-        
-    else: 
-        print("results will not be stored as csv file")
-
-    #Save Plots for Publication
-    for n,f in enumerate(figs):
-        f.savefig(save_path+'community'+str(k)+'_id{}.png'.format(n))
-
+    plt.rcParams["legend.markerscale"] = 10
+    figs = catplot(cells,X = X,Y=Y,exp = reg,
+                   hue = 'community'+str(k),invert_y=True,size = 1,figsize=8)
+    
+    
+    #modify figure size aesthetics for each neighborhood
+    plt.rcParams["legend.markerscale"] = 10
+    figs = catplot(cells.loc[cells.community100.isin([19,25,26,21])],X = X,Y=Y,exp = reg,
+                   hue = 'community'+str(k),invert_y=True,size = 1,figsize=8)
+    
+    
     #this plot shows the types of cells (ClusterIDs) in the different niches (0-9)
     k_to_plot = k
     niche_clusters = (k_centroids[k_to_plot])
     tissue_avgs = values.mean(axis = 0)
     fc = np.log2(((niche_clusters+tissue_avgs)/(niche_clusters+tissue_avgs).sum(axis = 1, keepdims = True))/tissue_avgs)
     fc = pd.DataFrame(fc,columns = sum_cols)
-    s=sns.clustermap(fc, vmin =-3,vmax = 3,cmap = 'bwr')
-    s.savefig(save_path+"celltypes_perniche_"+"_"+str(k)+".png", dpi=600)
-
+    s=sns.clustermap(fc.iloc[[19,25,26,21],:], vmin =-3,vmax = 3,cmap = 'bwr',figsize=(10,5))
+    #s.savefig(save_path+"celltypes_perniche_"+"_"+str(k)+".png", dpi=600)
+    
+    
     #this plot shows the types of cells (ClusterIDs) in the different niches (0-9)
     k_to_plot = k
     niche_clusters = (k_centroids[k_to_plot])
     tissue_avgs = values.mean(axis = 0)
     fc = np.log2(((niche_clusters+tissue_avgs)/(niche_clusters+tissue_avgs).sum(axis = 1, keepdims = True))/tissue_avgs)
     fc = pd.DataFrame(fc,columns = sum_cols)
-    s=sns.clustermap(fc.iloc[[0,4,],:], vmin =-3,vmax = 3,cmap = 'bwr')
-    s.savefig(save_path+"celltypes_perniche_"+"_"+str(k)+".png", dpi=600)
+    s=sns.clustermap(fc, vmin =-3,vmax = 3,cmap = 'bwr', figsize=(10,10))
+    #s.savefig(save_path+"celltypes_perniche_"+"_"+str(k)+".png", dpi=600)
     
     return(cells)
 
@@ -1255,7 +1266,27 @@ def catplot(df,hue,exp = 'Exp',X = 'X',Y = 'Y',invert_y = False,size = 3,legend 
     
     return figures
 
+##########
 
+def prepare_neighborhood_df(cells_df, neighborhood_column, patient_ID_component1, patient_ID_component2):
+    # Spacer for output 
+    print("")
+    
+    # Combine two columns to form unique ID which will be stored as patients column 
+    cells_df['patients'] = cells_df[patient_ID_component1]+'_'+cells_df[patient_ID_component1]
+    print("You assigned following identifiers to the column 'patients':")
+    print(cells_df['patients'].unique())
+    
+    # Spacer for output 
+    print("")
+    
+    # Assign numbers to neighborhoods
+    neigh_num = {list(cells_df[neighborhood_column].unique())[i]:i for i in range(len(cells_df[neighborhood_column].unique()))}
+    cells_df['neigh_num'] = cells_df[neighborhood_column].map(neigh_num)
+    print("You assigned following numbers to the column 'neigh_num'. Each number represents one neighborhood:")
+    print(cells_df['neigh_num'].unique())
+    
+    return(cells_df)
 
 ##########################################################################################################
 # correlation analysis 
@@ -1280,4 +1311,168 @@ def get_top_abs_correlations(df, thresh=0.5):
     cc.rename(columns={0:'value'},inplace=True)
     gt_pair = cc.loc[cc['value'].abs().gt(thresh)]
     return gt_pair
+
+##########################################################################################################
+# CCA Analysis 
+
+def Perform_CCA(cca, n_perms, nsctf, cns, subsets, group = group1_patients):
+    stats_group1 = {}
+    for cn_i in cns:
+        for cn_j in cns:
+            if cn_i < cn_j:
+    
+                #concat dfs
+                combined = pd.concat([nsctf.loc[cn_i].loc[nsctf.loc[cn_i].index.isin(group)],nsctf.loc[cn_j].loc[nsctf.loc[cn_j].index.isin(group)]], axis = 1).dropna(axis = 0, how = 'any')
+                if combined.shape[0]<2:
+                    continue
+                x = combined.iloc[:,:len(subsets)].values
+                y = combined.iloc[:,len(subsets):].values
+    
+                arr = np.zeros(n_perms)
+    
+                #compute the canonical correlation achieving components with respect to observed data
+                ccx,ccy = cca.fit_transform(x,y)
+                stats_group1[cn_i,cn_j] = (pearsonr(ccx[:,0],ccy[:,0])[0],arr)
+    
+                #initialize array for perm values
+    
+                for i in range(n_perms):
+                    idx = np.arange(len(x))
+                    np.random.shuffle(idx)
+                    # compute with permuted data
+                    cc_permx,cc_permy = cca.fit_transform(x[idx],y)
+                    arr[i] = pearsonr(cc_permx[:,0],cc_permy[:,0])[0]
+                    
+                return(stats_group1, arr)
+
+##########################################################################################################
+# tensor decomposition 
+
+def evaluate_ranks(dat, num_tissue_modules = 2):
+    num_tissue_modules = num_tissue_modules+1
+    pal = sns.color_palette('bright',10)
+    palg = sns.color_palette('Greys',10)
+    
+    mat1 = np.zeros((num_tissue_modules,15))
+    for i in range(2,15):
+        for j in range(1,num_tissue_modules):
+            # we use NNTD as described in the paper
+            facs_overall = non_negative_tucker(dat,rank=[j,i,i],random_state = 2336)
+            mat1[j,i] = np.mean((dat- tl.tucker_to_tensor((facs_overall[0],facs_overall[1])))**2)
+    for j in range(1,num_tissue_modules):
+        plt.plot(2+np.arange(13),mat1[j][2:],label = 'rank = ({},x,x)'.format(j))
+        
+    plt.xlabel('x')
+    plt.ylabel('reconstruction error')
+    plt.legend()
+    plt.show()
+
+#######
+
+def plot_modules_heatmap(dat,num_tissue_modules = 2, num_cn_modules = 5):
+    figsize(20,5)
+    core, factors = non_negative_tucker(dat,rank=[num_tissue_modules,num_cn_modules,num_cn_modules],random_state = 32)
+    plt.subplot(1,2,1)
+    sns.heatmap(pd.DataFrame(factors[1],index = cns))
+    plt.ylabel('CN')
+    plt.xlabel('CN module')
+    plt.title('Loadings onto CN modules')
+    plt.subplot(1,2,2)
+    sns.heatmap(pd.DataFrame(factors[2],index = cts))
+    plt.ylabel('CT')
+    plt.xlabel('CT module')
+    plt.title('Loadings onto CT modules')
+    plt.show()
+    
+    figsize(num_tissue_modules*3,3)
+    for p in range(num_tissue_modules):
+        plt.subplot(1, num_tissue_modules, p+1)
+        sns.heatmap(pd.DataFrame(core[p]))
+        plt.title('tissue module {}, couplings'.format(p))
+        plt.ylabel('CN module')
+        plt.ylabel('CT module')
+    plt.show()
+
+#######
+
+def plot_modules_graphical(dat,num_tissue_modules = 2, num_cn_modules = 4, scale = 0.4, pal=None,save_name=None):
+    core, factors = non_negative_tucker(dat,rank=[num_tissue_modules,num_cn_modules,num_cn_modules],random_state = 32)
+    
+    if pal is None:
+        pal = sns.color_palette('bright',10)
+    palg = sns.color_palette('Greys',10)
+    
+    figsize(3.67*scale,2.00*scale)
+    cn_scatter_size = scale*scale*45
+    cel_scatter_size = scale*scale*15
+    
+    
+
+    for p in range(num_tissue_modules):
+        for idx in range(num_cn_modules):
+            an = float(np.max(core[p][idx,:])>0.1) + (np.max(core[p][idx,:])<=0.1)*0.05
+            ac = float(np.max(core[p][:,idx])>0.1) + (np.max(core[p][:,idx])<=0.1)*0.05
+
+            cn_fac = factors[1][:,idx]
+            cel_fac = factors[2][:,idx]
+
+            cols_alpha = [(*pal[cn], an*np.minimum(cn_fac, 1.0)[i]) for i,cn in enumerate(cns)]
+            cols = [(*pal[cn], np.minimum(cn_fac, 1.0)[i]) for i,cn in enumerate(cns)]
+            cell_cols_alpha = [(0,0,0, an*np.minimum(cel_fac, 1.0)[i]) for i,_ in enumerate(cel_fac)]
+            cell_cols = [(0,0,0, np.minimum(cel_fac, 1.0)[i]) for i,_ in enumerate(cel_fac)]
+            
+            plt.scatter(0.5*np.arange(len(cn_fac)), 5*idx + np.zeros(len(cn_fac)), c = cols_alpha, s = cn_scatter_size)
+            offset = 9
+            for i,k in enumerate(cns):
+                plt.text(0.5*i, 5*idx, k,fontsize = scale*2,ha = 'center', va = 'center',alpha = an)
+
+            plt.scatter(-4.2+0.25*np.arange(len(cel_fac))+offset, 5*idx + np.zeros(len(cel_fac)), c = cell_cols_alpha, s = 0.5*cel_scatter_size)#,vmax = 0.5,edgecolors=len(cell_cols_alpha)*[(0,0,0,min(1.0,max(0.1,2*an)))], linewidths= 0.05)
+            
+            
+            rect = plt.Rectangle((-0.5,5*idx-2 ),4.5,4,linewidth=scale*scale*1,edgecolor='black',facecolor='none',zorder = 0,alpha = an,linestyle = '--')
+            ax = plt.gca()
+            ax.add_artist(rect)
+            plt.scatter([offset-5],[5*idx],c = 'black', marker = 'D', s = scale*scale*5, zorder = 5,alpha = an)
+            plt.text(offset-5,5*idx,idx,color = 'white',alpha = an, ha = 'center', va = 'center',zorder = 6,fontsize = 4.5)
+            plt.scatter([offset-4.5],[5*idx],c = 'black', marker = 'D', s = scale*scale*5, zorder = 5,alpha = ac)
+            plt.text(offset-4.5,5*idx,idx,color = 'white',alpha = ac, ha = 'center', va = 'center', zorder = 6,fontsize = 4.5)
+
+            rect = plt.Rectangle((offset-4.5,5*idx-2 ),4.5,4,linewidth=scale*1,edgecolor='black',facecolor='none',zorder = 0, alpha = ac,linestyle = '-.')
+            ax.add_artist(rect)
+
+        for i,ct in enumerate(cts):
+                plt.text(-4.2+offset+0.25*i, 27.5, ct, rotation = 45, color = 'black',ha = 'left', va = 'bottom',fontsize = scale*2,alpha = 1)
+        for cn_i in range(num_cn_modules):
+            for cel_i in range(num_cn_modules):
+                plt.plot([-3+offset -2, -4+offset - 0.5],[5*cn_i, 5*cel_i], color = 'black', linewidth =2*scale*scale*1* min(1.0, max(0,-0.00+core[p][cn_i,cel_i])),alpha = min(1.0, max(0.000,-0.00+10*core[p][cn_i,cel_i])))#max(an,ac))
+
+
+
+        plt.ylim(-5, 30)
+        plt.axis('off')
+        
+        if save_name:
+            plt.savefig(save_path+save_name+'_'+str(p)+'_tensor.png', format='png', dpi=300, transparent=True, bbox_inches='tight')
+
+        plt.show()
+        
+#######
+
+def build_tensors(df, group, cns, cts):
+    
+    counts = cells_df2.groupby(['patients','neigh_num','Coarse Cell']).size()
+    
+    #initialize the tensors
+    T1 = np.zeros((len(group),len(cns),len(cts)))
+    
+    for i,pat in enumerate(group):
+        for j,cn in enumerate(cns):
+            for k,ct in enumerate(cts):
+                T1[i,j,k] = counts.loc[(pat,cn,ct)]
+
+    #normalize so we have joint distributions each slice
+    dat1 =np.nan_to_num(T1/T1.sum((1,2), keepdims = True))
+    
+    return(dat1)
+ 
 
