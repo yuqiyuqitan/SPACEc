@@ -38,7 +38,7 @@ coloring = None
 ## Specify order for x axis 
 ordering = None 
 ## Save figure - boolean 
-save = True
+
 ## change figure size 
 fig_size=8
 
@@ -395,3 +395,81 @@ save_path = '/Users/timnoahkempchen/Downloads/'
 
 pal = sns.color_palette('bright',30) # Choose some random colors to demonstrate that function in working 
 plot_modules_graphical(dat1, scale = 2, pal = pal, save_name = 'T cell')
+
+
+#############################################################
+# Cell distance
+#############################################################
+
+celltype_column = 'Cell Type'
+region_column
+exclude_list = [] # Specify regions you want to exclude from the analysis 
+
+df[cell_type_column].unique
+
+cell_list = ['CD4+ T cell', 'Macrophage','CD8+ T cell', 'CD8+ T cell PD1+','Tumor PDL1+ MHCI+']
+df_s = df.loc[df[cell_type_column].isin(cell_list)]
+df_s
+
+df_s[cell_type_column] = df_s[cell_type_column].astype('category')
+
+df_s[cell_type_column] = df_s[cell_type_column].cat.set_categories(cell_list, ordered=True)
+
+#Find only regions where all cell types are present
+regions = df_s[region_column].unique()
+
+
+
+for r in regions:
+    df_sub = df_s[df_s[region_column]==r]
+    for cell in df_sub[cell_type_column].unique():
+        if len(df_sub_region.loc[df_sub_region[cell_type_column]==cell])<1:
+            exclude_list.append(r)             
+exclude_list = list(set(exclude_list))
+
+#choose regions you want to run the analysis on
+df_sub = df_s[~(df_s[region_column].isin(exclude_list))]
+df_sub
+
+#this code finds the smaller distance between every cell type of interest
+#plots the results by region
+#gathers all the data in the arrs object
+regions = df_sub[region_column].unique()
+
+arrs = []
+
+
+for r in regions:
+    print(r)
+    df_sub_region = df_sub[df_sub[region_column]==r]
+    cls, dists = get_distances(df_sub_region, cell_list, celltype_column)
+    plt.boxplot([
+        np.nanmin(dists[(0,3)], axis=1),# here the 0 is for CD68 MACS, 4 is for EPi cells
+        np.nanmin(dists[(2,3)], axis=1),# here the 0 is for SPP1 MACS, 4 is for EPi cells
+        np.nanmin(dists[(2,3)], axis=1),
+        np.nanmin(dists[(1,3)], axis=1),
+    ], labels = names[:4])
+    plt.xticks(rotation = 90) # Rotates X-Axis Ticks by 45-degrees
+    plt.show()
+    
+    df_all = []
+    for i in range(4):
+        d = np.nanmin(dists[(i,4)], axis=1)
+        df = pd.DataFrame({"dist": d, "type": [names[i]]*d.shape[0]  })
+        df_all.append(df)
+    df = pd.concat(df_all)
+    df[region_column] = r
+    arrs.append(df)
+
+#plot all distances from all regions
+df_all = pd.concat(arrs)
+
+plt.boxplot([
+    df_all[df_all["type"] == name]["dist"] for name in names[:4]
+],labels = names[:4])
+plt.xticks(rotation = 90)
+plt.show()
+
+
+########################################################################################################## HuBMAP Spatial contexts
+

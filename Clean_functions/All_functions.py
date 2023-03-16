@@ -29,14 +29,14 @@ from sklearn.cross_decomposition import CCA
 import networkx as nx
 from scipy.stats import pearsonr,spearmanr
 from scipy.spatial.distance import cdist
-import graphviz
+#import graphviz
 from tensorly.decomposition import non_negative_tucker
 import tensorly as tl
 import itertools
 %pylab inline
 
 # load functions 
-def stacked_bar_plot(data, per_cat, grouping, cell_list, norm=True, save_name=None,\
+def stacked_bar_plot(data, per_cat, grouping, cell_list, output_dir,norm=True, save_name=None,\
               col_order=None, sub_col=None, name_cat = 'Cell Type',fig_sizing=(8,4),\
                      h_order=None, pal_color=None,remove_leg=False):
     
@@ -112,7 +112,7 @@ def stacked_bar_plot(data, per_cat, grouping, cell_list, norm=True, save_name=No
     plt.xticks(list(range(len(list(melt_test_piv.index)))), list(melt_test_piv.index), rotation=90)
     lgd2 = ax1.legend(loc='center left', bbox_to_anchor=(1.0, 0.5), ncol=1, frameon=False)
     if save_name:
-        plt.savefig(save_path+save_name+'.png', format='png',\
+        plt.savefig(output_dir+save_name+'.png', format='png',\
                     dpi=300, transparent=True, bbox_inches='tight')
     return melt_test_piv, h_order  
 
@@ -121,7 +121,7 @@ def stacked_bar_plot(data, per_cat, grouping, cell_list, norm=True, save_name=No
 # This function creates a box plot and swarm plot from the given data
 # and returns a plot object.
 
-def swarm_box(data, grouping, replicate, sub_col, sub_list, per_cat, norm=True, \
+def swarm_box(data, grouping, replicate, sub_col, sub_list, per_cat, output_dir, norm=True, \
               figure_sizing=(10,5), save_name=None, h_order=None, col_in=None, \
               pal_color=None, flip=False):
        
@@ -189,13 +189,18 @@ def swarm_box(data, grouping, replicate, sub_col, sub_list, per_cat, norm=True, 
                 r, g, b, a = patch.get_facecolor()
                 patch.set_facecolor((r, g, b,)
                 )
+    
+    if save_name:
+        plt.savefig(output_dir+save_name+'.png', format='png',\
+                    dpi=300, transparent=True, bbox_inches='tight')
+
 
 
 ##########################################################################################################
 
 # function
 # calculates diversity of cell types within a sample 
-def Shan_div(data1, sub_l, group_com, per_categ, rep, sub_column, coloring, output_filepath, normalize=True, save=False, \
+def Shan_div(data1, sub_l, group_com, per_categ, rep, sub_column, coloring, output_dir, normalize=True, save=False, \
              ordering=None, fig_size=1.5):
     #calculate Shannon Diversity
     tt = per_only1(data = data1, per_cat = per_categ, grouping = group_com,\
@@ -257,7 +262,7 @@ def Shan_div(data1, sub_l, group_com, per_categ, rep, sub_column, coloring, outp
     plt.title('')
     sns.despine()
     if save==True:
-        plt.savefig(output_filepath+sub_l[0]+'_Shannon.png', format='png', dpi=300, transparent=True, bbox_inches='tight')
+        plt.savefig(output_dir+sub_l[0]+'_Shannon.png', format='png', dpi=300, transparent=True, bbox_inches='tight')
     
     plt.show()
     if test_results < 0.05:
@@ -284,7 +289,7 @@ def Shan_div(data1, sub_l, group_com, per_categ, rep, sub_column, coloring, outp
         ax.set_ylabel('')    
         ax.set_xlabel('')
         if save==True:    
-            plt.savefig(output_filepath+sub_l[0]+'_tukey.png', format='png', dpi=300, transparent=True, bbox_inches='tight')
+            plt.savefig(output_dir+sub_l[0]+'_tukey.png', format='png', dpi=300, transparent=True, bbox_inches='tight')
         plt.show()
     else:
         table1=False
@@ -292,9 +297,9 @@ def Shan_div(data1, sub_l, group_com, per_categ, rep, sub_column, coloring, outp
 
 
 ##########################################################################################################
-def cell_type_composition_vis(df, sample_column = "sample", cell_type_column = "Cell Type", output = None):
+def cell_type_composition_vis(df, sample_column = "sample", cell_type_column = "Cell Type", output_dir = None):
     
-    if output == None:
+    if output_dir == None:
         print("You have defined no output directory!")
     
     #plotting option1
@@ -308,7 +313,7 @@ def cell_type_composition_vis(df, sample_column = "sample", cell_type_column = "
     ax.legend(loc='center left', bbox_to_anchor=(1.0, 0.5))
     fig = ax.get_figure()
     ax.set(xlabel='count')
-    plt.savefig(output +'/cell_types_composition_hstack.png', bbox_inches='tight')
+    plt.savefig(output_dir +'/cell_types_composition_hstack.png', bbox_inches='tight')
 
     #plotting option1
     #pd.crosstab(df['sample'], df['final_cell_types']).plot(kind='barh', figsize = (10,10))
@@ -320,7 +325,7 @@ def cell_type_composition_vis(df, sample_column = "sample", cell_type_column = "
     ax.legend(loc='center left', bbox_to_anchor=(1.0, 0.5))
     fig = ax.get_figure()
     ax.set(xlabel='count')
-    plt.savefig(output +'/cell_types_composition_hUNstack.png', bbox_inches='tight')
+    plt.savefig(output_dir +'/cell_types_composition_hUNstack.png', bbox_inches='tight')
 
     # Cell type percentage 
     st = pd.crosstab(df[sample_column], df[cell_type_column])
@@ -337,11 +342,11 @@ def cell_type_composition_vis(df, sample_column = "sample", cell_type_column = "
     ax.legend(loc='center left', bbox_to_anchor=(1.0, 0.5))
     fig = ax.get_figure()
     ax.set(xlabel='percentage')
-    plt.savefig(output +'/cell_types_composition_perc_hstack.png', bbox_inches='tight')
+    plt.savefig(output_dir +'/cell_types_composition_perc_hstack.png', bbox_inches='tight')
 
 
 ##########################################################################################################
-def neighborhood_analysis(df, X = 'x', Y = 'y', reg = 'unique_region', cluster_col = 'Cell Type', ks = [20, 30, 35], save_path = None, k = 35, n_neighborhoods = 30, save_to_csv = False):
+def neighborhood_analysis(df, X = 'x', Y = 'y', reg = 'unique_region', cluster_col = 'Cell Type', ks = [20, 30, 35], output_dir = None, k = 35, n_neighborhoods = 30, save_to_csv = False, plot_specific_neighborhoods = None):
 
     cells = df.copy()
 
@@ -395,14 +400,14 @@ def neighborhood_analysis(df, X = 'x', Y = 'y', reg = 'unique_region', cluster_c
     #modify figure size aesthetics for each neighborhood
     figs = catplot(cells,X = X,Y=Y,exp = reg,hue = 'neighborhood'+str(k),invert_y=True,size = 5,)
     if save_to_csv is True:
-        cells.to_csv(save_path + 'neighborhood.csv')
+        cells.to_csv(output_dir + 'neighborhood.csv')
         
     else: 
         print("results will not be stored as csv file")
 
     #Save Plots for Publication
     for n,f in enumerate(figs):
-        f.savefig(save_path+'neighborhood_'+str(k)+'_id{}.png'.format(n))
+        f.savefig(output_dir+'neighborhood_'+str(k)+'_id{}.png'.format(n))
 
     #this plot shows the types of cells (ClusterIDs) in the different niches (0-9)
     k_to_plot = k
@@ -411,16 +416,17 @@ def neighborhood_analysis(df, X = 'x', Y = 'y', reg = 'unique_region', cluster_c
     fc = np.log2(((niche_clusters+tissue_avgs)/(niche_clusters+tissue_avgs).sum(axis = 1, keepdims = True))/tissue_avgs)
     fc = pd.DataFrame(fc,columns = sum_cols)
     s=sns.clustermap(fc, vmin =-3,vmax = 3,cmap = 'bwr')
-    s.savefig(save_path+"celltypes_perniche_"+"_"+str(k)+".png", dpi=600)
+    s.savefig(output_dir+"celltypes_perniche_"+"_"+str(k)+".png", dpi=600)
 
-    #this plot shows the types of cells (ClusterIDs) in the different niches (0-9)
-    k_to_plot = k
-    niche_clusters = (k_centroids[k_to_plot])
-    tissue_avgs = values.mean(axis = 0)
-    fc = np.log2(((niche_clusters+tissue_avgs)/(niche_clusters+tissue_avgs).sum(axis = 1, keepdims = True))/tissue_avgs)
-    fc = pd.DataFrame(fc,columns = sum_cols)
-    s=sns.clustermap(fc.iloc[[0,4,],:], vmin =-3,vmax = 3,cmap = 'bwr')
-    s.savefig(save_path+"celltypes_perniche_"+"_"+str(k)+".png", dpi=600)
+    if plot_specific_neighborhoods is True:
+        #this plot shows the types of cells (ClusterIDs) in the different niches (0-9)
+        k_to_plot = k
+        niche_clusters = (k_centroids[k_to_plot])
+        tissue_avgs = values.mean(axis = 0)
+        fc = np.log2(((niche_clusters+tissue_avgs)/(niche_clusters+tissue_avgs).sum(axis = 1, keepdims = True))/tissue_avgs)
+        fc = pd.DataFrame(fc,columns = sum_cols)
+        s=sns.clustermap(fc.iloc[plot_specific_neighborhoods,:], vmin =-3,vmax = 3,cmap = 'bwr')
+        s.savefig(output_dir+"celltypes_perniche_"+"_"+str(k)+".png", dpi=600)
     
     return(cells)
 
@@ -598,7 +604,7 @@ normed (optional): if the percentage should be normalized, default is True.
 cell2 (optional): the second cell type column in the data frame.
 """
 def corr_cell(data,  sub_l2, per_categ, group2, repl, sub_collumn, cell,\
-              thres = 0.9, normed=True, cell2=None):
+              output_dir, save_name, thres = 0.9, normed=True, cell2=None):
     result = per_only1(data = df, per_cat = per_categ, grouping=group2,\
                       sub_list=sub_l2, replicate=repl, sub_col = sub_collumn, norm=normed)
 
@@ -616,6 +622,10 @@ def corr_cell(data,  sub_l2, per_categ, group2, repl, sub_collumn, cell,\
         cor_subplot(mp=cc, sub_list=sl3, save_name=cell+'_'+cell2)
     else:
         cor_subplot(mp=cc, sub_list=sl2, save_name=cell)
+        
+    if save_name:
+        plt.savefig(output_dir+save_name+'.png', format='png',\
+                    dpi=300, transparent=True, bbox_inches='tight')
     
     return all_pairs, pair2
 
@@ -807,31 +817,35 @@ def get_distances(df, cell_list, cell_type_col):
 ########################################################################################################## Community analysis 
 
 
-def community_analysis(df, X = 'x', Y = 'y', reg = 'unique_region', cluster_col = 'neigh_name', ks = [100], save_path = None, k = 100, n_neighborhoods = 30):
+
+def community_analysis(df, output_dir, X = 'x', Y = 'y', reg = 'unique_region', cluster_col = 'neigh_name', ks = [100], save_path = None, k = 100, n_neighborhoods = 30, plot_specific_community = None):
+    
+    output_dir2 = output_dir+"community_analysis/"
+    if not os.path.exists(output_dir2):
+        os.makedirs(output_dir2)
     
     cells = df.copy()
-    cells = pd.concat([cells,pd.get_dummies(cells[cluster_col])],1)
-    sum_cols = cells[cluster_col].unique()
-    values = cells[sum_cols].values
-    
+
+    neighborhood_name = "community"+str(k)
+
     keep_cols = [X ,Y ,reg,cluster_col]
-    
+
     n_neighbors = max(ks)
 
     cells[reg] = cells[reg].astype('str')
-    
+
     #Get each region
     tissue_group = cells[[X,Y,reg]].groupby(reg)
     exps = list(cells[reg].unique())
     tissue_chunks = [(time.time(),exps.index(t),t,a) for t,indices in tissue_group.groups.items() for a in np.array_split(indices,1)] 
-    tissues = [get_windows(job, n_neighborhoods, exps= exps, tissue_group = tissue_group) for job in tissue_chunks]
-    
-    
+
+    tissues = [get_windows(job, n_neighbors, exps= exps, tissue_group = tissue_group) for job in tissue_chunks]
+
     #Loop over k to compute neighborhoods
     out_dict = {}
     for k in ks:
         for neighbors,job in zip(tissues,tissue_chunks):
-    
+
             chunk = np.arange(len(neighbors))#indices
             tissue_name = job[2]
             indices = job[3]
@@ -840,14 +854,13 @@ def community_analysis(df, X = 'x', Y = 'y', reg = 'unique_region', cluster_col 
             
     windows = {}
     for k in ks:
-       
+    
         window = pd.concat([pd.DataFrame(out_dict[(exp,k)][0],index = out_dict[(exp,k)][1].astype(int),columns = sum_cols) for exp in exps],0)
         window = window.loc[cells.index.values]
         window = pd.concat([cells[keep_cols],window],1)
         windows[k] = window
-        
-        
-    neighborhood_name = "community"+str(k)
+
+    #Fill in based on above
     k_centroids = {}
     
     
@@ -865,23 +878,21 @@ def community_analysis(df, X = 'x', Y = 'y', reg = 'unique_region', cluster_col 
     #modify figure size aesthetics for each neighborhood
     plt.rcParams["legend.markerscale"] = 10
     figs = catplot(cells,X = X,Y=Y,exp = reg,
-                   hue = 'community'+str(k),invert_y=True,size = 1,figsize=8)
+                   hue = neighborhood_name,invert_y=True,size = 1,figsize=8)
     
-    
-    #modify figure size aesthetics for each neighborhood
-    plt.rcParams["legend.markerscale"] = 10
-    figs = catplot(cells.loc[cells.community100.isin([19,25,26,21])],X = X,Y=Y,exp = reg,
-                   hue = 'community'+str(k),invert_y=True,size = 1,figsize=8)
-    
-    
-    #this plot shows the types of cells (ClusterIDs) in the different niches (0-9)
-    k_to_plot = k
-    niche_clusters = (k_centroids[k_to_plot])
-    tissue_avgs = values.mean(axis = 0)
-    fc = np.log2(((niche_clusters+tissue_avgs)/(niche_clusters+tissue_avgs).sum(axis = 1, keepdims = True))/tissue_avgs)
-    fc = pd.DataFrame(fc,columns = sum_cols)
-    s=sns.clustermap(fc.iloc[[19,25,26,21],:], vmin =-3,vmax = 3,cmap = 'bwr',figsize=(10,5))
-    #s.savefig(save_path+"celltypes_perniche_"+"_"+str(k)+".png", dpi=600)
+    #Save Plots for Publication
+    for n,f in enumerate(figs):
+        f.savefig(output_dir2+neighborhood_name+'_id{}.png'.format(n))
+ 
+    if plot_specific_community is True:
+        #this plot shows the types of cells (ClusterIDs) in the different niches (0-9)
+        k_to_plot = k
+        niche_clusters = (k_centroids[k_to_plot])
+        tissue_avgs = values.mean(axis = 0)
+        fc = np.log2(((niche_clusters+tissue_avgs)/(niche_clusters+tissue_avgs).sum(axis = 1, keepdims = True))/tissue_avgs)
+        fc = pd.DataFrame(fc,columns = sum_cols)
+        s=sns.clustermap(fc.iloc[plot_specific_community,:], vmin =-3,vmax = 3,cmap = 'bwr',figsize=(10,5))
+        s.savefig(output_dir2+"celltypes_perniche_"+"_"+str(k)+".png", dpi=600)
     
     
     #this plot shows the types of cells (ClusterIDs) in the different niches (0-9)
@@ -891,7 +902,7 @@ def community_analysis(df, X = 'x', Y = 'y', reg = 'unique_region', cluster_col 
     fc = np.log2(((niche_clusters+tissue_avgs)/(niche_clusters+tissue_avgs).sum(axis = 1, keepdims = True))/tissue_avgs)
     fc = pd.DataFrame(fc,columns = sum_cols)
     s=sns.clustermap(fc, vmin =-3,vmax = 3,cmap = 'bwr', figsize=(10,10))
-    #s.savefig(save_path+"celltypes_perniche_"+"_"+str(k)+".png", dpi=600)
+    s.savefig(output_dir2+"celltypes_perniche_"+"_"+str(k)+".png", dpi=600)
     
     return(cells)
 
@@ -1286,6 +1297,10 @@ def prepare_neighborhood_df(cells_df, neighborhood_column, patient_ID_component1
     print("You assigned following numbers to the column 'neigh_num'. Each number represents one neighborhood:")
     print(cells_df['neigh_num'].unique())
     
+    cells_df['patients'] = cells_df['patients'].astype('category')
+    cells_df['neigh_num'] = cells_df['neigh_num'].astype('category')
+    cells_df['Coarse Cell'] = cells_df['Coarse Cell'].astype('category')
+    
     return(cells_df)
 
 ##########################################################################################################
@@ -1315,7 +1330,7 @@ def get_top_abs_correlations(df, thresh=0.5):
 ##########################################################################################################
 # CCA Analysis 
 
-def Perform_CCA(cca, n_perms, nsctf, cns, subsets, group = group1_patients):
+def Perform_CCA(cca, n_perms, nsctf, cns, subsets, group):
     stats_group1 = {}
     for cn_i in cns:
         for cn_j in cns:
@@ -1344,6 +1359,37 @@ def Perform_CCA(cca, n_perms, nsctf, cns, subsets, group = group1_patients):
                     arr[i] = pearsonr(cc_permx[:,0],cc_permy[:,0])[0]
                     
                 return(stats_group1, arr)
+            
+def Visulize_CCA_results(CCA_results, save_path, save_fig = False, save_name = "CCA_vis.png"):
+    # Visualization of CCA 
+    g1 = nx.Graph()
+    for cn_pair, cc in CCA_results.items():
+        s,t = cn_pair
+        obs, perms = cc
+        p =np.mean(obs>perms)
+        if p>0.9 :
+            g1.add_edge(s,t, weight = p)
+        
+        
+    pal = sns.color_palette('bright',50)
+    dash = {True: '-', False: ':'}
+    pos=nx.drawing.nx_pydot.pydot_layout(g1,prog='neato')
+    for k,v in pos.items():
+        x,y = v
+        plt.scatter([x],[y],c = [pal[k]], s = 300,zorder = 3)
+        #plt.text(x,y, k, fontsize = 10, zorder = 10,ha = 'center', va = 'center')
+        plt.axis('off')
+
+
+    atrs = nx.get_edge_attributes(g1, 'weight')    
+    for e0,e1 in g1.edges():
+        p = atrs[e0,e1]
+        plt.plot([pos[e0][0],pos[e1][0]],[pos[e0][1],pos[e1][1]], c= 'black',alpha = 3*p**3,linewidth = 3*p**3)
+
+    if save_fig == True:
+        plt.savefig(save_path + "/" + save_name, format='png', dpi=300, transparent=True, bbox_inches='tight')
+    
+
 
 ##########################################################################################################
 # tensor decomposition 
@@ -1475,4 +1521,305 @@ def build_tensors(df, group, cns, cts):
     
     return(dat1)
  
+
+##########################################################################################################
+# 'simple' distance analysis (Cell distance)
+
+def get_distances(df, cell_list, celltype_column):
+    names = cell_list
+    cls = {}
+    for i,cname in enumerate(names):
+        cls[i] = df[["x","y"]][df[celltype_column]==cname].to_numpy()
+        cls[i] = cls[i][~np.isnan(cls[i]).any(axis=1), :]
+
+    dists = {}
+
+    for i in range(5):
+        for j in range(0,i):
+            dists[(j,i)] = (cdist(cls[j], cls[i]))
+            dists[(i,j)] = dists[(j,i)]
+    return cls, dists
+
+#cls, dists = get_distances(df_sub)
+
+
+##########################################################################################################
+# Spatial context analysis 
+'''
+this is the code that finds the minimal combination of CNs
+required to make up a threshold percentage of assignments in a window
+combinations are stored as a sorted tuple
+'''
+def get_thresh_simps(x,thresh):
+    sorts = np.argsort(-x, axis = 1)
+    x_sorted = -np.sort(-x, axis = 1)
+    cumsums = np.cumsum(x_sorted,axis = 1)
+    thresh_simps = pd.Series([tuple(sorted(sorts[i,:(1+j)])) for i,j in enumerate(np.argmax(cumsums>thresh,axis = 1))])
+    return thresh_simps
+
+#######
+
+def get_network(subset_list, ttl_per_thres, comb_per_thres,fig_size=(40,20),sub_col='Tissue Unit',\
+                neigh_sub=None, save_name=None):
+    
+    #Choose the windows size to continue with
+    w = windows[n_num]
+    w = w[w.tissue.isin(subset_list)]
+    if neigh_sub:
+        w = w[w[sub_col].isin(neigh_sub)]
+    xm = w.loc[:,l].values/n_num
+          
+    # Get the neighborhood combinations based on the threshold
+    simps = get_thresh_simps(xm,ttl_per_thres)
+    simp_freqs = simps.value_counts(normalize = True)
+    simp_sums = np.cumsum(simp_freqs)
+          
+    g = nx.DiGraph()
+    thresh_cumulative = .95
+    thresh_freq = comb_per_thres
+    #selected_simps = simp_sums[simp_sums<=thresh_cumulative].index.values
+    selected_simps = simp_freqs[simp_freqs>=thresh_freq].index.values
+          
+    #this builds the graph for the CN combination map
+    selected_simps
+    for e0 in selected_simps:
+        for e1 in selected_simps:
+            if (set(list(e0))<set(list(e1))) and (len(e1) == len(e0)+1):
+                g.add_edge(e0,e1)   
+
+    #this plots the CN combination map
+
+    draw = g
+    pos = nx.drawing.nx_pydot.graphviz_layout(draw, prog='dot')
+    height = 8
+
+    figsize(*fig_size)
+    for n in draw.nodes():
+        col = 'black'
+        if len(draw.in_edges(n))<len(n):
+            col = 'black'
+        plt.scatter(pos[n][0],pos[n][1]-5, s = simp_freqs[list(simp_freqs.index).index(n)]*10000, c = col, zorder = -1)
+#         if n in tops:
+#             plt.text(pos[n][0],pos[n][1]-7, '*', fontsize = 25, color = 'white', ha = 'center', va = 'center',zorder = 20)
+        delta = 8
+        #plot_sim((pos[n][0]+delta, pos[n][1]+delta),n, scale = 20,s = 200,text = True,fontsize = 15)
+        plt.scatter([pos[n][0]]*len(n),[pos[n][1]+delta*(i+1) for i in range(len(n))],c = [palt[l[i]] for i in n] ,marker = '^', zorder = 5,s = 400)
+
+    j = 0
+    for e0,e1 in draw.edges():
+        weight = 0.2
+        alpha = .3
+        if len(draw.in_edges(e1))<len(e1):
+            color = 'black'
+            lw =1
+            weight = 0.4
+        color='black'
+        plt.plot([pos[e0][0], pos[e1][0]],[pos[e0][1], pos[e1][1]], color = color, linewidth = weight,alpha = alpha,zorder = -10)
+
+    plt.axis('off')
+    if save_name is not None:
+        plt.savefig(save_path+save_name+'_spatial_contexts.pdf')#'.png', dpi=300)
+    plt.show()
+
+
+#######
+
+def simp_rep(data, patient_col, subset_list, ttl_per_thres, comb_per_thres, thres_num = 3):
+    
+    #Choose the windows size to continue with
+    w2 = data.loc[data['tissue'].isin(subset_list)]
+    
+    simp_list = []
+    for patient in list(w2[patient_col].unique()):
+        w = w2.loc[w2[patient_col]==patient]
+        xm = w.loc[:,l].values/n_num
+
+        # Get the neighborhood combinations based on the threshold
+        simps = get_thresh_simps(xm,ttl_per_thres)
+        simp_freqs = simps.value_counts(normalize = True)
+        sf = simp_freqs.to_frame()
+        sf.rename(columns={0:patient},inplace=True)
+        sf.reset_index(inplace=True)
+        sf.rename(columns={'index':'merge'},inplace=True)
+        simp_list.append(sf)
+        #simp_sums = np.cumsum(simp_freqs)
+
+        #thresh_cumulative = .95
+        #selected_simps = simp_sums[simp_sums<=thresh_cumulative].index.values
+       # selected_simps = simp_freqs[simp_freqs>=comb_per_thres].index.values
+    
+    simp_df = reduce(lambda  left,right: pd.merge(left,right,on=['merge'],
+                                            how='outer'), simp_list)
+    #simp_df = pd.concat(simp_list, axis=0)
+    #simp_df.index = simp_df.index.to_series()
+    simp_df.fillna(0,inplace=True)
+    simp_df.set_index('merge', inplace=True)
+    simp_out = simp_df.loc[simp_df.gt(0).sum(axis=1).ge(thres_num)]
+
+    return simp_out
+
+#######
+
+def comb_num_freq(data_list):
+    df_new = []
+    for df in data_list:
+        df.reset_index(inplace=True)
+        df.rename(columns={'merge':'combination'},inplace=True)
+        df['count'] = df['combination'].apply(len)
+        sum_df = df.groupby('count').sum()
+        
+        tbt = sum_df.reset_index()
+        ttt = tbt.melt(id_vars = ['count'])
+        ttt.rename(columns={'variable':'unique_cond','value':'fraction'}, inplace=True)
+        df_new.append(ttt)
+    df_exp = pd.concat(df_new)
+    
+    df_exp[['donor', 'tissue']] = df_exp['unique_cond'].str.split('_',expand=True)
+    
+    
+    #swarmplot to compare 
+    plt.figure(figsize=(5,5))
+
+    ax = sns.boxplot(data = df_exp, x='count',  y='fraction', hue = 'tissue', dodge=True, \
+                     hue_order=plot_order, palette=pal_tis)
+    ax = sns.swarmplot(data = df_exp, x='count', y='fraction', hue = 'tissue', dodge=True, \
+                      hue_order=plot_order, edgecolor='black',linewidth=1, palette=pal_tis)
+    for patch in ax.artists:
+        r, g, b, a = patch.get_facecolor()
+        patch.set_facecolor((r, g, b, .3))
+    #ax.set_yscale(\log\)
+    plt.xlabel('')
+    handles, labels = ax.get_legend_handles_labels()
+    plt.legend(handles[:len(df_exp['tissue'].unique())], labels[:len(df_exp['tissue'].unique())],\
+               bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.,frameon=False)
+    plt.xticks(rotation=90)
+    sns.despine(trim=True)
+    
+    return df_exp
+
+#######
+
+
+def calculate_neigh_combs(w, l, n_num, threshold = 0.85, per_keep_thres = 0.85):
+    w.loc[:,l]
+
+    #need to normalize by number of neighborhoods or k chosen for the neighborhoods
+    xm = w.loc[:,l].values/n_num
+
+
+    # Get the neighborhood combinations based on the threshold
+    simps = get_thresh_simps(xm, threshold)
+    simp_freqs = simps.value_counts(normalize = True)
+    simp_sums = np.cumsum(simp_freqs)
+
+
+    #See the percent to keep threshold or percent of neigbhorhoods that fall above a certain threshold
+    test_sums_thres =simp_sums[simp_sums < per_keep_thres]
+    test_len = len(test_sums_thres)
+    per_values_above = simp_sums[test_len]-simp_sums[test_len-1]
+    print(test_len, per_values_above)
+
+
+    w['combination'] = [tuple(l[a] for a in s) for s in simps]
+    w['combination_num'] = [tuple(a for a in s) for s in simps]
+
+    # this shows what proportion (y) of the total cells are assigned to the top x combinations
+    figsize(20,5)
+    plt.plot(simp_sums.values)
+    plt.title("proportion (y) of the total cells are assigned to the top x combinations")
+    plt.show()
+
+    # this shows what proportion (y) of the total cells are assigned to the top x combinations
+    figsize(20,5)
+    plt.plot(test_sums_thres.values)
+    plt.title("proportion (y) of the total cells are assigned to the top x combinations - thresholded")
+    plt.show()
+    #plt.xticks(range(0,350,35),range(0,350,35),rotation = 90,fontsize = 10)
+
+    return(simps, simp_freqs, simp_sums)
+
+#######
+
+
+def build_graph_CN_comb_map(simp_freqs):
+    g = nx.DiGraph()
+    thresh_cumulative = .95
+    thresh_freq = .001
+    #selected_simps = simp_sums[simp_sums<=thresh_cumulative].index.values
+    selected_simps = simp_freqs[simp_freqs>=thresh_freq].index.values
+    selected_simps
+    
+    
+    '''
+    this builds the graph for the CN combination map
+    '''
+    for e0 in selected_simps:
+        for e1 in selected_simps:
+            if (set(list(e0))<set(list(e1))) and (len(e1) == len(e0)+1):
+                g.add_edge(e0,e1)
+                
+    tops = simp_freqs[simp_freqs>=thresh_freq].sort_values(ascending = False).index.values.tolist()[:20]
+    
+    return(g, tops, e0, e1)
+
+#######
+
+
+def generate_CN_comb_map(graph, tops, e0, e1, color_dic):
+        
+    draw = g
+    pos = nx.drawing.nx_pydot.graphviz_layout(draw, prog='dot')
+    height = 8
+    
+    figsize(40,20)
+    for n in draw.nodes():
+        col = 'black'
+        if len(draw.in_edges(n))<len(n):
+            col = 'black'
+        plt.scatter(pos[n][0],pos[n][1]-5, s = simp_freqs[list(simp_freqs.index).index(n)]*10000, c = col, zorder = -1)
+        if n in tops:
+            plt.text(pos[n][0],pos[n][1]-7, '*', fontsize = 25, color = 'white', ha = 'center', va = 'center',zorder = 20)
+        delta = 8
+        #plot_sim((pos[n][0]+delta, pos[n][1]+delta),n, scale = 20,s = 200,text = True,fontsize = 15)
+        plt.scatter([pos[n][0]]*len(n),[pos[n][1]+delta*(i+1) for i in range(len(n))],c = [color_dic[l[i]] for i in n] ,marker = 's', zorder = 5,s = 400)
+        
+    #     #add profiles below node
+    #     x = pos[n][0]
+    #     y = pos[n][1]
+    #     y = y-height*2
+    #     standard_node_size =  16
+    #     node_heights = [0,3,8,5,3,2,1,5]
+    #     marker_colors = ['red','red','blue','blue','red','red','blue','blue']
+        
+    #     plt.plot([x+(18*(i-1.5)) for i in range(len(node_heights))],[(y-height*.9)+v for v in node_heights],c = 'red',zorder =3)#,s = v*2 ,c= c,edgecolors='black',lw = 1)
+    #     plt.scatter([x+(18*(i-1.5)) for i in range(len(node_heights))],[(y-height*.9)+v for v in node_heights],c = marker_colors,s = standard_node_size,zorder = 4)
+        
+            
+    j = 0
+    for e0,e1 in draw.edges():
+        weight = 0.2
+        alpha = .3
+        color='black'
+        if len(draw.in_edges(e1))<len(e1):
+            color = 'black'
+            lw =1
+            weight = 0.4
+            
+    #     if (e0,e1) in set(draw.out_edges(tuple(sorted([lmap['3'],lmap['1']])))):
+    #         j+=1
+    #         print(j)
+    #         color = 'green'
+    #         weight = 2
+    #         alpha = 1
+            
+    #     if (lmap['3'] in e0) and (lmap['1'] not in e0) and (lmap['1'] in e1):
+    #         color = 'green'
+    #         weight = 2
+    #         alpha = 1
+    
+        plt.plot([pos[e0][0], pos[e1][0]],[pos[e0][1], pos[e1][1]], color = color, linewidth = weight,alpha = alpha,zorder = -10)
+    
+    plt.axis('off')
+    #plt.savefig('CNM.pdf')
+    plt.show()
 
