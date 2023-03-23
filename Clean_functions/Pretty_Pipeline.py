@@ -16,7 +16,7 @@ Created on Wed Mar  8 12:53:53 2023
 # Filepaths 
 #############################################################
 
-input_file = "/Users/timnoahkempchen/Library/CloudStorage/GoogleDrive-timkem@stanford.edu/Meine Ablage/Datasets/data/22_08_09_CellAtlas_only_Processed_Metadata_subsample10k.csv"
+input_file = "/Users/timnoahkempchen/Library/CloudStorage/GoogleDrive-timkem@stanford.edu/Meine Ablage/Datasets/data/22_08_09_CellAtlas_only_Processed_Metadata.csv"
 
 output_dir = "/Users/timnoahkempchen/Downloads/Output_testnew/"
 if not os.path.exists(output_dir):
@@ -44,7 +44,7 @@ treatment_column ="consensus diagnosis" # Column containing comparisson, usally 
 # This part of the pipeline aims to analize and visulize the basic cell type composition of the analyzed samples 
 
 #############################################################
-# Specify additional column names 
+# Specify additional information
 #############################################################
 # Stacked bar plot
 per_cat = "Major Cell Cat"
@@ -391,8 +391,129 @@ plot_modules_graphical(dat1, scale = 2, pal = pal, save_name = 'T cell')
 #########################################################################################################
 
 #############################################################
+# Specify additional information
+#############################################################
+
+col_list = cells_df2.columns
+
+# Spatial context 
+n_num = 75
+ks=[n_num]
+cluster_col = 'community'
+sum_cols=cells_df2[cluster_col].unique()
+keep_cols = col_list
+X='x'
+Y='y'
+Reg = 'unique_region'
+Neigh = Neighborhoods(cells_df2,ks,cluster_col,sum_cols,keep_cols,X,Y,reg=Reg,add_dummies=True)
+windows = Neigh.k_windows()
+
+
+#Choose the windows size to continue with
+w = windows[n_num]
+
+n_neighborhoods=7
+n2_name = 'neigh_ofneigh'
+k_centroids = {}
+
+km = MiniBatchKMeans(n_clusters = n_neighborhoods,random_state=0)
+labels = km.fit_predict(w[sum_cols].values)
+k_centroids[n_num] = km.cluster_centers_
+w[n2_name] = labels
+
+
+#############################################################
 # Spatial context analysis 
 #############################################################
+
+n_num = 20
+
+windows, sum_cols = Create_neighborhoods(df = cells_df,
+                     n_num = n_num,
+                     cluster_col = 'community',
+                     X = 'x',
+                     Y = 'y',
+                     sum_cols = None,
+                     keep_cols = None,
+                     ks = [n_num])
+
+w, k_centroids = Chose_window_size(windows,
+                      n_num = n_num,
+                      n_neighborhoods = 10,
+                      n2_name = 'neigh_ofneigh', sum_cols = sum_cols)
+
+Niche_heatmap(k_centroids, w)
+
+
+names = cells_df2[cluster_col].unique()
+colors = generate_random_colors(n = len(names))
+
+color_dic = assign_colors(names, colors)
+
+pal_color=color_dic
+l=list(pal_color.keys())
+
+
+
+plot_list = list_n = [ 'Atrophic Cardiac Enriched', "Inflamed Stroma", 'Inflamed CK7hi Epithelial']
+
+
+Barycentric_coordinate_projection(windows, 
+                                      plot_list = plot_list, 
+                                      threshold = 10, 
+                                      output_dir = output_dir, 
+                                      save_name = save_name, 
+                                      col_dic = color_dic, 
+                                      SMALL_SIZE = 14, 
+                                      MEDIUM_SIZE = 16, 
+                                      BIGGER_SIZE = 18)
+
+simps, simp_freqs, simp_sums = calculate_neigh_combs(w, 
+                                                     l,
+                                                     n_num, 
+                                                     threshold = 0.85, 
+                                                     per_keep_thres = 0.85)
+
+g, tops, e0, e1 = build_graph_CN_comb_map(simp_freqs)
+
+generate_CN_comb_map(graph = g, 
+                     tops = tops, 
+                     e0 = e0, 
+                     e1 = e1, 
+                     color_dic = color_dic)
+
+get_network(ttl_per_thres=0.9,
+            comb_per_thres=0.005,
+            fig_size=(9.5,9),
+            neigh_sub = plot_list,
+            save_name='All_comm',
+            sub_col = cluster_col, 
+            color_dic = color_dic)
+
+# Stats
+simp_df_tissue1, simp_df_tissue2 = spatial_context_stats(data, n_num, total_per_thres = 0.9, \
+                      comb_per_thres = 0.005, \
+                      tissue_column = 'Block type',\
+                      subset_list = ["Resection"],\
+                      plot_order = ['Resection','Biopsy'],\
+                      pal_tis = {'Resection':'blue','Biopsy':'orange'},\
+                      patient_ID_component1 = ID_component1, \
+                      patient_ID_component2 = ID_component2,\
+                      subset_list_tissue1 = ["Resection"],\
+                      subset_list_tissue2 = ["Biopsy"])
+    
+print(simp_df_tissue1["combination"].values)  
+print(simp_df_tissue2["combination"].values)     
+     
+simp_df_tissue1 = simp_df_tissue1.set_index("combination")
+simp_df_tissue2 = simp_df_tissue2.set_index("combination")
+    
+spatial_context_stats_vis(neigh_comb = (9,),
+                              simp_df_tissue1 = simp_df_tissue1,
+                              simp_df_tissue2 = simp_df_tissue2,
+                              pal_tis = {'Resection': 'blue', 'Biopsy': 'orange'},
+                              plot_order = ['Resection', 'Biopsy'])
+    
 
 #######################################################################################################################################################
 # CHUNK_5: Analysis independent of neighborhood analysis 
