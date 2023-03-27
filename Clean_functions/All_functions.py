@@ -1334,64 +1334,67 @@ def get_top_abs_correlations(df, thresh=0.5):
 ##########################################################################################################
 # CCA Analysis 
 
+
 def Perform_CCA(cca, n_perms, nsctf, cns, subsets, group):
     stats_group1 = {}
     for cn_i in cns:
         for cn_j in cns:
             if cn_i < cn_j:
-    
+                print(cn_i, cn_j)
                 #concat dfs
                 combined = pd.concat([nsctf.loc[cn_i].loc[nsctf.loc[cn_i].index.isin(group)],nsctf.loc[cn_j].loc[nsctf.loc[cn_j].index.isin(group)]], axis = 1).dropna(axis = 0, how = 'any')
-                if combined.shape[0]<2:
-                    continue
-                x = combined.iloc[:,:len(subsets)].values
-                y = combined.iloc[:,len(subsets):].values
-    
-                arr = np.zeros(n_perms)
-    
-                #compute the canonical correlation achieving components with respect to observed data
-                ccx,ccy = cca.fit_transform(x,y)
-                stats_group1[cn_i,cn_j] = (pearsonr(ccx[:,0],ccy[:,0])[0],arr)
-    
-                #initialize array for perm values
-    
-                for i in range(n_perms):
-                    idx = np.arange(len(x))
-                    np.random.shuffle(idx)
-                    # compute with permuted data
-                    cc_permx,cc_permy = cca.fit_transform(x[idx],y)
-                    arr[i] = pearsonr(cc_permx[:,0],cc_permy[:,0])[0]
-                    
-                return(stats_group1, arr)
+                if combined.shape[0]>2:
+                    x = combined.iloc[:,:len(subsets)].values
+                    y = combined.iloc[:,len(subsets):].values
+
+                    arr = np.zeros(n_perms)
+
+                    #compute the canonical correlation achieving components with respect to observed data
+                    ccx,ccy = cca.fit_transform(x,y)
+                    stats_group1[cn_i,cn_j] = (pearsonr(ccx[:,0],ccy[:,0])[0],arr)
+
+                    #initialize array for perm values
+
+                    for i in range(n_perms):
+                        idx = np.arange(len(x))
+                        np.random.shuffle(idx)
+                        # compute with permuted data
+                        cc_permx,cc_permy = cca.fit_transform(x[idx],y)
+                        arr[i] = pearsonr(cc_permx[:,0],cc_permy[:,0])[0]
+    return stats_group1 
+
             
-def Visulize_CCA_results(CCA_results, save_path, save_fig = False, save_name = "CCA_vis.png"):
+def Visulize_CCA_results(CCA_results, save_path, save_fig = False, p_thresh = 0.1, save_name = "CCA_vis.png"):
     # Visualization of CCA 
-    g1 = nx.Graph()
+    g1 = nx.petersen_graph()
     for cn_pair, cc in CCA_results.items():
+        
         s,t = cn_pair
         obs, perms = cc
         p =np.mean(obs>perms)
-        if p>0.9 :
+        if p>p_thresh :
             g1.add_edge(s,t, weight = p)
-        
-        
+ 
     pal = sns.color_palette('bright',50)
-    dash = {True: '-', False: ':'}
-    pos=nx.drawing.nx_pydot.pydot_layout(g1,prog='neato')
+    pos=nx.nx_agraph.graphviz_layout(g1,prog='neato')
     for k,v in pos.items():
         x,y = v
         plt.scatter([x],[y],c = [pal[k]], s = 300,zorder = 3)
         #plt.text(x,y, k, fontsize = 10, zorder = 10,ha = 'center', va = 'center')
         plt.axis('off')
+               
 
-
-    atrs = nx.get_edge_attributes(g1, 'weight')    
     for e0,e1 in g1.edges():
-        p = atrs[e0,e1]
-        plt.plot([pos[e0][0],pos[e1][0]],[pos[e0][1],pos[e1][1]], c= 'black',alpha = 3*p**3,linewidth = 3*p**3)
+        if isinstance(g1.get_edge_data(e0, e1, default =0), int):
+            p = g1.get_edge_data(e0, e1, default =0)
+        else:
+            p = g1.get_edge_data(0, 1, default =0)['weight']
+        plt.plot([pos[e0][0],pos[e1][0]],[pos[e0][1],pos[e1][1]], c= 'black',alpha = 3*p**1,linewidth = 3*p**3)
 
     if save_fig == True:
         plt.savefig(save_path + "/" + save_name, format='png', dpi=300, transparent=True, bbox_inches='tight')
+    
+              
     
 
 
