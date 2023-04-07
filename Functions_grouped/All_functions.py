@@ -35,8 +35,6 @@ import tensorly as tl
 import itertools
 from functools import reduce
 import os as os
-from matplotlib.pyplot import figure
-from pylab import *
 
 
 # load functions 
@@ -125,78 +123,97 @@ def stacked_bar_plot(data, per_cat, grouping, cell_list, output_dir,norm=True, s
 # This function creates a box plot and swarm plot from the given data
 # and returns a plot object.
 
-def swarm_box(data, grouping, replicate, sub_col, sub_list, per_cat, output_dir, norm=True, \
+def swarm_box(data, grouping, replicate, sub_col, sub_list, per_cat, output_dir, norm=True,\
               figure_sizing=(10,5), save_name=None, h_order=None, col_in=None, \
               pal_color=None, flip=False):
        
-    # If norm is True, get the percentage of cell type by subsetting the data
-    # and computing the unique values of a given category column. Otherwise,
-    # copy the entire data.
+    #Find Percentage of cell type
+    test= data.copy()
+    sub_list1 = sub_list.copy()
     
     if norm==True:
-        test1 = data.loc[data[sub_col].isin(sub_list)]
+        test1 = test.loc[test[sub_col].isin(sub_list1)]
         immune_list = list(test1[per_cat].unique())
     else:
-        test1=data.copy()
-        immune_list = list(data.loc[data[sub_col].isin(sub_list)][per_cat].unique())
+        test1=test.copy()
+        immune_list = list(test.loc[test[sub_col].isin(sub_list1)][per_cat].unique())
     
-    # Cast the category column to categorical type.
     test1[per_cat] = test1[per_cat].astype('category')
-    
-    # Compute the percentage of each category column by group and replicate.
     test_freq = test1.groupby([grouping,replicate]).apply(lambda x: x[per_cat].value_counts(normalize = True,sort = False)*100)
-    
-    # Convert column names to string type and reset index.
     test_freq.columns = test_freq.columns.astype(str)
     test_freq.reset_index(inplace=True)
-    
-    # Add grouping and replicate to immune_list and subset the data.
     immune_list.extend([grouping,replicate])
     test_freq1 = test_freq[immune_list]
 
-    # Melt the data frame and rename columns.
-    melt_per_plot = pd.melt(test_freq1, id_vars=[grouping,replicate,])
+    melt_per_plot = pd.melt(test_freq1, id_vars=[grouping,replicate,])#,value_vars=immune_list)
     melt_per_plot.rename(columns={'value': 'percentage'}, inplace=True)
     
-    # If col_in is not None, subset melt_per_plot to include only those values.
     if col_in:
         melt_per_plot = melt_per_plot.loc[melt_per_plot[per_cat].isin(col_in)]
     else:
         melt_per_plot = melt_per_plot
     
-    # Order the data by average percentage of each category column.
+    #Order by average
     plot_order = melt_per_plot.groupby(per_cat).mean().reset_index().sort_values(by='percentage')[per_cat].to_list()
 
-    # If h_order is None, use unique values of the grouping column as the order.
     if h_order is None:
         h_order = list(melt_per_plot[grouping].unique()) 
     
-    # If pal_color is None, create a figure with box plot and swarm plot
-    # for each category column or grouping column based on flip value.
-    if pal_color is None:
-        # Create a figure and axis object with given figure size.
-        plt.figure(figsize=figure_sizing)
-        
-        # If flip is True, plot box plot and swarm plot for grouping column.
-        if flip==True:
-            plt.figure(figsize=figure_sizing)
-            
-            # Create a box plot with given parameters.
-            ax = sns.boxplot(data = melt_per_plot, x=grouping,  y='percentage',  dodge=True,order=h_order)
-                           
-            # Create a swarm plot with given parameters.
-            ax = sns.swarmplot(data = melt_per_plot, x=grouping, y='percentage', dodge=True,order=h_order,\
-                            edgecolor='black',linewidth=1, color="white")
-        
-            # Set the transparency of box plot patches.
-            for patch in ax.artists:
-                r, g, b, a = patch.get_facecolor()
-                patch.set_facecolor((r, g, b,)
-                )
     
-    if save_name:
-        plt.savefig(output_dir+save_name+'.png', format='png',\
-                    dpi=300, transparent=True, bbox_inches='tight')
+    #swarmplot to compare clustering
+    plt.figure(figsize=figure_sizing)
+    if flip==True:
+        plt.figure(figsize=figure_sizing)
+        if pal_color is None:
+            ax = sns.boxplot(data = melt_per_plot, x=grouping,  y='percentage',  dodge=True, order=h_order)
+            ax = sns.swarmplot(data = melt_per_plot, x=grouping, y='percentage', dodge=True,order=h_order,\
+                           edgecolor='black',linewidth=1, color="white")
+        else:
+            ax = sns.boxplot(data = melt_per_plot, x=grouping,  y='percentage',  dodge=True,order=h_order, \
+                         palette=pal_color)
+            ax = sns.swarmplot(data = melt_per_plot, x=grouping, y='percentage', dodge=True,order=h_order,\
+                           edgecolor='black',linewidth=1, palette=pal_color)
+    
+        for patch in ax.artists:
+            r, g, b, a = patch.get_facecolor()
+            patch.set_facecolor((r, g, b, .3))
+        plt.xticks(rotation=90)
+        plt.xlabel('')
+        plt.ylabel('')
+        plt.title(sub_list[0])
+        sns.despine()
+        
+    else:
+        if pal_color is None:
+            ax = sns.boxplot(data = melt_per_plot, x=grouping,  y='percentage',  dodge=True, order=h_order)
+            ax = sns.swarmplot(data = melt_per_plot, x=grouping, y='percentage', dodge=True,order=h_order,\
+                           edgecolor='black',linewidth=1, color="white")
+        else:
+            ax = sns.boxplot(data = melt_per_plot, x=grouping,  y='percentage',  dodge=True,order=h_order, \
+                         palette=pal_color)
+            ax = sns.swarmplot(data = melt_per_plot, x=grouping, y='percentage', dodge=True,order=h_order,\
+                           edgecolor='black',linewidth=1, palette=pal_color)
+        for patch in ax.artists:
+            r, g, b, a = patch.get_facecolor()
+            patch.set_facecolor((r, g, b, .3))
+        #ax.set_yscale(\log\)
+        plt.xlabel('')
+        handles, labels = ax.get_legend_handles_labels()
+        plt.legend(handles[:len(melt_per_plot[grouping].unique())], labels[:len(melt_per_plot[grouping].unique())],\
+                   bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.,frameon=False)
+        plt.xticks(rotation=90)
+
+        ax.set(ylim=(0,melt_per_plot['percentage'].max()+1))
+        sns.despine()
+    
+    if output_dir:
+        if save_name:
+            plt.savefig(output_dir+save_name+'_swarm_boxplot.png', format='png', dpi=300, transparent=True, bbox_inches='tight')
+        else:
+            print("define save_name")
+    else: 
+        print("plot was not saved - to save the plot specify an output directory")
+    return melt_per_plot
 
 
 
@@ -204,10 +221,10 @@ def swarm_box(data, grouping, replicate, sub_col, sub_list, per_cat, output_dir,
 
 # function
 # calculates diversity of cell types within a sample 
-def Shan_div(data1, sub_l, group_com, per_categ, rep, sub_column, coloring, output_dir, normalize=True, save=False, \
+def Shan_div(data, sub_l, group_com, per_categ, rep, sub_column, coloring, output_dir, normalize=True, save=False, \
              ordering=None, fig_size=1.5):
     #calculate Shannon Diversity
-    tt = per_only1(data = data1, per_cat = per_categ, grouping = group_com,\
+    tt = per_only1(data = data, per_cat = per_categ, grouping = group_com,\
               sub_list=sub_l, replicate=rep, sub_col = sub_column, norm=normalize)
     tt['fraction']= tt['percentage']/100
     tt['Shannon']=tt['fraction']*np.log(tt['fraction'])
@@ -233,8 +250,7 @@ def Shan_div(data1, sub_l, group_com, per_categ, rep, sub_column, coloring, outp
     #Order by average
     if coloring is None:
         if ordering is None:
-         #   plot_order = res.groupby(group_com).mean().reset_index().sort_values(by='Shannon Diversity')[group_com].to_list()    
-            plot_order = data1[group_com].unique()
+            plot_order = res.groupby(group_com).mean().reset_index().sort_values(by='Shannon Diversity')[group_com].to_list()    
         else:
             plot_order=ordering
         #Plot the swarmplot of results
@@ -300,8 +316,9 @@ def Shan_div(data1, sub_l, group_com, per_categ, rep, sub_column, coloring, outp
         table1=False
     return tt, test_results, table1
 
+
 ##########################################################################################################
-def cell_type_composition_vis(df, sample_column = "sample", cell_type_column = "Cell Type", output_dir = None):
+def cell_type_composition_vis(data, sample_column = "sample", cell_type_column = "Cell Type", output_dir = None):
     
     if output_dir == None:
         print("You have defined no output directory!")
@@ -313,7 +330,7 @@ def cell_type_composition_vis(df, sample_column = "sample", cell_type_column = "
     
 
     #plotting option2
-    ax = pd.crosstab(df[sample_column], df[cell_type_column]).plot(kind='barh', stacked=True,figsize = (10,10))
+    ax = pd.crosstab(data[sample_column], data[cell_type_column]).plot(kind='barh', stacked=True,figsize = (10,10))
     ax.legend(loc='center left', bbox_to_anchor=(1.0, 0.5))
     fig = ax.get_figure()
     ax.set(xlabel='count')
@@ -325,14 +342,14 @@ def cell_type_composition_vis(df, sample_column = "sample", cell_type_column = "
     #plt.show()
 
     #plotting option2
-    ax = pd.crosstab(df[sample_column], df[cell_type_column]).plot(kind='barh', stacked=False,figsize = (10,10))
+    ax = pd.crosstab(data[sample_column], data[cell_type_column]).plot(kind='barh', stacked=False,figsize = (10,10))
     ax.legend(loc='center left', bbox_to_anchor=(1.0, 0.5))
     fig = ax.get_figure()
     ax.set(xlabel='count')
     plt.savefig(output_dir +'/cell_types_composition_hUNstack.png', bbox_inches='tight')
 
     # Cell type percentage 
-    st = pd.crosstab(df[sample_column], df[cell_type_column])
+    st = pd.crosstab(data[sample_column], data[cell_type_column])
     df_perc=(st/np.sum(st, axis = 1)[:,None])* 100
     df_perc
     #df_perc['sample'] = df_perc.index
@@ -350,9 +367,9 @@ def cell_type_composition_vis(df, sample_column = "sample", cell_type_column = "
 
 
 ##########################################################################################################
-def neighborhood_analysis(df, values, sum_cols, X = 'x', Y = 'y', reg = 'unique_region', cluster_col = 'Cell Type', ks = [20, 30, 35], output_dir = None, k = 35, n_neighborhoods = 30, save_to_csv = False, plot_specific_neighborhoods = None ):
+def neighborhood_analysis(data, values, sum_cols, X = 'x', Y = 'y', reg = 'unique_region', cluster_col = 'Cell Type', ks = [20, 30, 35], output_dir = None, k = 35, n_neighborhoods = 30, save_to_csv = False, plot_specific_neighborhoods = None ):
 
-    cells = df.copy()
+    cells = data.copy()
 
     neighborhood_name = "neighborhood"+str(k)
 
@@ -607,10 +624,10 @@ thres (optional): the threshold for the correlation, default is 0.9.
 normed (optional): if the percentage should be normalized, default is True.
 cell2 (optional): the second cell type column in the data frame.
 """
-def corr_cell(data,  sub_l2, per_categ, group2, repl, sub_collumn, cell,\
+def corr_cell(data,  sub_l2, per_categ, group2, repl, sub_column, cell,\
               output_dir, save_name, thres = 0.9, normed=True, cell2=None):
     result = per_only1(data = data, per_cat = per_categ, grouping=group2,\
-                      sub_list=sub_l2, replicate=repl, sub_col = sub_collumn, norm=normed)
+                      sub_list=sub_l2, replicate=repl, sub_col = sub_column, norm=normed)
 
     #Format for correlation function
     mp = pd.pivot_table(result, columns = [per_categ], index=[group2,repl], values=['percentage'])
@@ -822,13 +839,13 @@ def get_distances(df, cell_list, cell_type_col):
 
 
 
-def community_analysis(df, values, sum_cols, output_dir, X = 'x', Y = 'y', reg = 'unique_region', cluster_col = 'neigh_name', ks = [100], save_path = None, k = 100, n_neighborhoods = 30, plot_specific_community = None):
+def community_analysis(data, values, sum_cols, output_dir, X = 'x', Y = 'y', reg = 'unique_region', cluster_col = 'neigh_name', ks = [100], save_path = None, k = 100, n_neighborhoods = 30, plot_specific_community = None):
     
     output_dir2 = output_dir+"community_analysis/"
     if not os.path.exists(output_dir2):
         os.makedirs(output_dir2)
     
-    cells = df.copy()
+    cells = data.copy()
 
     neighborhood_name = "community"+str(k)
 
@@ -1063,31 +1080,28 @@ class Neighborhoods(object):
 ##################
 
 # helper function 
-    
 def per_only1(data, grouping, replicate,sub_col, sub_list, per_cat, norm=True):
     
     #Find Percentage of cell type
-    test= data.copy()
-    sub_list1 = sub_list.copy()
-    
     if norm==True:
-        test1 = test.loc[test[sub_col].isin(sub_list1)]
-        immune_list = list(test1[per_cat].unique())
+        test1 = data.loc[data[sub_col].isin(sub_list)] #filters df for values by values in sub_list which are in the sub_col column 
+        immune_list = list(test1[per_cat].unique()) #stores unique values for the per_cat column 
     else:
-        test1=test.copy()
-        immune_list = list(test.loc[test[sub_col].isin(sub_list1)][per_cat].unique())
+        test1=data.copy()
+        immune_list = list(data.loc[data[sub_col].isin(sub_list)][per_cat].unique())
     
     test1[per_cat] = test1[per_cat].astype('category')
-    test_freq = test1.groupby([grouping,replicate]).apply(lambda x: x[per_cat].value_counts(normalize = True,sort = False)*100)
+    test_freq = test1.groupby([grouping,replicate]).apply(lambda x: x[per_cat].value_counts(normalize = True,sort = False)*100) #group data by grouping variable and replicates, than applies the lambda function to count the frequency of each category in the per_cat column and normalizes by dividing by the total count.
     test_freq.columns = test_freq.columns.astype(str)
     test_freq.reset_index(inplace=True)
-    immune_list.extend([grouping,replicate])
-    test_freq1 = test_freq[immune_list]
+    immune_list.extend([grouping,replicate]) #adds grouping and replicate column to immune_list 
+    test_freq1 = test_freq[immune_list] # subsets test_freq by immune_list
 
-    melt_per_plot = pd.melt(test_freq1, id_vars=[grouping,replicate])#,value_vars=immune_list)
-    melt_per_plot.rename(columns={'value': 'percentage'}, inplace=True)
+    melt_per_plot = pd.melt(test_freq1, id_vars=[grouping,replicate])#,value_vars=immune_list) #converts columns specified in id_vars into rows
+    melt_per_plot.rename(columns={'value': 'percentage'}, inplace=True) #rename value to percentage 
     
-    return melt_per_plot
+    return melt_per_plot # returns a df which contains the group_column followed by the replicate column and the per category column, and a column specifying the percentage
+    # Example: percentage CD4+ TCs in unique region E08 assigned to community xxx
     
 
 ##################
@@ -1846,7 +1860,7 @@ def generate_CN_comb_map(graph, tops, e0, e1, simp_freqs, l, color_dic):
 
 #######
 
-def simp_rep(data, patient_col, tissue_column, subset_list_tissue, ttl_per_thres, comb_per_thres, l, n_num, thres_num = 3):
+def simp_rep(data, patient_col, tissue_column, subset_list_tissue, ttl_per_thres, comb_per_thres, thres_num = 3):
     
     #Choose the windows size to continue with
     if tissue_column != None:
@@ -2035,10 +2049,7 @@ def Barycentric_coordinate_projection(w,
                                       cluster_col,
                                       SMALL_SIZE = 14, 
                                       MEDIUM_SIZE = 16, 
-                                      BIGGER_SIZE = 18,
-                                      height = 6,
-                                      width = 6,
-                                      dpi = 300):
+                                      BIGGER_SIZE = 18):
     
     #Settings for graph
     plt.rc('font', size=SMALL_SIZE)          # controls default text sizes
@@ -2058,9 +2069,7 @@ def Barycentric_coordinate_projection(w,
     proj = np.array([[0,0],[np.cos(np.pi/3),np.sin(np.pi/3)], [1,0]])
     coords = np.dot(xl/n_num,proj) #####window size fraction
     
-    rcParams['figure.figsize'] = width,height
-    rcParams['figure.dpi'] = dpi
-   # plt.figure(figsize(14,14))
+    plt.figure(figsize=(14,14))
     jit = .002
     cols = [palt[a] for a in wgc[cluster_col]]
     
@@ -2082,7 +2091,7 @@ def Barycentric_coordinate_projection(w,
 
 
 
-def calculate_neigh_combs(w, l, n_num, threshold = 0.85, per_keep_thres = 0.85, width = 20, height = 5, dpi = 300):
+def calculate_neigh_combs(w, l, n_num, threshold = 0.85, per_keep_thres = 0.85):
     w.loc[:,l]
 
     #need to normalize by number of neighborhoods or k chosen for the neighborhoods
@@ -2106,16 +2115,12 @@ def calculate_neigh_combs(w, l, n_num, threshold = 0.85, per_keep_thres = 0.85, 
     w['combination_num'] = [tuple(a for a in s) for s in simps]
 
     # this shows what proportion (y) of the total cells are assigned to the top x combinations
-    rcParams['figure.figsize'] = width,height
-    rcParams['figure.dpi'] = dpi
     #plt.figure(figsize(20,5))
     plt.plot(simp_sums.values)
     plt.title("proportion (y) of the total cells are assigned to the top x combinations")
     plt.show()
 
     # this shows what proportion (y) of the total cells are assigned to the top x combinations
-    rcParams['figure.figsize'] = width,height
-    rcParams['figure.dpi'] = dpi
     #plt.figure(figsize(20,5))
     plt.plot(test_sums_thres.values)
     plt.title("proportion (y) of the total cells are assigned to the top x combinations - thresholded")
@@ -2145,15 +2150,15 @@ def build_graph_CN_comb_map(simp_freqs):
     
     return(g, tops, e0, e1)
 
-def generate_CN_comb_map(graph, tops, e0, e1, l, simp_freqs, color_dic, width = 20, height = 10, dpi = 300):
+def generate_CN_comb_map(graph, tops, e0, e1, l, simp_freqs, color_dic):
         
     draw = graph
     pos = nx.drawing.nx_pydot.graphviz_layout(draw, prog='dot')
     height = 8
     
-    rcParams['figure.figsize'] = width,height
-    rcParams['figure.dpi'] = dpi
-    #plt.figure(figsize(40,20))
+    figsize = (40,20)
+    
+    plt.figure(figsize(40,20))
     for n in draw.nodes():
         col = 'black'
         if len(draw.in_edges(n))<len(n):
@@ -2254,10 +2259,7 @@ def spatial_context_stats_vis(neigh_comb,
                               simp_df_tissue1,
                               simp_df_tissue2,
                               pal_tis = {'Resection': 'blue', 'Biopsy': 'orange'},
-                              plot_order = ['Resection', 'Biopsy'],
-                              width = 5,
-                              height = 5,
-                              dpi = 300):
+                              plot_order = ['Resection', 'Biopsy']):
     #Set Neigh and make comparison
     neigh_comb = (9,)
 
@@ -2274,9 +2276,7 @@ def spatial_context_stats_vis(neigh_comb,
 
 
     #swarmplot to compare 
-    rcParams['figure.figsize'] = width,height
-    rcParams['figure.dpi'] = dpi
-    #plt.figure(figsize=(5,5))
+    plt.figure(figsize=(5,5))
 
     ax = sns.boxplot(data = df_m, x='combo',  y= neigh_comb, hue = 'tissue', dodge=True, \
                      hue_order=plot_order, palette=pal_tis)
