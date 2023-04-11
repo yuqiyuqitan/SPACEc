@@ -552,6 +552,10 @@ def cor_plot(data, group1,per_cat, sub_col=None,sub_list=None,norm=False,\
         else:
             #Find Percentage of cell type
             test= data.copy()
+            
+            if sub_list == None:
+                sub_list = data[per_cat].unique()
+            
             sub_list1 = sub_list.copy()
 
             if norm==True:
@@ -624,13 +628,19 @@ thres (optional): the threshold for the correlation, default is 0.9.
 normed (optional): if the percentage should be normalized, default is True.
 cell2 (optional): the second cell type column in the data frame.
 """
-def corr_cell(data,  sub_l2, per_categ, group2, repl, sub_column, cell,\
-              output_dir, save_name, thres = 0.9, normed=True, cell2=None):
-    result = per_only1(data = data, per_cat = per_categ, grouping=group2,\
-                      sub_list=sub_l2, replicate=repl, sub_col = sub_column, norm=normed)
+def corr_cell(data, per_categ, group2, rep, sub_column, cell,\
+              output_dir, save_name, thres = 0.9, normed=True, cell2=None, sub_l2 = None):
+    
+    if sub_l2 != None:
+        result = per_only1(data = data, per_cat = per_categ, grouping=group2,\
+                          sub_list=sub_l2, replicate=rep, sub_col = sub_column, norm=normed)
+    else:
+        sub_l2 = data[per_categ].unique()
+        result = per_only1(data = data, per_cat = per_categ, grouping=group2,\
+                          sub_list=sub_l2, replicate=rep, sub_col = sub_column, norm=normed)
 
     #Format for correlation function
-    mp = pd.pivot_table(result, columns = [per_categ], index=[group2,repl], values=['percentage'])
+    mp = pd.pivot_table(result, columns = [per_categ], index=[group2,rep], values=['percentage'])
     mp.columns = mp.columns.droplevel(0)
     cc = mp.reset_index()
     cmat = cc.corr()
@@ -1312,7 +1322,7 @@ def prepare_neighborhood_df(cells_df, patient_ID_component1, patient_ID_componen
     # Spacer for output 
     print("")
     
-    if neighborhood_column == True :
+    if neighborhood_column:
     # Assign numbers to neighborhoods
         neigh_num = {list(cells_df[neighborhood_column].unique())[i]:i for i in range(len(cells_df[neighborhood_column].unique()))}
         cells_df['neigh_num'] = cells_df[neighborhood_column].map(neigh_num)
@@ -1358,60 +1368,74 @@ def Perform_CCA(cca, n_perms, nsctf, cns, subsets, group):
     for cn_i in cns:
         for cn_j in cns:
             if cn_i < cn_j:
-    
+                print(cn_i, cn_j)
                 #concat dfs
                 combined = pd.concat([nsctf.loc[cn_i].loc[nsctf.loc[cn_i].index.isin(group)],nsctf.loc[cn_j].loc[nsctf.loc[cn_j].index.isin(group)]], axis = 1).dropna(axis = 0, how = 'any')
-                if combined.shape[0]<2:
-                    continue
-                x = combined.iloc[:,:len(subsets)].values
-                y = combined.iloc[:,len(subsets):].values
-    
-                arr = np.zeros(n_perms)
-    
-                #compute the canonical correlation achieving components with respect to observed data
-                ccx,ccy = cca.fit_transform(x,y)
-                stats_group1[cn_i,cn_j] = (pearsonr(ccx[:,0],ccy[:,0])[0],arr)
-    
-                #initialize array for perm values
-    
-                for i in range(n_perms):
-                    idx = np.arange(len(x))
-                    np.random.shuffle(idx)
-                    # compute with permuted data
-                    cc_permx,cc_permy = cca.fit_transform(x[idx],y)
-                    arr[i] = pearsonr(cc_permx[:,0],cc_permy[:,0])[0]
-                    
-                return(stats_group1, arr)
-            
-def Visulize_CCA_results(CCA_results, save_path, save_fig = False, save_name = "CCA_vis.png"):
+                if combined.shape[0]>2:
+                    if subsets != None:
+                        x = combined.iloc[:,:len(subsets)].values
+                        y = combined.iloc[:,len(subsets):].values
+                    else: 
+                        x = combined.values
+                        y = combined.values
+
+                    arr = np.zeros(n_perms)
+                    #compute the canonical correlation achieving components with respect to observed data
+                    ccx,ccy = cca.fit_transform(x,y)
+                    stats_group1[cn_i,cn_j] = (pearsonr(ccx[:,0],ccy[:,0])[0],arr)
+                    #initialize array for perm values
+                    for i in range(n_perms):
+                        idx = np.arange(len(x))
+                        np.random.shuffle(idx)
+                        # compute with permuted data
+                        cc_permx,cc_permy = cca.fit_transform(x[idx],y)
+                        arr[i] = pearsonr(cc_permx[:,0],cc_permy[:,0])[0]
+    return stats_group1 
+
+        
+
+def Visulize_CCA_results(CCA_results, save_path, save_fig = False, p_thresh = 0.1, save_name = "CCA_vis.png", colors = None):
     # Visualization of CCA 
-    g1 = nx.Graph()
+    g1 = nx.petersen_graph()
     for cn_pair, cc in CCA_results.items():
+            
         s,t = cn_pair
         obs, perms = cc
         p =np.mean(obs>perms)
-        if p>0.9 :
-            g1.add_edge(s,t, weight = p)
-        
-        
-    pal = sns.color_palette('bright',50)
-    dash = {True: '-', False: ':'}
-    pos=nx.drawing.nx_pydot.pydot_layout(g1,prog='neato')
+        if p>p_thresh :
+                g1.add_edge(s,t, weight = p)
+    
+    if colors != None:
+        pal = colors
+    else:
+        pal = sns.color_palette('bright',50)
+    
+    pos=nx.nx_agraph.graphviz_layout(g1,prog='neato')
     for k,v in pos.items():
         x,y = v
         plt.scatter([x],[y],c = [pal[k]], s = 300,zorder = 3)
         #plt.text(x,y, k, fontsize = 10, zorder = 10,ha = 'center', va = 'center')
         plt.axis('off')
-
-
-    atrs = nx.get_edge_attributes(g1, 'weight')    
+                
     for e0,e1 in g1.edges():
-        p = atrs[e0,e1]
-        plt.plot([pos[e0][0],pos[e1][0]],[pos[e0][1],pos[e1][1]], c= 'black',alpha = 3*p**3,linewidth = 3*p**3)
+        if isinstance(g1.get_edge_data(e0, e1, default =0), int):
+            p = g1.get_edge_data(e0, e1, default =0)
+            p =p["weight"]
+            print(p)
+        else:
+            p = g1.get_edge_data(0, 1, default =0)
+            p =p["weight"]
+            print(p)
 
+        
+
+        alpha = 3*p**1
+        if alpha > 1:
+            alpha = 1
+
+        plt.plot([pos[e0][0],pos[e1][0]],[pos[e0][1],pos[e1][1]], c= 'black',alpha = alpha, linewidth = 3*p**3)
     if save_fig == True:
         plt.savefig(save_path + "/" + save_name, format='png', dpi=300, transparent=True, bbox_inches='tight')
-    
 
 
 ##########################################################################################################
@@ -2155,10 +2179,9 @@ def generate_CN_comb_map(graph, tops, e0, e1, l, simp_freqs, color_dic):
     draw = graph
     pos = nx.drawing.nx_pydot.graphviz_layout(draw, prog='dot')
     height = 8
+   
     
-    figsize = (40,20)
-    
-    plt.figure(figsize(40,20))
+    plt.figure(figsize = (40,20))
     for n in draw.nodes():
         col = 'black'
         if len(draw.in_edges(n))<len(n):
