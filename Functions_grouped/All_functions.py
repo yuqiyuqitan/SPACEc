@@ -451,6 +451,98 @@ def neighborhood_analysis(data, values, sum_cols, X = 'x', Y = 'y', reg = 'uniqu
     
     return(cells)
 
+########
+'''
+k is used to compute the neighborhoods of each cell by selecting the k nearest neighbors based on the Euclidean distance between the cells in the feature space. 
+Once the neighborhoods have been computed, the n_neighborhoods parameter is used to cluster the neighborhoods using the MiniBatchKMeans algorithm. 
+The result is that each neighborhood is assigned to one of n_neighborhoods clusters, allowing the identification of distinct cell types or niches within the tissue.
+
+k reffers to the window size while n_neighborhoods reffers to the number of generated neighborhoods
+'''
+
+def neighborhood_analysis_2(data, values, sum_cols, X = 'x', Y = 'y', reg = 'unique_region', cluster_col = 'Cell Type', output_dir = None, k = 35, n_neighborhoods = 30, save_to_csv = False, plot_specific_neighborhoods = None ):
+
+    cells = data.copy()
+
+    neighborhood_name = "neighborhood"+str(k)
+
+    keep_cols = [X ,Y ,reg,cluster_col]
+
+    n_neighbors = k
+
+    cells[reg] = cells[reg].astype('str')
+
+    #Get each region
+    tissue_group = cells[[X,Y,reg]].groupby(reg)
+    exps = list(cells[reg].unique())
+    tissue_chunks = [(time.time(),exps.index(t),t,a) for t,indices in tissue_group.groups.items() for a in np.array_split(indices,1)] 
+
+    tissues = [get_windows(job, n_neighbors, exps= exps, tissue_group = tissue_group, X = X, Y = Y) for job in tissue_chunks]
+
+    #Loop over k to compute neighborhoods
+    out_dict = {}
+    
+    for neighbors,job in zip(tissues,tissue_chunks):
+
+        chunk = np.arange(len(neighbors))#indices
+        tissue_name = job[2]
+        indices = job[3]
+        window = values[neighbors[chunk,:k].flatten()].reshape(len(chunk),k,len(sum_cols)).sum(axis = 1)
+        out_dict[(tissue_name,k)] = (window.astype(np.float16),indices)
+            
+    windows = {}
+    
+    
+    window = pd.concat([pd.DataFrame(out_dict[(exp,k)][0],index = out_dict[(exp,k)][1].astype(int),columns = sum_cols) for exp in exps],0)
+    window = window.loc[cells.index.values]
+    window = pd.concat([cells[keep_cols],window],1)
+    windows[k] = window
+
+    #Fill in based on above
+    k_centroids = {}
+
+    #producing what to plot
+    windows2 = windows[k]
+    windows2[cluster_col] = cells[cluster_col]
+
+    km = MiniBatchKMeans(n_clusters = n_neighborhoods,random_state=0)
+
+    labels = km.fit_predict(windows2[sum_cols].values)
+    k_centroids[k] = km.cluster_centers_
+    cells[neighborhood_name] = labels
+
+    #modify figure size aesthetics for each neighborhood
+    figs = catplot(cells,X = X,Y=Y,exp = reg,hue = 'neighborhood'+str(k),invert_y=True,size = 5,)
+    if save_to_csv is True:
+        cells.to_csv(output_dir + 'neighborhood.csv')
+        
+    else: 
+        print("results will not be stored as csv file")
+
+    #Save Plots for Publication
+    for n,f in enumerate(figs):
+        f.savefig(output_dir+'neighborhood_'+str(k)+'_id{}.png'.format(n))
+
+    #this plot shows the types of cells (ClusterIDs) in the different niches (0-9)
+    k_to_plot = k
+    niche_clusters = (k_centroids[k_to_plot])
+    tissue_avgs = values.mean(axis = 0)
+    fc = np.log2(((niche_clusters+tissue_avgs)/(niche_clusters+tissue_avgs).sum(axis = 1, keepdims = True))/tissue_avgs)
+    fc = pd.DataFrame(fc,columns = sum_cols)
+    s=sns.clustermap(fc, vmin =-3,vmax = 3,cmap = 'bwr')
+    s.savefig(output_dir+"celltypes_perniche_"+"_"+str(k)+".png", dpi=600)
+
+    if plot_specific_neighborhoods is True:
+        #this plot shows the types of cells (ClusterIDs) in the different niches (0-9)
+        k_to_plot = k
+        niche_clusters = (k_centroids[k_to_plot])
+        tissue_avgs = values.mean(axis = 0)
+        fc = np.log2(((niche_clusters+tissue_avgs)/(niche_clusters+tissue_avgs).sum(axis = 1, keepdims = True))/tissue_avgs)
+        fc = pd.DataFrame(fc,columns = sum_cols)
+        s=sns.clustermap(fc.iloc[plot_specific_neighborhoods,:], vmin =-3,vmax = 3,cmap = 'bwr')
+        s.savefig(output_dir+"celltypes_perniche_"+"_"+str(k)+".png", dpi=600)
+    
+    return(cells)
 
 ##########################################################################################################
 
@@ -890,6 +982,96 @@ def community_analysis(data, values, sum_cols, output_dir, X = 'x', Y = 'y', reg
         window = window.loc[cells.index.values]
         window = pd.concat([cells[keep_cols],window],1)
         windows[k] = window
+
+    #Fill in based on above
+    k_centroids = {}
+    
+    
+    #producing what to plot
+    windows2 = windows[k]
+    windows2[cluster_col] = cells[cluster_col]
+    
+    km = MiniBatchKMeans(n_clusters = n_neighborhoods,random_state=0)
+    
+    labels = km.fit_predict(windows2[sum_cols].values)
+    k_centroids[k] = km.cluster_centers_
+    cells[neighborhood_name] = labels
+    
+    
+    #modify figure size aesthetics for each neighborhood
+    plt.rcParams["legend.markerscale"] = 10
+    figs = catplot(cells,X = X,Y=Y,exp = reg,
+                   hue = neighborhood_name,invert_y=True,size = 1,figsize=8)
+    
+    #Save Plots for Publication
+    for n,f in enumerate(figs):
+        f.savefig(output_dir2+neighborhood_name+'_id{}.png'.format(n))
+ 
+    if plot_specific_community is True:
+        #this plot shows the types of cells (ClusterIDs) in the different niches (0-9)
+        k_to_plot = k
+        niche_clusters = (k_centroids[k_to_plot])
+        tissue_avgs = values.mean(axis = 0)
+        fc = np.log2(((niche_clusters+tissue_avgs)/(niche_clusters+tissue_avgs).sum(axis = 1, keepdims = True))/tissue_avgs)
+        fc = pd.DataFrame(fc,columns = sum_cols)
+        s=sns.clustermap(fc.iloc[plot_specific_community,:], vmin =-3,vmax = 3,cmap = 'bwr',figsize=(10,5))
+        s.savefig(output_dir2+"celltypes_perniche_"+"_"+str(k)+".png", dpi=600)
+    
+    
+    #this plot shows the types of cells (ClusterIDs) in the different niches (0-9)
+    k_to_plot = k
+    niche_clusters = (k_centroids[k_to_plot])
+    tissue_avgs = values.mean(axis = 0)
+    fc = np.log2(((niche_clusters+tissue_avgs)/(niche_clusters+tissue_avgs).sum(axis = 1, keepdims = True))/tissue_avgs)
+    fc = pd.DataFrame(fc,columns = sum_cols)
+    s=sns.clustermap(fc, vmin =-3,vmax = 3,cmap = 'bwr', figsize=(10,10))
+    s.savefig(output_dir2+"celltypes_perniche_"+"_"+str(k)+".png", dpi=600)
+    
+    return(cells)
+
+#####
+
+def community_analysis_2(data, values, sum_cols, output_dir, X = 'x', Y = 'y', reg = 'unique_region', cluster_col = 'neigh_name', save_path = None, k = 100, n_neighborhoods = 30, plot_specific_community = None):
+    
+    output_dir2 = output_dir+"community_analysis/"
+    if not os.path.exists(output_dir2):
+        os.makedirs(output_dir2)
+    
+    cells = data.copy()
+
+    neighborhood_name = "community"+str(k)
+
+    keep_cols = [X ,Y ,reg,cluster_col]
+
+    n_neighbors = k
+
+    cells[reg] = cells[reg].astype('str')
+
+    #Get each region
+    tissue_group = cells[[X,Y,reg]].groupby(reg)
+    exps = list(cells[reg].unique())
+    tissue_chunks = [(time.time(),exps.index(t),t,a) for t,indices in tissue_group.groups.items() for a in np.array_split(indices,1)] 
+
+    tissues = [get_windows(job, n_neighbors, exps= exps, tissue_group = tissue_group, X = X, Y = Y) for job in tissue_chunks]
+
+    #Loop over k to compute neighborhoods
+    out_dict = {}
+    
+    for neighbors,job in zip(tissues,tissue_chunks):
+
+        chunk = np.arange(len(neighbors))#indices
+        tissue_name = job[2]
+        indices = job[3]
+        window = values[neighbors[chunk,:k].flatten()].reshape(len(chunk),k,len(sum_cols)).sum(axis = 1)
+        out_dict[(tissue_name,k)] = (window.astype(np.float16),indices)
+            
+    windows = {}
+    
+    
+    window = pd.concat([pd.DataFrame(out_dict[(exp,k)][0],index = out_dict[(exp,k)][1].astype(int),columns = sum_cols) for exp in exps],0)
+    window = window.loc[cells.index.values]
+    window = pd.concat([cells[keep_cols],window],1)
+    windows[k] = window
 
     #Fill in based on above
     k_centroids = {}
@@ -1398,7 +1580,6 @@ def Visulize_CCA_results(CCA_results, save_path, save_fig = False, p_thresh = 0.
     # Visualization of CCA 
     g1 = nx.petersen_graph()
     for cn_pair, cc in CCA_results.items():
-            
         s,t = cn_pair
         obs, perms = cc
         p =np.mean(obs>perms)
@@ -1489,13 +1670,14 @@ def plot_modules_heatmap(dat, cns, cts, figsize = (20,5), num_tissue_modules = 2
 #######
 
 def plot_modules_graphical(dat, cts, cns, num_tissue_modules = 2, num_cn_modules = 4, scale = 0.4, figsize = (1.5, 0.8), pal=None,save_name=None, save_path = None):
+    
     core, factors = non_negative_tucker(dat,rank=[num_tissue_modules,num_cn_modules,num_cn_modules],random_state = 32)
     
     if pal is None:
         pal = sns.color_palette('bright',10)
     palg = sns.color_palette('Greys',10)
     
-    #figsize(3.67*scale,2.00*scale)
+    figsize= (3.67*scale,2.00*scale)
     cn_scatter_size = scale*scale*45
     cel_scatter_size = scale*scale*15
     
@@ -1551,9 +1733,7 @@ def plot_modules_graphical(dat, cts, cns, num_tissue_modules = 2, num_cn_modules
         
 #######
 
-def build_tensors(df, group, cns, cts):
-    
-    counts = df.groupby(['patients','neigh_num','Coarse Cell']).size()
+def build_tensors(df, group, cns, cts, counts):
     
     #initialize the tensors
     T1 = np.zeros((len(group),len(cns),len(cts)))
@@ -1561,6 +1741,9 @@ def build_tensors(df, group, cns, cts):
     for i,pat in enumerate(group):
         for j,cn in enumerate(cns):
             for k,ct in enumerate(cts):
+                print(i, pat)
+                print(j,cn)
+                print(k,ct)
                 T1[i,j,k] = counts.loc[(pat,cn,ct)]
 
     #normalize so we have joint distributions each slice
