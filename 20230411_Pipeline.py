@@ -278,9 +278,9 @@ data = df # input data frame
 
 sub_l = ['CD4+ Treg', "B"]
 
-group_com = 'consensus diagnosis' # column containing a grouping variable (usually a condition or cell group)
+group_com = "Sample" # column containing a grouping variable (usually a condition or cell group)
 
-per_categ = "Major Cell Cat"
+per_categ = "Cell Type"
 
 rep = "unique_region" # replicate column (usually the unique regions per sample)
 
@@ -290,7 +290,7 @@ normalize = False
 
 save = True # logical value to decide if the generated plot should be saved 
 
-coloring = color_dic_diagnosis # color dictionary 
+coloring = color_dic_Sample # color dictionary 
 
 fig_size = 8 # numeric value to modify the figure size 
 
@@ -300,6 +300,30 @@ output_dir = output_dir # directory to save output
 
 
 # In[ ]:
+
+tt, test_results, res  = tl_Shan_div(data = data, 
+                                     sub_l = sub_l, 
+                                     group_com = group_com, 
+                                     per_categ = per_categ, 
+                                     rep = rep, 
+                                     sub_column = sub_column, 
+                                     normalize = normalize) 
+
+pl_Shan_div(tt, 
+            test_results, 
+            res, 
+            group_com = group_com, 
+            coloring = coloring, 
+            sub_l = sub_l, 
+            output_dir = output_dir, 
+            save=False, 
+            ordering=None, 
+            fig_size=1.5)
+
+
+
+
+
 
 
 ####### Swarm Boxplot of Shannon diversity score
@@ -582,6 +606,32 @@ k_centroids = {}
   #                               values = values, \
  #                                sum_cols = sum_cols)
 
+
+
+cells_df, k_centroids = tl_neighborhood_analysis_2(data = df2, 
+                           values = values, 
+                           sum_cols = sum_cols, 
+                           X = X, 
+                           Y = Y, 
+                           reg = reg, 
+                           cluster_col = cluster_col, 
+                           k = k, 
+                           n_neighborhoods = n_neighborhoods,  
+                           calc_silhouette_score = False)
+
+pl_neighborhood_analysis_2(data = cells_df, 
+                           k_centroids = k_centroids,
+                           values = values, 
+                           sum_cols = sum_cols, 
+                           X = X, 
+                           Y = Y, 
+                           reg = reg, 
+                           output_dir = output_dir, 
+                           k = k, 
+                           plot_specific_neighborhoods = None)
+
+
+
 # I identified redundant elements and removed them 
 cells_df = neighborhood_analysis_2(data = df2, 
                                  X = X, 
@@ -594,7 +644,8 @@ cells_df = neighborhood_analysis_2(data = df2,
                                  save_to_csv= True, 
                                  plot_specific_neighborhoods = [2,4], 
                                  values = values, 
-                                 sum_cols = sum_cols)
+                                 sum_cols = sum_cols,
+                                 calc_silhouette_score = False)
 
 
 # ## 3.2) Community Analysis 
@@ -614,7 +665,7 @@ cells_df = neighborhood_analysis_2(data = df2,
 
 # Arguments for community analysis:
 
-df = cells_df
+data = cells_df
 
 X = X
 
@@ -656,7 +707,41 @@ k_centroids = {}
 #                               plot_specific_community = [2,4,5], \
 #                               values = values, \
  #                              sum_cols = sum_cols)
-    
+
+
+
+
+
+cells_df2, neighborhood_name, k_centroids = tl_community_analysis_2(data = data, 
+                        values = values, 
+                        sum_cols = sum_cols, 
+                        X = X, 
+                        Y = Y, 
+                        reg = reg, 
+                        cluster_col = cluster_col_commun, 
+                        k = k_commun, 
+                        n_neighborhoods = n_communities_commun)
+
+pl_community_analysis_2(data = cells_df2, 
+                        values = values, 
+                        sum_cols = sum_cols, 
+                        output_dir = output_dir, 
+                        X = X, 
+                        Y = Y, 
+                        reg = reg, 
+                        save_path = None, 
+                        k = k_commun, 
+                        neighborhood_name = neighborhood_name,
+                        k_centroids = k_centroids,
+                        plot_specific_community = None)
+
+
+
+
+
+
+
+
 cells_df2 = community_analysis_2(data = cells_df, \
                                X = X, 
                                Y = Y, 
@@ -771,6 +856,32 @@ cells1 = cells.copy()
 cells1.append('patients')
 cells1
 
+
+
+
+
+dat, pvals = tl_cell_types_de(ct_freq = ct_freq, 
+                              all_freqs = all_freqs, 
+                              neighborhood_num = neighborhood_col_number, 
+                              nbs = nbs, 
+                              patients = patients, 
+                              group = group, 
+                              cells = cells, 
+                              cells1 = cells1)
+
+pl_cell_types_de(dat = dat,
+                 pvals = pvals, 
+                 neigh_num = neigh_num, 
+                 output_dir = output_dir)
+
+
+
+
+
+
+
+
+
 cell_types_de(ct_freq = ct_freq, \
               all_freqs = all_freqs, \
               neighborhood_num = neighborhood_col_number, \
@@ -820,14 +931,14 @@ cells_df = prepare_neighborhood_df(cells_df,
 
 # devide IDs/patients into groups
 patient_to_group_dict = cells_df.loc[:,['patients',ID_component2]].drop_duplicates().set_index('patients').to_dict()[ID_component2]
-group1_patients = [a for a,Sample in patient_to_group_dict.items() if Sample=="reg001"]
+group1_patients = [a for a,Sample in patient_to_group_dict.items() if Sample=="2HC_d5"]
 #group2_patients = [a for a,Sample_type in patient_to_group_dict.items() if Sample_type=='Resection']
 
 
 # In[68]:
 
 
-group1_patients = ["Cntrl_d5", "2HC_d3", "2HC_d5", "T_d5"]
+
 
 
 # In[69]:
