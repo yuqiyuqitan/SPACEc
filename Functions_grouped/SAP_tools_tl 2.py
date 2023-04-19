@@ -34,9 +34,7 @@ import tensorly as tl
 import itertools
 from functools import reduce
 import os as os
-from yellowbrick.cluster import KElbowVisualizer
-
-
+from yellowbrick.cluster import SilhouetteVisualizer
 
 # Tools
 ############################################################
@@ -96,7 +94,7 @@ The function also uses the windows dictionary to calculate the centroids of each
 '''
 
 
-def tl_neighborhood_analysis_2(data, values, sum_cols, X = 'x', Y = 'y', reg = 'unique_region', cluster_col = 'Cell Type', k = 35, n_neighborhoods = 30,  elbow = False, metric = "distortion"):
+def tl_neighborhood_analysis_2(data, values, sum_cols, X = 'x', Y = 'y', reg = 'unique_region', cluster_col = 'Cell Type', k = 35, n_neighborhoods = 30,  calc_silhouette_score = False):
 
     cells = data.copy()
 
@@ -141,7 +139,7 @@ def tl_neighborhood_analysis_2(data, values, sum_cols, X = 'x', Y = 'y', reg = '
     windows2 = windows[k]
     windows2[cluster_col] = cells[cluster_col]
     
-    if elbow != True:
+    if calc_silhouette_score != True:
         km = MiniBatchKMeans(n_clusters = n_neighborhoods,random_state=0)
         
         labels = km.fit_predict(windows2[sum_cols].values)
@@ -149,21 +147,20 @@ def tl_neighborhood_analysis_2(data, values, sum_cols, X = 'x', Y = 'y', reg = '
         cells[neighborhood_name] = labels
         
     else:  
+        km = MiniBatchKMeans(n_clusters = n_neighborhoods,random_state=0)
         
-        km = MiniBatchKMeans(random_state=0)
-            
         X = windows2[sum_cols].values
-            
+        
         labels = km.fit_predict(X)
         k_centroids[k] = km.cluster_centers_
         cells[neighborhood_name] = labels
-            
-        visualizer = KElbowVisualizer(km, k=(n_neighborhoods), timings=False, metric = metric)
-        visualizer.fit(X)        # Fit the data to the visualizer
-        visualizer.show()        # Finalize and render the figure
+        
+        silhouette_score_res = silhouette_score(X, km.labels_, n_jobs = 4)
     
-   
-    return(cells, k_centroids)
+    if calc_silhouette_score != True:
+        return(cells, k_centroids)
+    else:
+        return(cells, k_centroids, silhouette_score_res)
     
     
 ############
@@ -220,7 +217,7 @@ def tl_cell_types_de(ct_freq, all_freqs, neighborhood_num, nbs, patients, group,
 #######
 
 
-def tl_community_analysis_2(data, values, sum_cols, X = 'x', Y = 'y', reg = 'unique_region', cluster_col = 'neigh_name', k = 100, n_neighborhoods = 30, elbow = False):
+def tl_community_analysis_2(data, values, sum_cols, X = 'x', Y = 'y', reg = 'unique_region', cluster_col = 'neigh_name', k = 100, n_neighborhoods = 30):
     
     cells = data.copy()
 
@@ -266,28 +263,11 @@ def tl_community_analysis_2(data, values, sum_cols, X = 'x', Y = 'y', reg = 'uni
     windows2 = windows[k]
     windows2[cluster_col] = cells[cluster_col]
     
-    if elbow != True:
-        km = MiniBatchKMeans(n_clusters = n_neighborhoods,random_state=0)
-        
-        labels = km.fit_predict(windows2[sum_cols].values)
-        k_centroids[k] = km.cluster_centers_
-        cells[neighborhood_name] = labels
-        
-    else:  
-        
-        km = MiniBatchKMeans(random_state=0)
-            
-        X = windows2[sum_cols].values
-            
-        labels = km.fit_predict(X)
-        k_centroids[k] = km.cluster_centers_
-        cells[neighborhood_name] = labels
-            
-        visualizer = KElbowVisualizer(km, k=(n_neighborhoods), timings=False)
-        visualizer.fit(X)        # Fit the data to the visualizer
-        visualizer.show()        # Finalize and render the figure
+    km = MiniBatchKMeans(n_clusters = n_neighborhoods,random_state=0)
     
-    
+    labels = km.fit_predict(windows2[sum_cols].values)
+    k_centroids[k] = km.cluster_centers_
+    cells[neighborhood_name] = labels
     
     return(cells, neighborhood_name, k_centroids)
 
