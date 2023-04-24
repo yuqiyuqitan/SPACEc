@@ -9,34 +9,17 @@ Created on Tue Apr 18 12:00:44 2023
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
-from sklearn.neighbors import NearestNeighbors
 import time
-import sys
 from sklearn.cluster import MiniBatchKMeans
-import seaborn as sns
-import plotnine
 from scipy import stats
-from statsmodels.stats.multicomp import pairwise_tukeyhsd
-import math
-
-from sklearn.cluster import MiniBatchKMeans
-import scanpy as sc
-from scipy import stats
-from statsmodels.stats.multicomp import pairwise_tukeyhsd
 import statsmodels.api as sm
-from sklearn.cross_decomposition import CCA
 import networkx as nx
-from scipy.stats import pearsonr,spearmanr
 from scipy.spatial.distance import cdist
-#import graphviz
-from tensorly.decomposition import non_negative_tucker
-import tensorly as tl
-import itertools
-from functools import reduce
-import os as os
 from yellowbrick.cluster import KElbowVisualizer
+from sklearn.cross_decomposition import CCA
+from scipy.stats import pearsonr,spearmanr
 
-
+from  SAP_helperfunctions_hf import *
 
 # Tools
 ############################################################
@@ -178,14 +161,14 @@ def tl_cell_types_de(ct_freq, all_freqs, neighborhood_num, nbs, patients, group,
     
     # data prep
     # normalized overall cell type frequencies
-    X_cts = normalize(ct_freq.reset_index().set_index('patients').loc[patients,cells])
+    X_cts = hf_normalize(ct_freq.reset_index().set_index('patients').loc[patients,cells])
     
     # normalized neighborhood specific cell type frequencies
     df_list = []
     
     for nb in nbs:
         cond_nb = all_freqs.loc[all_freqs[neighborhood_num]==nb,cells1].rename({col: col+'_'+str(nb) for col in cells}, axis = 1).set_index('patients')
-        df_list.append(normalize(cond_nb))
+        df_list.append(hf_normalize(cond_nb))
     
     X_cond_nb = pd.concat(df_list, axis = 1).loc[patients]
     
@@ -375,7 +358,7 @@ def tl_Create_neighborhoods(df,
                          cluster_col,
                          X,
                          Y,
-                         reg,
+                         regions,
                          sum_cols = None,
                          keep_cols = None,
                          ks = [20]):
@@ -438,13 +421,13 @@ def tl_calculate_neigh_combs(w, l, n_num, threshold = 0.85, per_keep_thres = 0.8
     w['combination_num'] = [tuple(a for a in s) for s in simps]
 
     # this shows what proportion (y) of the total cells are assigned to the top x combinations
-    plt.figure(figsize = (20,5))
+    plt.figure(figsize = (7,3))
     plt.plot(simp_sums.values)
     plt.title("proportion (y) of the total cells are assigned to the top x combinations")
     plt.show()
 
     # this shows what proportion (y) of the total cells are assigned to the top x combinations
-    plt.figure(figsize = (20,5))
+    plt.figure(figsize = (7,3))
     plt.plot(test_sums_thres.values)
     plt.title("proportion (y) of the total cells are assigned to the top x combinations - thresholded")
     plt.show()
@@ -568,15 +551,3 @@ def tl_get_distances(df, cell_list, cell_type_col):
     return cls, dists    
 
 
-################
-
-def tl_get_top_abs_correlations(df, thresh=0.5):
-    au_corr = df.corr().unstack()
-    labels_to_drop = hf_get_redundant_pairs(df)
-    au_corr = au_corr.drop(labels=labels_to_drop).sort_values(ascending=False)
-    cc = au_corr.to_frame()
-    cc.index.rename(['col1','col2'],inplace=True)
-    cc.reset_index(inplace=True)
-    cc.rename(columns={0:'value'},inplace=True)
-    gt_pair = cc.loc[cc['value'].abs().gt(thresh)]
-    return gt_pair

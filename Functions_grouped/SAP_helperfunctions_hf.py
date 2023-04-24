@@ -11,30 +11,10 @@ import pandas as pd
 import numpy as np
 from sklearn.neighbors import NearestNeighbors
 import time
-import sys
-from sklearn.cluster import MiniBatchKMeans
 import seaborn as sns
-import plotnine
-from scipy import stats
-from statsmodels.stats.multicomp import pairwise_tukeyhsd
-import math
-
-from sklearn.cluster import MiniBatchKMeans
-import scanpy as sc
-from scipy import stats
-from statsmodels.stats.multicomp import pairwise_tukeyhsd
-import statsmodels.api as sm
-from sklearn.cross_decomposition import CCA
-import networkx as nx
-from scipy.stats import pearsonr,spearmanr
 from scipy.spatial.distance import cdist
-#import graphviz
-from tensorly.decomposition import non_negative_tucker
-import tensorly as tl
-import itertools
 from functools import reduce
-import os as os
-from yellowbrick.cluster import SilhouetteVisualizer
+
 
 # helper functions
 ############################################################
@@ -480,7 +460,7 @@ def hf_prepare_neighborhood_df(cells_df, patient_ID_component1, patient_ID_compo
 
 
 def hf_cor_subset(cor_mat, threshold, cell_type):
-    pairs = tl_get_top_abs_correlations(cor_mat,thresh=threshold)
+    pairs = hf_get_top_abs_correlations(cor_mat,thresh=threshold)
     
     piar1 = pairs.loc[pairs['col1']==cell_type]
     piar2 = pairs.loc[pairs['col2']==cell_type]
@@ -551,3 +531,16 @@ def hf_simp_rep(data, patient_col, tissue_column, subset_list_tissue, ttl_per_th
     simp_out = simp_df.loc[simp_df.gt(0).sum(axis=1).ge(thres_num)]
 
     return simp_out
+
+################
+
+def hf_get_top_abs_correlations(df, thresh=0.5):
+    au_corr = df.corr().unstack()
+    labels_to_drop = hf_get_redundant_pairs(df)
+    au_corr = au_corr.drop(labels=labels_to_drop).sort_values(ascending=False)
+    cc = au_corr.to_frame()
+    cc.index.rename(['col1','col2'],inplace=True)
+    cc.reset_index(inplace=True)
+    cc.rename(columns={0:'value'},inplace=True)
+    gt_pair = cc.loc[cc['value'].abs().gt(thresh)]
+    return gt_pair

@@ -9,32 +9,16 @@ Created on Tue Apr 18 12:01:17 2023
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
-from sklearn.neighbors import NearestNeighbors
-import time
-import sys
-from sklearn.cluster import MiniBatchKMeans
 import seaborn as sns
-import plotnine
 from scipy import stats
 from statsmodels.stats.multicomp import pairwise_tukeyhsd
-import math
-
-from sklearn.cluster import MiniBatchKMeans
-import scanpy as sc
-from scipy import stats
-from statsmodels.stats.multicomp import pairwise_tukeyhsd
-import statsmodels.api as sm
-from sklearn.cross_decomposition import CCA
 import networkx as nx
-from scipy.stats import pearsonr,spearmanr
-from scipy.spatial.distance import cdist
-#import graphviz
 from tensorly.decomposition import non_negative_tucker
 import tensorly as tl
-import itertools
-from functools import reduce
 import os as os
-from yellowbrick.cluster import SilhouetteVisualizer
+
+from  SAP_helperfunctions_hf import *
+
 
 # plotting functions
 ############################################################
@@ -54,16 +38,27 @@ col_order: a list of strings representing the order of the columns in the plot (
 sub_col: a string representing the column name used to subset the data (default: None).
 name_cat: a string representing the name of the category column in the plot (default: 'Cell Type').
 fig_sizing: a tuple representing the size of the plot (default: (8,4)).
-h_order: a list of strings representing the order of the categories in the plot (default: None).
-pal_color: a dictionary containing color codes for the categories in the plot (default: None).
+plot_order: a list of strings representing the order of the categories in the plot (default: None).
+color_dic: a dictionary containing color codes for the categories in the plot (default: None).
 remove_leg: a boolean value indicating whether to remove the legend or not (default: False).
 
 The function returns a Pandas DataFrame and a list of strings. The DataFrame contains the data used to create the plot, and the list of strings represents the order of the categories in the plot.
 '''
 
-def pl_stacked_bar_plot(data, per_cat, grouping, cell_list, output_dir,norm=True, save_name=None,\
-              col_order=None, sub_col=None, name_cat = 'Cell Type',fig_sizing=(8,4),\
-                     h_order=None, pal_color=None,remove_leg=False):
+def pl_stacked_bar_plot(data, 
+                        per_cat, 
+                        grouping, 
+                        cell_list, 
+                        output_dir,
+                        norm=True, 
+                        save_name=None,
+                        col_order=None, 
+                        sub_col=None, 
+                        name_cat = 'Cell Type',
+                        fig_sizing=(8,4),
+                        plot_order=None, 
+                        color_dic=None,
+                        remove_leg=False):
     
     #Find Percentage of cell type
     if norm==True:
@@ -100,8 +95,8 @@ def pl_stacked_bar_plot(data, per_cat, grouping, cell_list, output_dir,norm=True
         if col_order is None:
             col_order = melt_test.groupby(grouping).sum().reset_index().sort_values(by='percent')[grouping].to_list()
     
-    if h_order is None:
-        h_order = list(melt_test[per_cat].unique()) 
+    if plot_order is None:
+        plot_order = list(melt_test[per_cat].unique()) 
     
     #Set up for plotting
     melt_test_piv = pd.pivot_table(melt_test, columns = [name_cat], index=[grouping], values=['percent'])
@@ -109,17 +104,17 @@ def pl_stacked_bar_plot(data, per_cat, grouping, cell_list, output_dir,norm=True
     melt_test_piv.reset_index(inplace=True)
     melt_test_piv.set_index(grouping, inplace=True)
     melt_test_piv = melt_test_piv.reindex(col_order)
-    melt_test_piv = melt_test_piv[h_order]
+    melt_test_piv = melt_test_piv[plot_order]
     
     #Get color dictionary 
-    if pal_color is None:
+    if color_dic is None:
         #first subplot
         ax1 = melt_test_piv.plot.bar(alpha = 0.8, linewidth=1,\
                                     figsize =fig_sizing, rot=90,stacked=True, edgecolor='black')
 
     else: 
         #first subplot
-        ax1 = melt_test_piv.plot.bar(alpha = 0.8, linewidth=1, color=[pal_color.get(x) for x in melt_test_piv.columns],\
+        ax1 = melt_test_piv.plot.bar(alpha = 0.8, linewidth=1, color=[color_dic.get(x) for x in melt_test_piv.columns],\
                                     figsize =fig_sizing, rot=90,stacked=True, edgecolor='black')
 
     for line in ax1.lines:
@@ -139,7 +134,7 @@ def pl_stacked_bar_plot(data, per_cat, grouping, cell_list, output_dir,norm=True
     if save_name:
         plt.savefig(output_dir+save_name+'.png', format='png',\
                     dpi=300, transparent=True, bbox_inches='tight')
-    return melt_test_piv, h_order  
+    return melt_test_piv, plot_order  
 
 
 #############
@@ -155,17 +150,28 @@ output_dir: directory where the output plot will be saved
 norm: boolean (default True) to normalize data by subsetting variable before plotting
 figure_sizing: tuple (default (10,5)) containing the size of the output plot
 save_name: name of the file to save the output plot (if output_dir is provided)
-h_order: list of values to specify the order of the horizontal axis
+plot_order: list of values to specify the order of the horizontal axis
 col_in: list of values to subset the data by the per_cat column
-pal_color: seaborn color palette for the boxplot and swarmplot
+color_dic: seaborn color palette for the boxplot and swarmplot
 flip: boolean (default False) to flip the orientation of the plot
 '''
 # This function creates a box plot and swarm plot from the given data
 # and returns a plot object.
 
-def pl_swarm_box(data, grouping, replicate, sub_col, sub_list, per_cat, output_dir, norm=True,\
-              figure_sizing=(10,5), save_name=None, h_order=None, col_in=None, \
-              pal_color=None, flip=False):
+def pl_swarm_box(data, 
+                 grouping, 
+                 per_cat,
+                 replicate, 
+                 sub_col, 
+                 sub_list, 
+                 output_dir, 
+                 norm=True,
+                 figure_sizing=(10,5), 
+                 save_name=None, 
+                 plot_order=None, 
+                 col_in=None, 
+                 color_dic=None, 
+                 flip=False):
        
     #Find Percentage of cell type
     test= data.copy()
@@ -196,23 +202,23 @@ def pl_swarm_box(data, grouping, replicate, sub_col, sub_list, per_cat, output_d
     #Order by average
     plot_order = melt_per_plot.groupby(per_cat).mean().reset_index().sort_values(by='percentage')[per_cat].to_list()
 
-    if h_order is None:
-        h_order = list(melt_per_plot[grouping].unique()) 
+    if plot_order is None:
+        plot_order = list(melt_per_plot[grouping].unique()) 
     
     
     #swarmplot to compare clustering
     plt.figure(figsize=figure_sizing)
     if flip==True:
         plt.figure(figsize=figure_sizing)
-        if pal_color is None:
-            ax = sns.boxplot(data = melt_per_plot, x=grouping,  y='percentage',  dodge=True, order=h_order)
-            ax = sns.swarmplot(data = melt_per_plot, x=grouping, y='percentage', dodge=True,order=h_order,\
+        if color_dic is None:
+            ax = sns.boxplot(data = melt_per_plot, x=grouping,  y='percentage',  dodge=True, order=plot_order)
+            ax = sns.swarmplot(data = melt_per_plot, x=grouping, y='percentage', dodge=True,order=plot_order,\
                            edgecolor='black',linewidth=1, color="white")
         else:
-            ax = sns.boxplot(data = melt_per_plot, x=grouping,  y='percentage',  dodge=True,order=h_order, \
-                         palette=pal_color)
-            ax = sns.swarmplot(data = melt_per_plot, x=grouping, y='percentage', dodge=True,order=h_order,\
-                           edgecolor='black',linewidth=1, palette=pal_color)
+            ax = sns.boxplot(data = melt_per_plot, x=grouping,  y='percentage',  dodge=True,order=plot_order, \
+                         palette=color_dic)
+            ax = sns.swarmplot(data = melt_per_plot, x=grouping, y='percentage', dodge=True,order=plot_order,\
+                           edgecolor='black',linewidth=1, palette=color_dic)
     
         for patch in ax.artists:
             r, g, b, a = patch.get_facecolor()
@@ -224,15 +230,15 @@ def pl_swarm_box(data, grouping, replicate, sub_col, sub_list, per_cat, output_d
         sns.despine()
         
     else:
-        if pal_color is None:
-            ax = sns.boxplot(data = melt_per_plot, x=grouping,  y='percentage',  dodge=True, order=h_order)
-            ax = sns.swarmplot(data = melt_per_plot, x=grouping, y='percentage', dodge=True,order=h_order,\
+        if color_dic is None:
+            ax = sns.boxplot(data = melt_per_plot, x=grouping,  y='percentage',  dodge=True, order=plot_order)
+            ax = sns.swarmplot(data = melt_per_plot, x=grouping, y='percentage', dodge=True,order=plot_order,\
                            edgecolor='black',linewidth=1, color="white")
         else:
-            ax = sns.boxplot(data = melt_per_plot, x=grouping,  y='percentage',  dodge=True,order=h_order, \
-                         palette=pal_color)
-            ax = sns.swarmplot(data = melt_per_plot, x=grouping, y='percentage', dodge=True,order=h_order,\
-                           edgecolor='black',linewidth=1, palette=pal_color)
+            ax = sns.boxplot(data = melt_per_plot, x=grouping,  y='percentage',  dodge=True,order=plot_order, \
+                         palette=color_dic)
+            ax = sns.swarmplot(data = melt_per_plot, x=grouping, y='percentage', dodge=True,order=plot_order,\
+                           edgecolor='black',linewidth=1, palette=color_dic)
         for patch in ax.artists:
             r, g, b, a = patch.get_facecolor()
             patch.set_facecolor((r, g, b, .3))
@@ -260,47 +266,44 @@ def pl_swarm_box(data, grouping, replicate, sub_col, sub_list, per_cat, output_d
 
 #############
 '''
-pl_Shan_div that takes in several arguments and generates a boxplot and swarmplot of Shannon diversity results, and a Tukey's HSD (honest significant difference) test if the p-value is below a threshold of 0.05. Here is an overview of the arguments:
 
-tt: Not defined in the code snippet provided.
-test_results: A float indicating the p-value of the statistical test for Shannon diversity. If this value is less than 0.05, the function will generate a Tukey's HSD test plot.
-res: A pandas DataFrame containing the Shannon diversity results.
-group_com: A string indicating the name of the column in res to group the data by for the boxplot and swarmplot.
-coloring: Optional argument. If provided, it should be a list or dictionary of colors to use for the boxplot and swarmplot.
-sub_l: A list containing a string that will be used as part of the filename when saving the output plots.
-output_dir: A string indicating the directory to save the output plots.
-save: Optional argument. If True, the function will save the output plots in the directory specified by output_dir.
-ordering: Optional argument. If provided, it should be a list specifying the order in which to plot the groups in the boxplot and swarmplot.
-fig_size: Optional argument. A float indicating the size of the output figures.
 '''
 
-def pl_Shan_div(tt, test_results, res, group_com, coloring, sub_l, output_dir, save=False, ordering=None, fig_size=1.5):      
+def pl_Shan_div(tt, 
+                test_results, 
+                res, grouping, 
+                color_dic, 
+                sub_list, 
+                output_dir, 
+                save=False, 
+                plot_order=None, 
+                fig_size=1.5):      
     #Order by average
-    if coloring is None:
-        if ordering is None:
-            plot_order = res.groupby(group_com).mean().reset_index().sort_values(by='Shannon Diversity')[group_com].to_list()    
+    if color_dic is None:
+        if plot_order is None:
+            plot_order = res.groupby(grouping).mean().reset_index().sort_values(by='Shannon Diversity')[grouping].to_list()    
         else:
-            plot_order=ordering
+            plot_order=plot_order
         #Plot the swarmplot of results
         plt.figure(figsize=(fig_size,3))
 
-        ax = sns.boxplot(data = res, x=group_com,  y='Shannon Diversity',  dodge=True, order=plot_order)
+        ax = sns.boxplot(data = res, x=grouping,  y='Shannon Diversity',  dodge=True, order=plot_order)
                         
-        ax = sns.swarmplot(data = res, x=group_com, y='Shannon Diversity', dodge=True, order=plot_order,\
+        ax = sns.swarmplot(data = res, x=grouping, y='Shannon Diversity', dodge=True, order=plot_order,\
                         edgecolor='black',linewidth=1, color="white")
     
     else:
-        if ordering is None:
-            plot_order = res.groupby(group_com).mean().reset_index().sort_values(by='Shannon Diversity')[group_com].to_list()    
+        if plot_order is None:
+            plot_order = res.groupby(grouping).mean().reset_index().sort_values(by='Shannon Diversity')[grouping].to_list()    
         else:
-            plot_order=ordering
+            plot_order=plot_order
         #Plot the swarmplot of results
         plt.figure(figsize=(fig_size,3))
 
-        ax = sns.boxplot(data = res, x=group_com,  y='Shannon Diversity',  dodge=True, order=plot_order, \
-                        palette=coloring)
-        ax = sns.swarmplot(data = res, x=group_com, y='Shannon Diversity', dodge=True, order=plot_order,\
-                        edgecolor='black',linewidth=1, palette=coloring)
+        ax = sns.boxplot(data = res, x=grouping,  y='Shannon Diversity',  dodge=True, order=plot_order, \
+                        palette=color_dic)
+        ax = sns.swarmplot(data = res, x=grouping, y='Shannon Diversity', dodge=True, order=plot_order,\
+                        edgecolor='black',linewidth=1, palette=color_dic)
 
     for patch in ax.artists:
         r, g, b, a = patch.get_facecolor()
@@ -311,13 +314,13 @@ def pl_Shan_div(tt, test_results, res, group_com, coloring, sub_l, output_dir, s
     plt.title('')
     sns.despine()
     if save==True:
-        plt.savefig(output_dir+sub_l[0]+'_Shannon.png', format='png', dpi=300, transparent=True, bbox_inches='tight')
+        plt.savefig(output_dir+sub_list[0]+'_Shannon.png', format='png', dpi=300, transparent=True, bbox_inches='tight')
     
     plt.show()
     if test_results < 0.05:
         plt.figure(figsize=(fig_size,fig_size))
         tukey = pairwise_tukeyhsd(endog=res['Shannon Diversity'],
-                              groups=res[group_com],
+                              groups=res[grouping],
                               alpha=0.05)
         tukeydf = pd.DataFrame(data=tukey._results_table.data[1:], columns=tukey._results_table.data[0])
         tukedf_rev = tukeydf.copy()
@@ -338,7 +341,7 @@ def pl_Shan_div(tt, test_results, res, group_com, coloring, sub_l, output_dir, s
         ax.set_ylabel('')    
         ax.set_xlabel('')
         if save==True:    
-            plt.savefig(output_dir+sub_l[0]+'_tukey.png', format='png', dpi=300, transparent=True, bbox_inches='tight')
+            plt.savefig(output_dir+sub_list[0]+'_tukey.png', format='png', dpi=300, transparent=True, bbox_inches='tight')
         plt.show()
     else:
         table1=False
@@ -347,7 +350,11 @@ def pl_Shan_div(tt, test_results, res, group_com, coloring, sub_l, output_dir, s
 #############
 
    
-def pl_cell_type_composition_vis(data, sample_column = "sample", cell_type_column = "Cell Type", figsize = (10,10), output_dir = None):
+def pl_cell_type_composition_vis(data, 
+                                 sample_column = "sample", 
+                                 cell_type_column = "Cell Type", 
+                                 figsize = (10,10), 
+                                 output_dir = None):
     
     if output_dir == None:
         print("You have defined no output directory!")
@@ -398,7 +405,16 @@ def pl_cell_type_composition_vis(data, sample_column = "sample", cell_type_colum
 ##############
 
 
-def pl_neighborhood_analysis_2(data, k_centroids, values, sum_cols, X = 'x', Y = 'y', reg = 'unique_region', output_dir = None, k = 35, plot_specific_neighborhoods = None):
+def pl_neighborhood_analysis_2(data, 
+                               k_centroids, 
+                               values, 
+                               sum_cols, 
+                               X = 'x', 
+                               Y = 'y', 
+                               reg = 'unique_region', 
+                               output_dir = None, 
+                               k = 35, 
+                               plot_specific_neighborhoods = None):
 
     
     #modify figure size aesthetics for each neighborhood
@@ -432,11 +448,11 @@ def pl_neighborhood_analysis_2(data, k_centroids, values, sum_cols, X = 'x', Y =
 ##############
 
 
-def pl_cell_types_de(dat, pvals, neigh_num, output_dir, figsize = (20,10)):
+def pl_cell_types_de(data, pvals, neigh_num, output_dir, figsize = (20,10)):
    
     #plot as heatmap
     f, ax = plt.subplots(figsize = figsize)
-    g = sns.heatmap(dat,cmap = 'bwr', vmin = -1, vmax = 1,cbar=False,ax = ax)
+    g = sns.heatmap(data,cmap = 'bwr', vmin = -1, vmax = 1,cbar=False,ax = ax)
     for a,b in zip(*np.where (pvals<0.05)):
         plt.text(b+.5,a+.55,'*',fontsize = 20,ha = 'center',va = 'center')
     plt.tight_layout()
@@ -461,7 +477,7 @@ def pl_cell_types_de(dat, pvals, neigh_num, output_dir, figsize = (20,10)):
     plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
     plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
     
-    data_2 = dat.rename(index=inv_map)
+    data_2 = data.rename(index=inv_map)
     
     
     #Sort both axes
@@ -490,7 +506,18 @@ def pl_cell_types_de(dat, pvals, neigh_num, output_dir, figsize = (20,10)):
 ##############
     
 
-def pl_community_analysis_2(data, values, sum_cols, output_dir, neighborhood_name, k_centroids, X = 'x', Y = 'y', reg = 'unique_region', save_path = None, k = 100, plot_specific_community = None):
+def pl_community_analysis_2(data, 
+                            values, 
+                            sum_cols, 
+                            output_dir, 
+                            neighborhood_name, 
+                            k_centroids, 
+                            X = 'x', 
+                            Y = 'y', 
+                            reg = 'unique_region', 
+                            save_path = None, 
+                            k = 100, 
+                            plot_specific_community = None):
     
     output_dir2 = output_dir+"community_analysis/"
     if not os.path.exists(output_dir2):
@@ -543,7 +570,13 @@ It then iterates over each edge in the graph and sets its alpha and linewidth ba
 Overall, this function provides a way to visually represent the relationships between cell types in the CCA results, allowing for a better understanding of the underlying patterns and correlations in the data.
 '''
 
-def pl_Visulize_CCA_results(CCA_results, save_path, save_fig = False, p_thresh = 0.1, save_name = "CCA_vis.png", colors = None):
+def pl_Visulize_CCA_results(CCA_results, 
+                            output_dir, 
+                            save_fig = False, 
+                            p_thresh = 0.1, 
+                            save_name = "CCA_vis.png", 
+                            colors = None):
+    
     # Visualization of CCA 
     g1 = nx.petersen_graph()
     for cn_pair, cc in CCA_results.items():
@@ -582,15 +615,20 @@ def pl_Visulize_CCA_results(CCA_results, save_path, save_fig = False, p_thresh =
 
         plt.plot([pos[e0][0],pos[e1][0]],[pos[e0][1],pos[e1][1]], c= 'black',alpha = alpha, linewidth = 3*p**3)
     if save_fig == True:
-        plt.savefig(save_path + "/" + save_name, format='png', dpi=300, transparent=True, bbox_inches='tight') 
+        plt.savefig(output_dir + "/" + save_name, format='png', dpi=300, transparent=True, bbox_inches='tight') 
         
         
 
 #######
 
-def pl_plot_modules_heatmap(dat, cns, cts, figsize = (20,5), num_tissue_modules = 2, num_cn_modules = 5):
+def pl_plot_modules_heatmap(data, 
+                            cns, 
+                            cts, 
+                            figsize = (20,5), 
+                            num_tissue_modules = 2, 
+                            num_cn_modules = 5):
     figsize = figsize
-    core, factors = non_negative_tucker(dat,rank=[num_tissue_modules,num_cn_modules,num_cn_modules],random_state = 32)
+    core, factors = non_negative_tucker(data,rank=[num_tissue_modules,num_cn_modules,num_cn_modules],random_state = 32)
     plt.subplot(1,2,1)
     sns.heatmap(pd.DataFrame(factors[1],index = cns))
     plt.ylabel('CN')
@@ -624,12 +662,20 @@ The function also draws rectangles and lines to visually separate the different 
 The resulting plots can be saved to a specified file path and name using the 'save_path' and 'save_name' arguments.
 '''
 
-def pl_plot_modules_graphical(dat, cts, cns, num_tissue_modules = 2, num_cn_modules = 4, scale = 0.4, pal=None,save_name=None, save_path = None):
+def pl_plot_modules_graphical(data, 
+                              cts, 
+                              cns, 
+                              num_tissue_modules = 2, 
+                              num_cn_modules = 4, 
+                              scale = 0.4, 
+                              color_dic=None,
+                              save_name=None, 
+                              save_path = None):
     
-    core, factors = non_negative_tucker(dat,rank=[num_tissue_modules,num_cn_modules,num_cn_modules],random_state = 32)
+    core, factors = non_negative_tucker(data,rank=[num_tissue_modules,num_cn_modules,num_cn_modules],random_state = 32)
     
-    if pal is None:
-        pal = sns.color_palette('bright',10)
+    if color_dic is None:
+        color_dic = sns.color_palette('bright',10)
     palg = sns.color_palette('Greys',10)
     
     figsize= (3.67*scale,2.00*scale)
@@ -646,8 +692,8 @@ def pl_plot_modules_graphical(dat, cts, cns, num_tissue_modules = 2, num_cn_modu
             cn_fac = factors[1][:,idx]
             cel_fac = factors[2][:,idx]
 
-            cols_alpha = [(*pal[cn], an*np.minimum(cn_fac, 1.0)[i]) for i,cn in enumerate(cns)]
-            cols = [(*pal[cn], np.minimum(cn_fac, 1.0)[i]) for i,cn in enumerate(cns)]
+            cols_alpha = [(*color_dic[cn], an*np.minimum(cn_fac, 1.0)[i]) for i,cn in enumerate(cns)]
+            cols = [(*color_dic[cn], np.minimum(cn_fac, 1.0)[i]) for i,cn in enumerate(cns)]
             cell_cols_alpha = [(0,0,0, an*np.minimum(cel_fac, 1.0)[i]) for i,_ in enumerate(cel_fac)]
             cell_cols = [(0,0,0, np.minimum(cel_fac, 1.0)[i]) for i,_ in enumerate(cel_fac)]
             
@@ -690,7 +736,7 @@ def pl_plot_modules_graphical(dat, cts, cns, num_tissue_modules = 2, num_cn_modu
 #########
 
 
-def pl_evaluate_ranks(dat, num_tissue_modules = 2):
+def pl_evaluate_ranks(data, num_tissue_modules = 2):
     num_tissue_modules = num_tissue_modules+1
     pal = sns.color_palette('bright',10)
     palg = sns.color_palette('Greys',10)
@@ -699,8 +745,8 @@ def pl_evaluate_ranks(dat, num_tissue_modules = 2):
     for i in range(2,15):
         for j in range(1,num_tissue_modules):
             # we use NNTD as described in the paper
-            facs_overall = non_negative_tucker(dat,rank=[j,i,i],random_state = 2336)
-            mat1[j,i] = np.mean((dat- tl.tucker_to_tensor((facs_overall[0],facs_overall[1])))**2)
+            facs_overall = non_negative_tucker(data,rank=[j,i,i],random_state = 2336)
+            mat1[j,i] = np.mean((data- tl.tucker_to_tensor((facs_overall[0],facs_overall[1])))**2)
     for j in range(1,num_tissue_modules):
         plt.plot(2+np.arange(13),mat1[j][2:],label = 'rank = ({},x,x)'.format(j))
         
@@ -715,7 +761,7 @@ def pl_evaluate_ranks(dat, num_tissue_modules = 2):
 
 """
 data: the input pandas data frame.
-sub_l2: a list of subcategories to be considered.
+sub_list2: a list of subcategories to be considered.
 per_categ: the categorical column in the data frame to be used.
 group2: the grouping column in the data frame.
 repl: the replicate column in the data frame.
@@ -726,15 +772,15 @@ normed (optional): if the percentage should be normalized, default is True.
 cell2 (optional): the second cell type column in the data frame.
 """
 def pl_corr_cell(data, per_categ, group2, rep, sub_column, cell,\
-              output_dir, save_name, thres = 0.9, normed=True, cell2=None, sub_l2 = None):
+              output_dir, save_name, thres = 0.9, normed=True, cell2=None, sub_list2 = None):
     
-    if sub_l2 != None:
+    if sub_list2 != None:
         result = hf_per_only(data = data, per_cat = per_categ, grouping=group2,\
-                          sub_list=sub_l2, replicate=rep, sub_col = sub_column, norm=normed)
+                          sub_list=sub_list2, replicate=rep, sub_col = sub_column, norm=normed)
     else:
-        sub_l2 = data[per_categ].unique()
+        sub_list2 = data[per_categ].unique()
         result = hf_per_only(data = data, per_cat = per_categ, grouping=group2,\
-                          sub_list=sub_l2, replicate=rep, sub_col = sub_column, norm=normed)
+                          sub_list=sub_list2, replicate=rep, sub_col = sub_column, norm=normed)
 
     #Format for correlation function
     mp = pd.pivot_table(result, columns = [per_categ], index=[group2,rep], values=['percentage'])
@@ -747,9 +793,9 @@ def pl_corr_cell(data, per_categ, group2, rep, sub_column, cell,\
     
     if cell2:
         sl3 = [cell2, cell]
-        cor_subplot(mp=cc, sub_list=sl3, output_dir = output_dir, save_name=cell+'_'+cell2)
+        pl_cor_subplot(mp=cc, sub_list=sl3, output_dir = output_dir, save_name=cell+'_'+cell2)
     else:
-        cor_subplot(mp=cc, sub_list=sl2, output_dir = output_dir, save_name=cell)
+        pl_cor_subplot(mp=cc, sub_list=sl2, output_dir = output_dir, save_name=cell)
         
     if save_name:
         plt.savefig(output_dir+save_name+'.png', format='png',\
@@ -976,7 +1022,8 @@ def pl_generate_CN_comb_map(graph, tops, e0, e1, simp_freqs, l, color_dic, figsi
         
     #     plt.plot([x+(18*(i-1.5)) for i in range(len(node_heights))],[(y-height*.9)+v for v in node_heights],c = 'red',zorder =3)#,s = v*2 ,c= c,edgecolors='black',lw = 1)
     #     plt.scatter([x+(18*(i-1.5)) for i in range(len(node_heights))],[(y-height*.9)+v for v in node_heights],c = marker_colors,s = standard_node_size,zorder = 4)
-        
+    
+    
             
     j = 0
     for e0,e1 in draw.edges():
