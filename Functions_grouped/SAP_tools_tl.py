@@ -550,4 +550,30 @@ def tl_get_distances(df, cell_list, cell_type_col):
             dists[(i,j)] = dists[(j,i)]
     return cls, dists    
 
+###############
+# clustering
+def tl_clustering(adata, clustering = 'leiden', res=1, n_neighbors = 10, reclustering = False):
+    if clustering not in ['leiden','louvain']:
+        print("Invalid clustering options. Please select from leiden or louvain!")
+        exit()
+    #Compute the neighborhood relations of single cells the range 2 to 100 and usually 10
+    if reclustering:
+        print("Clustering")
+        if clustering == 'leiden':
+            sc.tl.leiden(adata, resolution = res, key_added = "leiden_" + str(res))
+        else:
+            sc.tl.louvain(adata, resolution = res, key_added = "louvain" + str(res))        
+    else:
+        print("Computing neighbors and UMAP")
+        sc.pp.neighbors(adata, n_neighbors=n_neighbors)
+        #UMAP computation
+        sc.tl.umap(adata)
+        print("Clustering")
+        #Perform leiden clustering - improved version of louvain clustering
+        if clustering == 'leiden':
+            sc.tl.leiden(adata, resolution = res, key_added = "leiden_" + str(res))
+        else:
+            sc.tl.louvain(adata, resolution = res, key_added = "louvain" + str(res))
+
+
 
