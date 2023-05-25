@@ -16,6 +16,8 @@ from scipy.spatial.distance import cdist
 from functools import reduce
 import scanpy as sc
 
+sns.set_style("ticks")
+
 # helper functions
 ############################################################
 

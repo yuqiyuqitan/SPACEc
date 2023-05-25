@@ -19,6 +19,7 @@ import os as os
 
 from  SAP_helperfunctions_hf import *
 
+sns.set_style("ticks")
 
 # plotting functions
 ############################################################
