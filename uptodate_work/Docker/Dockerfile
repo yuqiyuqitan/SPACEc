@@ -66,6 +66,7 @@ RUN mamba install --yes \
     "pydot" \
     "pygraphviz" \
     "conda-forge::libvips" \
+    "leidenalg" \
     'xlrd' && \
     mamba clean --all -f -y && \
     fix-permissions "${CONDA_DIR}" && \

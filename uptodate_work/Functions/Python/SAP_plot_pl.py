@@ -2098,3 +2098,26 @@ def pl_mono_cluster_spatial(df, sample_col = 'Sample', cluster_col = 'Cell Type'
             ax.get_legend().remove()
             ax.set_xlabel("")
         plt.show()
+        
+#########
+
+def pl_visualize_2D_density_plot(df, region_column, selected_region, subsetting_column, values_list, x_column, y_column):
+    # Subset the DataFrame based on region_column and selected_region
+    subset_df1 = df[df[region_column] == selected_region]
+
+    # Subset the DataFrame based on subsetting_column and values_list
+    subset_df2 = subset_df1[subset_df[subsetting_column].isin(values_list)]
+
+    # Create a 2D density plot
+    sns.kdeplot(data=subset_df2, x=x_column, y=y_column, fill=True)
+
+    # Overlay the individual data points as a scatter plot
+    sns.scatterplot(data=subset_df1, x=x_column, y=y_column, color='lightgrey', alpha=0.5)
+
+    # Add labels and title to the plot
+    plt.xlabel(x_column)
+    plt.ylabel(y_column)
+    plt.title("2D Density Plot with Overlay")
+
+    # Display the plot
+    plt.show()
