@@ -72,6 +72,7 @@ RUN mamba install --yes \
     fix-permissions "${CONDA_DIR}" && \
     fix-permissions "/home/${NB_USER}"
 
+RUN conda install -c conda-forge rpy2
 RUN pip install "TissUUmaps[full]"
 
 # Install facets which does not have a pip or conda package at the moment
@@ -97,3 +98,4 @@ COPY SAP_helperfunctions_hf.py .
 COPY SAP_preprocessing_pp.py .
 COPY SAP_tools_tl.py .
 COPY SAP_plot_pl.py .
+COPY triangulation_distances.R .
