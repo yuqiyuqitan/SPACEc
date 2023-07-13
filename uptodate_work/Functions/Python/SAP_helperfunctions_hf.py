@@ -15,6 +15,9 @@ import seaborn as sns
 from scipy.spatial.distance import cdist
 from functools import reduce
 import scanpy as sc
+from tqdm import tqdm
+import tifffile as tiff
+import os
 
 sns.set_style("ticks")
 
@@ -576,3 +579,226 @@ def hf_makeAnndata(df_nn, # data frame coming out from denoising
     adata = sc.AnnData(X=df_nn.iloc[:,:col_sum+1].drop(columns = nonFuncAb_list))
     adata.obs = df_nn.iloc[:,col_sum+1:]
     return adata
+
+################
+def hf_split_channels(input_path, output_folder, channel_names_file=None):
+    """
+    Split channels of a TIFF image and save them as separate files.
+    
+    Parameters:
+        input_path (str): Path to the input TIFF image.
+        output_folder (str): Path to the output folder where the channels will be saved.
+        channel_names_file (str, optional): Path to the file containing channel names.
+            If None, numbers will be used as channel names.
+    
+    Raises:
+        FileNotFoundError: If the input_path or channel_names_file (if provided) is not found.
+    
+    Returns:
+        None
+    """
+    # Load the large TIFF image
+    print("loading image file...")
+    image = tiff.imread(input_path)
+    print("Done")
+
+    print("splitting channels...")
+    if channel_names_file is not None:
+        # Read the channel names from the text file
+        with open(channel_names_file, 'r') as f:
+            channel_names = f.read().splitlines()
+    else:
+        # Generate channel names as numbers
+        channel_names = [str(i) for i in range(image.shape[0])]
+    print("Done")
+
+    # Split the channels
+    channels = np.split(image, image.shape[0], axis=0)
+
+    # Save each channel as a TIFF file with the corresponding channel name
+    for i, channel in tqdm(enumerate(channels), total=len(channels), desc='Saving channels'):
+        channel = np.squeeze(channel)  # Remove single-dimensional entries
+        
+        output_filename = f'{output_folder}/{channel_names[i]}.tif'
+        tiff.imsave(output_filename, channel)
+
+    print("Channels saved successfully!")
+    
+##############
+# Patch analysis
+
+def hf_voronoi_finite_polygons_2d(vor, radius=None):
+    """
+    Reconstruct infinite voronoi regions in a 2D diagram to finite
+    regions.
+
+    Parameters
+    ----------
+    vor : Voronoi
+        Input diagram
+    radius : float, optional
+        Distance to 'points at infinity'.
+
+    Returns
+    -------
+    regions : list of tuples
+        Indices of vertices in each revised Voronoi regions.
+    vertices : list of tuples
+        Coordinates for revised Voronoi vertices. Same as coordinates
+        of input vertices, with 'points at infinity' appended to the
+        end.
+
+    """
+
+    if vor.points.shape[1] != 2:
+        raise ValueError("Requires 2D input")
+
+    new_regions = []
+    new_vertices = vor.vertices.tolist()
+
+    center = vor.points.mean(axis=0)
+    if radius is None:
+        radius = vor.points.ptp().max()
+
+    # Construct a map containing all ridges for a given point
+    all_ridges = {}
+    for (p1, p2), (v1, v2) in zip(vor.ridge_points, vor.ridge_vertices):
+        all_ridges.setdefault(p1, []).append((p2, v1, v2))
+        all_ridges.setdefault(p2, []).append((p1, v1, v2))
+
+    # Reconstruct infinite regions
+    for p1, region in enumerate(vor.point_region):
+        vertices = vor.regions[region]
+
+        if all(v >= 0 for v in vertices):
+            # finite region
+            new_regions.append(vertices)
+            continue
+
+        # reconstruct a non-finite region
+        ridges = all_ridges[p1]
+        new_region = [v for v in vertices if v >= 0]
+
+        for p2, v1, v2 in ridges:
+            if v2 < 0:
+                v1, v2 = v2, v1
+            if v1 >= 0:
+                # finite ridge: already in the region
+                continue
+
+            # Compute the missing endpoint of an infinite ridge
+            t = vor.points[p2] - vor.points[p1] # tangent
+            t /= np.linalg.norm(t)
+            n = np.array([-t[1], t[0]])  # normal
+
+            midpoint = vor.points[[p1, p2]].mean(axis=0)
+            direction = np.sign(np.dot(midpoint - center, n)) * n
+            far_point = vor.vertices[v2] + direction * radius * 10
+
+            new_region.append(len(new_vertices))
+            new_vertices.append(far_point.tolist())
+
+        # sort region counterclockwise
+        vs = np.asarray([new_vertices[v] for v in new_region])
+        c = vs.mean(axis=0)
+        angles = np.arctan2(vs[:,1] - c[1], vs[:,0] - c[0])
+        new_region = np.array(new_region)[np.argsort(angles)]
+
+        # finish
+        new_regions.append(new_region.tolist())
+
+    return new_regions, np.asarray(new_vertices)
+
+###
+
+def hf_list_folders(directory):
+    """
+    Retrieve a list of folders in a given directory.
+
+    Parameters:
+        directory (str): Path to the directory.
+
+    Returns:
+        list: List of folder names within the specified directory.
+    """
+    folders = []
+    for item in os.listdir(directory):
+        item_path = os.path.join(directory, item)
+        if os.path.isdir(item_path):
+            folders.append(item)
+    return folders
+
+###
+
+def hf_process_dataframe(df):
+    """
+    Extract information from a pandas DataFrame containing file paths and IDs.
+
+    Parameters:
+        df (pandas.DataFrame): The input DataFrame containing file paths and IDs.
+
+    Returns:
+        tuple: A tuple containing the voronoi_path, mask_path, and region for the first row.
+    """
+    for index, row in df.iterrows():
+        voronoi_path = row['voronoi_path']
+        mask_path = row['mask_path']
+        region = row['region_long']
+        # Process the voronoi_path and mask_path variables as needed
+        # Here, we are printing them for demonstration purposes
+        print(f"Voronoi Path: {voronoi_path}")
+        print(f"Mask Path: {mask_path}")
+
+        return voronoi_path, mask_path, region
+    
+###
+
+def hf_get_png_files(directory):
+    """
+    Get a list of PNG files in a given directory.
+
+    Parameters:
+        directory (str): Path to the directory.
+
+    Returns:
+        list: List of PNG file paths within the specified directory.
+    """
+    png_files = []
+    for filename in os.listdir(directory):
+        if filename.endswith(".png"):
+            png_files.append(os.path.join(directory, filename))
+    return png_files
+
+###
+
+def hf_find_tiff_file(directory, prefix):
+    """
+    Find a TIFF file in a given directory with a specified prefix.
+
+    Parameters:
+        directory (str): Path to the directory.
+        prefix (str): Prefix of the TIFF file name.
+
+    Returns:
+        str or None: Path to the found TIFF file, or None if no matching file is found.
+    """
+    for filename in os.listdir(directory):
+        if filename.endswith(".tif") and filename.startswith(prefix):
+            return os.path.join(directory, filename)
+    return None
+
+###
+
+def hf_extract_filename(filepath):
+    """
+    Extract the filename from a given filepath.
+
+    Parameters:
+        filepath (str): The input filepath.
+
+    Returns:
+        str: The extracted filename without the extension.
+    """
+    filename = os.path.basename(filepath)  # Extracts the last element of the path
+    filename = filename.replace('_plot.png_cut.png', '')  # Removes the ".png_cut.png" extension
+    return filename

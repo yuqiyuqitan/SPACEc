@@ -20,6 +20,14 @@ from sklearn.cross_decomposition import CCA
 from scipy.stats import pearsonr,spearmanr
 
 from  SAP_helperfunctions_hf import *
+from tqdm import tqdm
+import skimage.io as io
+import skimage.transform
+import skimage.filters.rank
+import skimage.color
+import skimage.exposure
+import skimage.morphology
+import skimage
 
 # Tools
 ############################################################
@@ -576,4 +584,468 @@ def tl_clustering(adata, clustering = 'leiden', res=1, n_neighbors = 10, reclust
             sc.tl.louvain(adata, resolution = res, key_added = "louvain" + str(res))
 
 
+###############
+# Patch analysis
 
+def tl_generate_voronoi_plots(df, output_path, grouping_col = 'Community',
+                           tissue_col = 'tissue',
+                           region_col = 'unique_region',
+                           x_col = "x",
+                           y_col = "y"):
+    """
+    Generate Voronoi plots for unique combinations of tissue and region.
+
+    Parameters:
+        df (pandas.DataFrame): Input DataFrame containing the data.
+        output_path (str): Output path to save the plots.
+        grouping_col (str): Column that contains group label that is used to color the voronoi diagrams
+        tissue_col (str): Column that contains tissue labels
+        region_col (str): Column that contains region labels
+        x_col (str): Column that contains x coordinates
+        y_col (str): Column that contains y coordinates
+
+    Returns:
+        None
+    """
+
+    unique_tissues = df[tissue_col].unique()
+    unique_regions = df[region_col].unique()
+
+    combinations = list(itertools.product(unique_tissues, unique_regions))
+
+    for tissue, region in combinations:
+        subset_df = df[(df[tissue_col] == tissue) & (df[region_col] == region)]
+        sorted_df = subset_df.sort_values(grouping_col)
+        unique_values = sorted_df[grouping_col].unique()
+
+        specific_output = os.path.join(output_path, tissue)
+        os.makedirs(specific_output, exist_ok=True)
+        specific_output = os.path.join(specific_output, region)
+        os.makedirs(specific_output, exist_ok=True)
+
+        for group in unique_values:
+            start = time.time()
+
+            output_filename = group + "_plot.png"
+            output_path = os.path.join(specific_output, output_filename)
+
+            color_dict = {}
+            for value in unique_values:
+                color_dict[value] = 'black'
+            color_dict[group] = 'white'
+
+            X = sorted_df[x_col]
+            Y = sorted_df[y_col]
+            np.random.seed(1234)
+            points = np.c_[X, Y]
+
+            vor = Voronoi(points)
+            regions, vertices = hf_voronoi_finite_polygons_2d(vor)
+            groups = sorted_df[grouping_col].values
+
+            fig, ax = plt.subplots()
+            ax.set_ylim(0, max(Y))
+            ax.set_xlim(0, max(X))
+            ax.axis('off')
+
+            for i, region in tqdm(enumerate(regions), total=len(regions), desc="Processing regions"):
+                group = groups[i]
+                color = color_dict.get(group, 'gray')
+                polygon = vertices[region]
+                ax.fill(*zip(*polygon), color=color)
+
+            ax.plot(points[:, 0], points[:, 1], 'o', color='black', zorder=1, alpha=0)
+
+            fig.set_size_inches(9.41, 9.07 * 1.02718006795017)
+            fig.savefig(output_path, bbox_inches='tight', pad_inches=0, dpi=129.0809327846365)
+            plt.close(fig)
+
+            end = time.time()
+            print(end - start)
+            
+
+  
+
+
+def tl_generate_masks_from_images(image_folder, mask_output, image_type = ".tif", filter_size = 5, threshold_value = 10):
+    """
+    Generate binary masks from CODEX images.
+
+    Parameters:
+        image_folder (str): Directory that contains the images that are used to generate the masks
+        mask_output (str): Directory to store the generated masks
+        image_type (str): File type of image. By default ".tif"
+        filter_size (num): Size for filter disk during mask generation
+        threshold_value (num): Threshold value for binary mask generation
+
+    Returns:
+        None
+    """
+    folders_list = hf_list_folders(image_folder)
+    print(folders_list)
+    for folder in tqdm(folders_list, desc="Processing folders"):
+        direc = image_folder + "/" + folder
+        print(direc)
+    
+        filelist = os.listdir(direc)
+        filelist = [f for f in filelist if f.endswith(image_type)]
+        print(filelist)
+    
+        output_dir = mask_output + folder 
+        os.makedirs(output_dir, exist_ok=True)
+    
+        for f in tqdm(filelist, desc="Processing files"):
+            path = os.path.join(direc, f)
+            print(path)
+    
+            tl_generate_mask(path=path, output_dir=output_dir, filename="/" + f, filter_size=filter_size, threshold_value=threshold_value)
+
+def tl_generate_info_dataframe(df, voronoi_output, mask_output, filter_list = None, info_cols = ['tissue', 'donor', 'unique_region', 'region', 'array']):
+    """
+    Generate a filtered DataFrame based on specific columns and values.
+
+    Parameters:
+        df (pandas.DataFrame): Input DataFrame.
+        voronoi_output (str): Path to the Voronoi output directory.
+        mask_output (str): Path to the mask output directory.
+        info_cols (list): columns to extract from input df
+        filter_list (list, optional): List of values to filter.
+
+    Returns:
+        pandas.DataFrame: Filtered DataFrame.
+    """
+    df_info = df[info_cols].drop_duplicates()
+    df_info['folder_names'] = df_info['array']
+    df_info['region'] = df_info['region'].astype(int)
+    df_info['region_long'] = ['reg00' + str(region) for region in df_info['region']]
+    df_info['voronoi_path'] = voronoi_output + df_info['tissue'] + "/" + df_info['unique_region']
+    df_info['mask_path'] = mask_output + df_info['folder_names'] + "/"
+    
+    if filter_list != None:
+        # remove unwanted folders
+        df_info = df_info[~df_info['folder_names'].isin(filter_list)]
+        
+    else:
+        print("no filter used")
+
+    return df_info
+
+
+###
+
+def tl_process_files(voronoi_path, mask_path, region):
+    """
+    Process files based on the provided paths and region.
+
+    Parameters:
+        voronoi_path (str): Path to the Voronoi files.
+        mask_path (str): Path to the mask files.
+        region (str): Region identifier.
+
+    Returns:
+        None
+    """
+    png_files_list = hf_get_png_files(voronoi_path)
+    tiff_file_path = hf_find_tiff_file(mask_path, region)
+
+    if tiff_file_path:
+        print(f"Matching TIFF file found: {tiff_file_path}")
+    else:
+        print("No matching TIFF file found.")
+
+    for f in tqdm(png_files_list, desc="Processing files"):
+        print(f)
+        tl_apply_mask(f, tiff_file_path, f + "_cut.png")
+
+###
+
+def tl_process_data(df_info, output_dir_csv):
+    """
+    Process data based on the information provided in the DataFrame.
+
+    Parameters:
+        df_info (pandas.DataFrame): DataFrame containing the information.
+        output_dir_csv (str): Output directory for CSV results.
+        
+    Returns:
+        pandas.DataFrame: Concatenated DataFrame of results.
+        list: List of contours.
+    """
+    DF_list = []
+    contour_list = []
+
+    for index, row in df_info.iterrows():
+        voronoi_path = row['voronoi_path']
+        mask_path = row['mask_path']
+        region = row['region_long']
+        donor = row['donor']
+        unique_region = row['unique_region']
+
+        png_files_list = hf_get_png_files(voronoi_path)
+        png_files_list = [filename for filename in png_files_list if not filename.endswith("cut.png")]
+
+        tiff_file_path = hf_find_tiff_file(mask_path, region)
+
+        if tiff_file_path:
+            print(f"Matching TIFF file found: {tiff_file_path}")
+        else:
+            print("No matching TIFF file found.")
+
+        for f in png_files_list:
+            print(f)
+            g = f + "_cut" + ".png"
+            print(g)
+            tl_apply_mask(f, tiff_file_path, g)
+
+            output_dir_csv_tmp = output_dir_csv + "/" + donor + "_" + unique_region
+            os.makedirs(output_dir_csv_tmp, exist_ok=True)
+
+            image_dir = output_dir_csv + "/" + donor + "_" + unique_region
+            os.makedirs(image_dir, exist_ok=True)
+            print(f"Path created: {image_dir}")
+
+            image_dir = os.path.join(image_dir, os.path.basename(os.path.normpath(g)))
+            path = g
+
+            df, contour = tl_analyze_image(path, invert=False, output_dir=image_dir, )
+
+            df["group"] = hf_extract_filename(g)
+            df["unique_region"] = unique_region
+
+            DF_list.append(df)
+            contour_list.append(contour)
+
+    results_df = pd.concat(DF_list)
+    contour_list_results_df = pd.concat(DF_list)
+
+    results_df.to_csv(os.path.join(output_dir_csv, "results.csv"))
+
+    return results_df, contour_list
+###
+
+def tl_analyze_image(path, output_dir, invert=False, properties_list = [
+    "label",
+    "centroid",
+    "area",
+    "perimeter",
+    "solidity",
+    "coords",
+    "axis_minor_length",
+    "axis_major_length",
+    "orientation",
+    "slice"]):
+    """
+    Analyze an image by performing connected component analysis on patches and storing their information.
+
+    The function applies image processing techniques such as Gaussian smoothing, thresholding, and connected component
+    labeling to identify and analyze patches within the image. It extracts region properties of these patches,
+    calculates their circularity, and stores the coordinates of their contour. The resulting information is saved
+    in a DataFrame along with a visualization plot.
+
+    Parameters:
+        path (str): Path to the input image.
+        output_dir (str): Directory to save the output plot.
+        invert (bool, optional): Flag indicating whether to invert the image (default is False).
+        properties_list: (list of str): Define properties to be measured (see SciKit Image), by default "label", "centroid", "area", "perimeter", "solidity", "coords", "axis_minor_length", "axis_major_length", "orientation", "slice"
+
+    Returns:
+        tuple: A tuple containing the DataFrame with region properties, including patch contour coordinates, and
+               the list of contour coordinates for each patch.
+    """
+    image = skimage.io.imread(path)
+
+    if image.ndim == 2:
+        print("2D array")
+    else:
+        image = image[:, :, 0]
+
+    if invert:
+        print("The original background color was white. The image was inverted for further analysis.")
+        # image = 255 - image
+    else:
+        print("no inversion")
+
+    smooth = skimage.filters.gaussian(image, sigma=1.5)
+    thresh = smooth > skimage.filters.threshold_otsu(smooth)
+
+    blobs_labels = skimage.measure.label(thresh, background=0)
+
+    properties = skimage.measure.regionprops(blobs_labels)
+
+    props_table = skimage.measure.regionprops_table(
+        blobs_labels,
+        properties=(properties_list
+        ),
+    )
+
+    prop_df = pd.DataFrame(props_table)
+
+    prop_df["circularity"] = (4 * np.pi * prop_df["area"]) / (prop_df["perimeter"] ** 2)
+
+    # Store the contour of each patch in the DataFrame
+    contour_list = []
+    for index in range(1, blobs_labels.max()):
+        label_i = properties[index].label
+        contour = skimage.measure.find_contours(blobs_labels == label_i, 0.5)[0]
+        contour_list.append(contour)
+
+    contour_list_df = pd.DataFrame({"contours": contour_list})
+
+    prop_df = pd.concat([prop_df, contour_list_df], axis=1)
+
+    plt.figure(figsize=(9, 3.5))
+    plt.subplot(1, 2, 1)
+    plt.imshow(thresh, cmap="gray")
+    plt.axis("off")
+    plt.subplot(1, 2, 2)
+    plt.imshow(blobs_labels, cmap="nipy_spectral")
+    plt.axis("off")
+
+    plt.tight_layout()
+
+    plt.savefig(output_dir)
+    plt.close()
+
+    return prop_df, contour_list
+
+###
+
+def tl_apply_mask(image_path, mask_path, output_path):
+    """
+    Apply a mask to an image and save the resulting masked image.
+
+    Parameters:
+        image_path (str): Path to the input image.
+        mask_path (str): Path to the mask image.
+        output_path (str): Path to save the masked image.
+
+    Returns:
+        None
+    """
+    # Load the image and the mask
+    image = io.imread(image_path)
+    mask = io.imread(mask_path, as_gray=True)
+    mask = np.flip(mask, axis=0)
+
+    width = 941
+    height = 907
+    image = skimage.transform.resize(image, (height, width))
+
+    if image.ndim == 2:
+        print("2D array")
+    else:
+        image = image[:, :, :3]
+
+        # Convert to grayscale
+        image = skimage.color.rgb2gray(image)
+
+    # Convert to 8-bit
+    image = skimage.img_as_ubyte(image)
+
+    print("Image shape:", image.shape)
+    print("Mask shape:", mask.shape)
+
+    # Ensure the mask is binary
+    mask = mask > 0
+
+    # Apply the mask to the image
+    masked_image = image.copy()
+    masked_image[~mask] = 0
+
+    # Check if the image has an alpha channel (transparency)
+    if masked_image.ndim == 2:
+        print("2D array")
+    else:
+        masked_image = masked_image[:, :, :3]
+
+    # Save the masked image
+    io.imsave(output_path, skimage.img_as_ubyte(masked_image))
+   
+### 
+
+def tl_generate_mask(path, output_dir, filename="mask.png", filter_size=5, threshold_value=5):
+    """
+    Generate a mask from a maximum projection of an input image.
+
+    Parameters:
+        path (str): Path to the input image.
+        output_dir (str): Directory to save the generated mask and quality control plot.
+        filename (str, optional): Name of the generated mask file (default is "mask.png").
+        filter_size (int, optional): Size of the filter disk used for image processing (default is 5).
+        threshold_value (int, optional): Threshold value for binary conversion (default is 5).
+
+    Returns:
+        None
+    """
+    # Load the image
+    image = io.imread(path)
+
+    # Perform Z projection using Maximum Intensity
+    z_projection = np.max(image, axis=0)
+
+    # Resize the image
+    width = 941
+    height = 907
+    resized_image = skimage.transform.resize(z_projection, (height, width, 3), preserve_range=True)
+    print("Resized image shape:", resized_image.shape)
+
+    # Remove alpha channel if present
+    if resized_image.shape[-1] == 4:
+        resized_image = resized_image[:, :, :3]
+
+    # Convert to grayscale
+    gray_image = skimage.color.rgb2gray(resized_image)
+
+    # Assuming gray_image has pixel values outside the range [0, 1]
+    # Normalize the pixel values to the range [0, 1]
+    gray_image_normalized = (gray_image - gray_image.min()) / (gray_image.max() - gray_image.min())
+
+    # Convert to 8-bit
+    gray_image_8bit = skimage.img_as_ubyte(gray_image_normalized)
+
+    # Apply maximum filter
+    max_filtered = skimage.filters.rank.maximum(gray_image_8bit, skimage.morphology.disk(filter_size))
+
+    # Apply minimum filter
+    min_filtered = skimage.filters.rank.minimum(max_filtered, skimage.morphology.disk(filter_size))
+
+    # Apply median filter
+    median_filtered = skimage.filters.rank.median(min_filtered, skimage.morphology.disk(filter_size))
+
+    # Manual Thresholding
+    binary = median_filtered > threshold_value
+
+    # Convert to mask
+    mask = skimage.morphology.closing(binary, skimage.morphology.square(3))
+
+    # Plotting
+    fig, axes = plt.subplots(2, 3, figsize=(12, 6))
+
+    axes[0, 0].imshow(gray_image, cmap='gray')
+    axes[0, 0].set_title('Grayscale Image')
+
+    axes[0, 1].imshow(gray_image_8bit, cmap='gray')
+    axes[0, 1].set_title('8-bit Image')
+
+    axes[0, 2].imshow(max_filtered, cmap='gray')
+    axes[0, 2].set_title('Maximum Filtered')
+
+    axes[1, 0].imshow(min_filtered, cmap='gray')
+    axes[1, 0].set_title('Minimum Filtered')
+
+    axes[1, 1].imshow(median_filtered, cmap='gray')
+    axes[1, 1].set_title('Median Filtered')
+
+    axes[1, 2].imshow(mask, cmap='gray')
+    axes[1, 2].set_title('Mask')
+
+    for ax in axes.ravel():
+        ax.axis('off')
+
+    plt.tight_layout()
+    fig.savefig(output_dir + filename + '_QC_plot.png', dpi=300, format='png')
+
+    plt.show()
+
+    # Save the result
+    io.imsave(output_dir + filename, mask)
