@@ -29,6 +29,8 @@ import skimage.exposure
 import skimage.morphology
 import skimage
 
+from tqdm import tqdm
+
 # Tools
 ############################################################
 
@@ -211,76 +213,62 @@ def tl_cell_types_de(ct_freq, all_freqs, neighborhood_num, nbs, patients, group,
 #######
 
 
-def tl_community_analysis_2(data, values, sum_cols, X = 'x', Y = 'y', reg = 'unique_region', cluster_col = 'neigh_name', k = 100, n_neighborhoods = 30, elbow = False):
-    
-    cells = data.copy()
+def tl_community_analysis_2(data, values, sum_cols, X='x', Y='y', reg='unique_region', cluster_col='neigh_name', k=100, n_neighborhoods=30, elbow=False):
+    neighborhood_name = "community" + str(k)
 
-    neighborhood_name = "community"+str(k)
-
-    keep_cols = [X ,Y ,reg,cluster_col]
+    keep_cols = [X, Y, reg, cluster_col]
 
     n_neighbors = k
 
-    cells[reg] = cells[reg].astype('str')
+    data[reg] = data[reg].astype('str')
 
-    #Get each region
-    tissue_group = cells[[X,Y,reg]].groupby(reg)
-    exps = list(cells[reg].unique())
-    tissue_chunks = [(time.time(),exps.index(t),t,a) for t,indices in tissue_group.groups.items() for a in np.array_split(indices,1)] 
+    # Get each region
+    tissue_group = data[[X, Y, reg]].groupby(reg)
+    exps = list(data[reg].unique())
+    tissue_chunks = [(time.time(), exps.index(t), t, a) for t, indices in tissue_group.groups.items() for a in np.array_split(indices, 1)]
 
-    tissues = [hf_get_windows(job, n_neighbors, exps= exps, tissue_group = tissue_group, X = X, Y = Y) for job in tissue_chunks]
+    tissues = [hf_get_windows(job, n_neighbors, exps=exps, tissue_group=tissue_group, X=X, Y=Y) for job in tissue_chunks]
 
-    #Loop over k to compute neighborhoods
+    # Loop over k to compute neighborhoods
     out_dict = {}
-    
-    for neighbors,job in zip(tissues,tissue_chunks):
-
-        chunk = np.arange(len(neighbors))#indices
+    for neighbors, job in zip(tissues, tissue_chunks):
+        chunk = np.arange(len(neighbors))  # indices
         tissue_name = job[2]
         indices = job[3]
-        window = values[neighbors[chunk,:k].flatten()].reshape(len(chunk),k,len(sum_cols)).sum(axis = 1)
-        out_dict[(tissue_name,k)] = (window.astype(np.float16),indices)
-            
+        window = values[neighbors[chunk, :k].flatten()].reshape(len(chunk), k, len(sum_cols)).sum(axis=1)
+        out_dict[(tissue_name, k)] = (window.astype(np.float16), indices)
+
     windows = {}
-    
-    
-    window = pd.concat([pd.DataFrame(out_dict[(exp,k)][0],index = out_dict[(exp,k)][1].astype(int),columns = sum_cols) for exp in exps],0)
-    window = window.loc[cells.index.values]
-    window = pd.concat([cells[keep_cols],window],1)
+
+    window = pd.concat([pd.DataFrame(out_dict[(exp, k)][0], index=out_dict[(exp, k)][1].astype(int), columns=sum_cols) for exp in exps], 0)
+    window = window.loc[data.index.values]
+    window = pd.concat([data[keep_cols], window], 1)
     windows[k] = window
 
-    #Fill in based on above
+    # Fill in based on above
     k_centroids = {}
-    
-    
-    #producing what to plot
+
+    # Producing what to plot
     windows2 = windows[k]
-    windows2[cluster_col] = cells[cluster_col]
-    
-    if elbow != True:
-        km = MiniBatchKMeans(n_clusters = n_neighborhoods,random_state=0)
-        
+    windows2[cluster_col] = data[cluster_col]
+
+    if not elbow:
+        km = MiniBatchKMeans(n_clusters=n_neighborhoods, random_state=0)
         labels = km.fit_predict(windows2[sum_cols].values)
         k_centroids[k] = km.cluster_centers_
-        cells[neighborhood_name] = labels
-        
-    else:  
-        
+        data[neighborhood_name] = labels
+    else:
         km = MiniBatchKMeans(random_state=0)
-            
         X = windows2[sum_cols].values
-            
         labels = km.fit_predict(X)
         k_centroids[k] = km.cluster_centers_
-        cells[neighborhood_name] = labels
-            
+        data[neighborhood_name] = labels
         visualizer = KElbowVisualizer(km, k=(n_neighborhoods), timings=False)
-        visualizer.fit(X)        # Fit the data to the visualizer
-        visualizer.show()        # Finalize and render the figure
-    
-    
-    
-    return(cells, neighborhood_name, k_centroids)
+        visualizer.fit(X)  # Fit the data to the visualizer
+        visualizer.show()  # Finalize and render the figure
+
+    return data, neighborhood_name, k_centroids
+
 
    
 #################
@@ -1049,3 +1037,26 @@ def tl_generate_mask(path, output_dir, filename="mask.png", filter_size=5, thres
 
     # Save the result
     io.imsave(output_dir + filename, mask)
+
+#####
+
+def tl_test_clustering_resolutions(adata, clustering='leiden', n_neighbors=10, resolutions=[1]):
+    """
+    Test different resolutions for reclustering using Louvain or Leiden algorithm.
+
+    Parameters:
+        adata (AnnData): Anndata object containing the data.
+        clustering (str, optional): Clustering algorithm to use (default is 'leiden').
+        n_neighbors (int, optional): Number of nearest neighbors (default is 10).
+        resolutions (list, optional): List of resolutions to test (default is [1]).
+
+    Returns:
+        None
+    """
+    for res in tqdm(resolutions, desc="Testing resolutions"):
+        if 'leiden' in clustering:
+            tl_clustering(adata, clustering='leiden', n_neighbors=n_neighbors, res=res, reclustering=True)
+        else:
+            tl_clustering(adata, clustering='louvain', n_neighbors=n_neighbors, res=res, reclustering=True)
+
+        sc.pl.umap(adata, color=f'{clustering}_{res}', legend_loc="on data")

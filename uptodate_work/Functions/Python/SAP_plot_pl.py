@@ -549,7 +549,9 @@ def pl_neighborhood_analysis_2(data,
                                output_dir = None, 
                                k = 35, 
                                plot_specific_neighborhoods = None,
-                               size = 3):
+                               size = 3,
+                               axis = 'on',
+                               ticks_fontsize = 15):
     """
     Perform neighborhood analysis and visualize results.
     
@@ -583,7 +585,7 @@ def pl_neighborhood_analysis_2(data,
     """
     
     #modify figure size aesthetics for each neighborhood
-    figs = pl_catplot(data,X = X,Y=Y,exp = reg,hue = 'neighborhood'+str(k),invert_y=True,size = size,)
+    figs = pl_catplot(data,X = X,Y=Y,exp = reg,hue = 'neighborhood'+str(k),invert_y=True,size = size,axis = axis,ticks_fontsize = ticks_fontsize)
  
 
     #Save Plots for Publication
@@ -875,6 +877,8 @@ def pl_community_analysis_2(data,
                             save_path = None, 
                             k = 100, 
                             size = 3,
+                            axis = "on",
+                            ticks_fontsize = ticks_fontsize,
                             plot_specific_community = None):
     """
     Plot community analysis.
@@ -906,7 +910,7 @@ def pl_community_analysis_2(data,
     #modify figure size aesthetics for each neighborhood
     plt.rcParams["legend.markerscale"] = 10
     figs = pl_catplot(cells,X = X,Y=Y,exp = reg,
-                   hue = neighborhood_name,invert_y=True,size = size,figsize=8)
+                   hue = neighborhood_name,invert_y=True,size = size,figsize=8, axis=axis, ticks_fontsize=ticks_fontsize)
     
     #Save Plots for Publication
     for n,f in enumerate(figs):
@@ -1959,7 +1963,7 @@ def pl_catplot_old(df, hue, X = 'X',Y = 'Y', exp='Exp', exps = None, invert_y = 
     
     return figures
 
-def pl_catplot(df,hue,exp = 'Exp',X = 'X',Y = 'Y',invert_y = False,size = 3,legend = True, palette="bright",figsize = 5,style = 'white',exps = None,axis = 'on',scatter_kws = {},**kwargs):
+def pl_catplot(df,hue,exp = 'Exp',X = 'X',Y = 'Y',invert_y = False,size = 3,legend = True, palette="bright",figsize = 5,style = 'white',exps = None,axis = 'on',ticks_fontsize = 15,scatter_kws = {},**kwargs):
     '''
     Plots cells in tissue section color coded by either cell type or node allocation.
     df:  dataframe with cell information
@@ -2006,13 +2010,15 @@ def pl_catplot(df,hue,exp = 'Exp',X = 'X',Y = 'Y',invert_y = False,size = 3,lege
             f = f.set(xticks = [],yticks=[]).set_xlabels('').set_ylabels('')
         #plt.legend(frameon=True)
         
-        
-
+    
         plt.title(name)
 
+        plt.xticks(fontsize=ticks_fontsize)  # Increase x-axis label size
+        plt.yticks(fontsize=ticks_fontsize)  # Increase y-axis label size
 
         plt.show()
         figures +=[f] 
+        
     if invert_y:
         df[Y] = y_orig
     

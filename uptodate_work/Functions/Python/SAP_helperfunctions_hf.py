@@ -576,6 +576,17 @@ def hf_makeAnndata(df_nn, # data frame coming out from denoising
                    col_sum, # this is the column index that has the last protein feature
                    nonFuncAb_list # inspect which markers work, and drop the ones that did not work from the clustering step
                   ):
+    """
+    Convert a denoised DataFrame into anndata format.
+
+    Parameters:
+        df_nn (pandas.DataFrame): Denoised data frame.
+        col_sum (int): Column index of the last protein feature.
+        nonFuncAb_list (list): List of markers that did not work in the clustering step.
+
+    Returns:
+        AnnData: Anndata object containing the converted data.
+    """
     adata = sc.AnnData(X=df_nn.iloc[:,:col_sum+1].drop(columns = nonFuncAb_list))
     adata.obs = df_nn.iloc[:,col_sum+1:]
     return adata
@@ -802,3 +813,22 @@ def hf_extract_filename(filepath):
     filename = os.path.basename(filepath)  # Extracts the last element of the path
     filename = filename.replace('_plot.png_cut.png', '')  # Removes the ".png_cut.png" extension
     return filename
+
+###
+
+def hf_get_tif_filepaths(directory):
+    """
+    Recursively searches the specified directory and its subdirectories for TIFF files (.tif) and returns a list of their file paths.
+
+    Args:
+        directory (str): The directory path to search for TIFF files.
+
+    Returns:
+        list: A list of file paths for all TIFF files found in the directory and its subdirectories.
+    """
+    tif_filepaths = []
+    for root, dirs, files in os.walk(directory):
+        for file in files:
+            if file.endswith('.tif'):
+                tif_filepaths.append(os.path.join(root, file))
+    return tif_filepaths
