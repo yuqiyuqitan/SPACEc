@@ -575,6 +575,7 @@ def tl_clustering(adata, clustering = 'leiden', res=1, n_neighbors = 10, reclust
 ###############
 # Patch analysis
 
+
 def tl_generate_voronoi_plots(df, output_path, grouping_col = 'Community',
                            tissue_col = 'tissue',
                            region_col = 'unique_region',
@@ -615,7 +616,7 @@ def tl_generate_voronoi_plots(df, output_path, grouping_col = 'Community',
             start = time.time()
 
             output_filename = group + "_plot.png"
-            output_path = os.path.join(specific_output, output_filename)
+            output_path2 = os.path.join(specific_output, output_filename)
 
             color_dict = {}
             for value in unique_values:
@@ -645,12 +646,16 @@ def tl_generate_voronoi_plots(df, output_path, grouping_col = 'Community',
             ax.plot(points[:, 0], points[:, 1], 'o', color='black', zorder=1, alpha=0)
 
             fig.set_size_inches(9.41, 9.07 * 1.02718006795017)
-            fig.savefig(output_path, bbox_inches='tight', pad_inches=0, dpi=129.0809327846365)
+            fig.savefig(output_path2, bbox_inches='tight', pad_inches=0, dpi=129.0809327846365)
             plt.close(fig)
 
             end = time.time()
             print(end - start)
             
+
+  
+
+
 
   
 
