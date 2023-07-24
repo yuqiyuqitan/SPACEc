@@ -18,6 +18,8 @@ import scanpy as sc
 from tqdm import tqdm
 import tifffile as tiff
 import os
+from sklearn.cross_decomposition import CCA
+from scipy.stats import pearsonr
 
 sns.set_style("ticks")
 
@@ -832,3 +834,46 @@ def hf_get_tif_filepaths(directory):
             if file.endswith('.tif'):
                 tif_filepaths.append(os.path.join(root, file))
     return tif_filepaths
+
+
+
+################ CCA
+def hf_prepare_cca(df, neighborhood_column, subsets=None):
+    neigh_num = {list(df[neighborhood_column].unique())[i]: i for i in range(len(df[neighborhood_column].unique()))}
+    df['neigh_num'] = df[neighborhood_column].map(neigh_num)
+    df['neigh_num'] = df['neigh_num'].astype('category')
+
+    cca = CCA(n_components=1, max_iter=5000)
+    func = pearsonr
+
+    # select which neighborhoods and functional subsets
+    cns = list(df['neigh_num'].unique())
+    #print(cns)
+
+    # log (1e-3 + neighborhood specific cell type frequency) of functional subsets ('nsctf')
+    if subsets is not None:
+        nsctf = np.log(1e-3 + df.groupby(['unique_region', 'neigh_num'])[subsets].mean().reset_index().set_index(['neigh_num', 'unique_region']))
+        #print(nsctf)
+    else:
+        nsctf = np.log(1e-3 + df.groupby(['unique_region', 'neigh_num']).mean().reset_index().set_index(['neigh_num', 'unique_region']))
+        #print(nsctf)
+
+    cca = CCA(n_components=1, max_iter=5000)
+    func = pearsonr
+    nsctf = nsctf.fillna(1e-3)
+
+    return df, cns, nsctf, cca, func, neigh_num
+
+
+def invert_dictionary(dictionary):
+    inverted_dict = {value: key for key, value in dictionary.items()}
+    return inverted_dict
+
+def hf_replace_names(color_dict, name_dict):
+    
+    color_dict = hf_invert_dictionary(color_dict)
+    for color, name in color_dict.items():
+        if name in name_dict:
+            color_dict[color] = name_dict[name]
+    color_dict = hf_invert_dictionary(color_dict)
+    return color_dict

@@ -994,7 +994,7 @@ It then iterates over each edge in the graph and sets its alpha and linewidth ba
 Overall, this function provides a way to visually represent the relationships between cell types in the CCA results, allowing for a better understanding of the underlying patterns and correlations in the data.
 '''
 
-def pl_Visulize_CCA_results(CCA_results, 
+def old_pl_Visulize_CCA_results(CCA_results, 
                             output_dir, 
                             save_fig = False, 
                             p_thresh = 0.1, 
@@ -1064,7 +1064,77 @@ def pl_Visulize_CCA_results(CCA_results,
     if save_fig == True:
         plt.savefig(output_dir + "/" + save_name, format='png', dpi=300, transparent=True, bbox_inches='tight') 
         
-        
+     
+
+def pl_Visulize_CCA_results(CCA_results, 
+                            output_dir, 
+                            save_fig = False, 
+                            p_thresh = 0.1, 
+                            save_name = "CCA_vis.png", 
+                            colors = None):
+    """
+     Visualize the results of Canonical Correlation Analysis (CCA) using a graph.
+    
+     Parameters
+     ----------
+     CCA_results : dict
+         Dictionary containing the CCA results, where the keys are cell type pairs and
+         the values are tuples of (observed correlation, permuted correlations).
+     output_dir : str
+         The output directory for saving the plot.
+     save_fig : bool, optional
+         Whether to save the plot. Defaults to False.
+     p_thresh : float, optional
+         The p-value threshold for adding edges to the graph. Defaults to 0.1.
+     save_name : str, optional
+         The name of the plot file. Defaults to "CCA_vis.png".
+     colors : list or None, optional
+         The color palette for the nodes. If None, a default palette will be used.
+    
+     Returns
+     -------
+     None
+     """
+    
+    # Visualization of CCA 
+    g1 = nx.petersen_graph()
+    for cn_pair, cc in CCA_results.items():
+        s,t = cn_pair
+        obs, perms = cc
+        p =np.mean(obs>perms)
+        if p>p_thresh :
+                g1.add_edge(s,t, weight = p)
+    
+    if colors != None:
+        pal = colors
+    else:
+        pal = sns.color_palette('bright',50)
+    
+    pos=nx.nx_agraph.graphviz_layout(g1,prog='neato')
+    for k,v in pos.items():
+        x,y = v
+        plt.scatter([x],[y],c = [pal[k]], s = 300,zorder = 3)
+        #plt.text(x,y, k, fontsize = 10, zorder = 10,ha = 'center', va = 'center')
+        plt.axis('off')
+                
+    for e0,e1 in g1.edges():
+        p = g1.get_edge_data(e0, e1, default =0)
+        if len(p) == 0:
+            p = 0
+        else:
+            p =p["weight"]
+        print(p)
+       
+
+
+        alpha = 3*p**1
+        if alpha > 1:
+            alpha = 1
+
+        plt.plot([pos[e0][0],pos[e1][0]],[pos[e0][1],pos[e1][1]], c= 'black',alpha = alpha, linewidth = 3*p**3)
+    if save_fig == True:
+        plt.savefig(output_dir + "/" + save_name, format='png', dpi=300, transparent=True, bbox_inches='tight') 
+    
 
 #######
 
