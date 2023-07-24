@@ -551,7 +551,9 @@ def pl_neighborhood_analysis_2(data,
                                plot_specific_neighborhoods = None,
                                size = 3,
                                axis = 'on',
-                               ticks_fontsize = 15):
+                               ticks_fontsize = 15,
+                               show_spatial_plots = True,
+                               palette = "tab20"):
     """
     Perform neighborhood analysis and visualize results.
     
@@ -584,22 +586,27 @@ def pl_neighborhood_analysis_2(data,
     None
     """
     
-    #modify figure size aesthetics for each neighborhood
-    figs = pl_catplot(data,X = X,Y=Y,exp = reg,hue = 'neighborhood'+str(k),invert_y=True,size = size,axis = axis,ticks_fontsize = ticks_fontsize)
- 
-
-    #Save Plots for Publication
-    for n,f in enumerate(figs):
-        f.savefig(output_dir+'neighborhood_'+str(k)+'_id{}.png'.format(n))
-
+    if show_spatial_plots == True:
+        #modify figure size aesthetics for each neighborhood
+        figs = pl_catplot(data,X = X,Y=Y,exp = reg,hue = 'neighborhood'+str(k),invert_y=True,size = size,axis = axis,ticks_fontsize = ticks_fontsize, palette=palette)
+        
+        #Save Plots for Publication
+        for n,f in enumerate(figs):
+            f.savefig(output_dir+'neighborhood_'+str(k)+'_id{}.png'.format(n))
+     
+       
+   
     #this plot shows the types of cells (ClusterIDs) in the different niches (0-9)
     k_to_plot = k
     niche_clusters = (k_centroids[k_to_plot])
     tissue_avgs = values.mean(axis = 0)
     fc = np.log2(((niche_clusters+tissue_avgs)/(niche_clusters+tissue_avgs).sum(axis = 1, keepdims = True))/tissue_avgs)
     fc = pd.DataFrame(fc,columns = sum_cols)
-    s=sns.clustermap(fc, vmin =-3,vmax = 3,cmap = 'bwr')
+    s=sns.clustermap(fc, vmin =-3,vmax = 3,cmap = 'bwr', row_colors=sns.color_palette(palette, len(fc)))
     s.savefig(output_dir+"celltypes_perniche_"+"_"+str(k)+".png", dpi=600)
+    
+    
+
 
     if plot_specific_neighborhoods is True:
         #this plot shows the types of cells (ClusterIDs) in the different niches (0-9)
@@ -869,7 +876,7 @@ def pl_community_analysis_2(data,
                             values, 
                             sum_cols, 
                             output_dir, 
-                            neighborhood_name, 
+                            #neighborhood_name, 
                             k_centroids, 
                             X = 'x', 
                             Y = 'y', 
@@ -878,8 +885,10 @@ def pl_community_analysis_2(data,
                             k = 100, 
                             size = 3,
                             axis = "on",
-                            ticks_fontsize = ticks_fontsize,
-                            plot_specific_community = None):
+                            ticks_fontsize = 15,
+                            plot_specific_community = None,
+                            show_spatial_plots = True,
+                            palette = "tab20"):
     """
     Plot community analysis.
     
@@ -905,17 +914,61 @@ def pl_community_analysis_2(data,
     if not os.path.exists(output_dir2):
         os.makedirs(output_dir2)
     
-    cells = data.copy()
+    # cells = data.copy()
     
-    #modify figure size aesthetics for each neighborhood
-    plt.rcParams["legend.markerscale"] = 10
-    figs = pl_catplot(cells,X = X,Y=Y,exp = reg,
-                   hue = neighborhood_name,invert_y=True,size = size,figsize=8, axis=axis, ticks_fontsize=ticks_fontsize)
+    # #modify figure size aesthetics for each neighborhood
+    # plt.rcParams["legend.markerscale"] = 10
+    # figs = pl_catplot(cells,X = X,Y=Y,exp = reg,
+    #                hue = neighborhood_name,invert_y=True,size = size,figsize=8, axis=axis, ticks_fontsize=ticks_fontsize)
     
-    #Save Plots for Publication
-    for n,f in enumerate(figs):
-        f.savefig(output_dir2+neighborhood_name+'_id{}.png'.format(n))
+    # #Save Plots for Publication
+    # for n,f in enumerate(figs):
+    #     f.savefig(output_dir2+neighborhood_name+'_id{}.png'.format(n))
  
+    # if plot_specific_community is True:
+    #     #this plot shows the types of cells (ClusterIDs) in the different niches (0-9)
+    #     k_to_plot = k
+    #     niche_clusters = (k_centroids[k_to_plot])
+    #     tissue_avgs = values.mean(axis = 0)
+    #     fc = np.log2(((niche_clusters+tissue_avgs)/(niche_clusters+tissue_avgs).sum(axis = 1, keepdims = True))/tissue_avgs)
+    #     fc = pd.DataFrame(fc,columns = sum_cols)
+    #     s=sns.clustermap(fc.iloc[plot_specific_community,:], vmin =-3,vmax = 3,cmap = 'bwr',figsize=(10,5))
+    #     s.savefig(output_dir2+"celltypes_perniche_"+"_"+str(k)+".png", dpi=600)
+    
+    
+    # #this plot shows the types of cells (ClusterIDs) in the different niches (0-9)
+    # k_to_plot = k
+    # niche_clusters = (k_centroids[k_to_plot])
+    # tissue_avgs = values.mean(axis = 0)
+    # fc = np.log2(((niche_clusters+tissue_avgs)/(niche_clusters+tissue_avgs).sum(axis = 1, keepdims = True))/tissue_avgs)
+    # fc = pd.DataFrame(fc,columns = sum_cols)
+    # s=sns.clustermap(fc, vmin =-3,vmax = 3,cmap = 'bwr', figsize=(10,10))
+    # s.savefig(output_dir2+"celltypes_perniche_"+"_"+str(k)+".png", dpi=600)
+    
+    
+
+    if show_spatial_plots == True:
+        #modify figure size aesthetics for each neighborhood
+        figs = pl_catplot(data,X = X,Y=Y,exp = reg,hue = 'community'+str(k),invert_y=True,size = size,axis = axis,ticks_fontsize = ticks_fontsize, palette=palette)
+        
+        #Save Plots for Publication
+        for n,f in enumerate(figs):
+            f.savefig(output_dir+'community_'+str(k)+'_id{}.png'.format(n))
+     
+       
+   
+    #this plot shows the types of cells (ClusterIDs) in the different niches (0-9)
+    k_to_plot = k
+    niche_clusters = (k_centroids[k_to_plot])
+    tissue_avgs = values.mean(axis = 0)
+    fc = np.log2(((niche_clusters+tissue_avgs)/(niche_clusters+tissue_avgs).sum(axis = 1, keepdims = True))/tissue_avgs)
+    fc = pd.DataFrame(fc,columns = sum_cols)
+    s=sns.clustermap(fc, vmin =-3,vmax = 3,cmap = 'bwr', row_colors=sns.color_palette(palette, len(fc)))
+    s.savefig(output_dir+"celltypes_perniche_"+"_"+str(k)+".png", dpi=600)
+    
+    
+
+
     if plot_specific_community is True:
         #this plot shows the types of cells (ClusterIDs) in the different niches (0-9)
         k_to_plot = k
@@ -923,19 +976,8 @@ def pl_community_analysis_2(data,
         tissue_avgs = values.mean(axis = 0)
         fc = np.log2(((niche_clusters+tissue_avgs)/(niche_clusters+tissue_avgs).sum(axis = 1, keepdims = True))/tissue_avgs)
         fc = pd.DataFrame(fc,columns = sum_cols)
-        s=sns.clustermap(fc.iloc[plot_specific_community,:], vmin =-3,vmax = 3,cmap = 'bwr',figsize=(10,5))
-        s.savefig(output_dir2+"celltypes_perniche_"+"_"+str(k)+".png", dpi=600)
-    
-    
-    #this plot shows the types of cells (ClusterIDs) in the different niches (0-9)
-    k_to_plot = k
-    niche_clusters = (k_centroids[k_to_plot])
-    tissue_avgs = values.mean(axis = 0)
-    fc = np.log2(((niche_clusters+tissue_avgs)/(niche_clusters+tissue_avgs).sum(axis = 1, keepdims = True))/tissue_avgs)
-    fc = pd.DataFrame(fc,columns = sum_cols)
-    s=sns.clustermap(fc, vmin =-3,vmax = 3,cmap = 'bwr', figsize=(10,10))
-    s.savefig(output_dir2+"celltypes_perniche_"+"_"+str(k)+".png", dpi=600)
-    
+        s=sns.clustermap(fc.iloc[plot_specific_neighborhoods,:], vmin =-3,vmax = 3,cmap = 'bwr')
+        s.savefig(output_dir+"celltypes_perniche_"+"_"+str(k)+".png", dpi=600)
     
 ###############
 '''
@@ -2126,4 +2168,20 @@ def pl_visualize_2D_density_plot(df, region_column, selected_region, subsetting_
     plt.title("2D Density Plot with Overlay")
 
     # Display the plot
+    plt.show()
+    
+    
+#######
+
+def pl_create_cluster_celltype_heatmap(dataframe, cluster_column, celltype_column):
+    # Create a frequency table using pandas crosstab
+    frequency_table = pd.crosstab(dataframe[cluster_column], dataframe[celltype_column])
+    
+    # Create the heatmap using seaborn
+    plt.figure(figsize=(20, 6))  # Set the size of the heatmap (adjust as needed)
+    sns.heatmap(frequency_table, cmap="YlGnBu", annot=True, fmt="d")  # cmap sets the color palette
+
+    plt.title("Cluster-Cell Type Heatmap")
+    plt.xlabel("Cell Types")
+    plt.ylabel("Cluster IDs")
     plt.show()

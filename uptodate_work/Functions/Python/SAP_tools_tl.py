@@ -269,8 +269,8 @@ def tl_community_analysis_2(data, values, sum_cols, X='x', Y='y', reg='unique_re
 
     return data, neighborhood_name, k_centroids
 
-
    
+
 #################
 
 '''
@@ -434,10 +434,9 @@ def tl_calculate_neigh_combs(w, l, n_num, threshold = 0.85, per_keep_thres = 0.8
 #######
 
 
-def tl_build_graph_CN_comb_map(simp_freqs):
+def tl_build_graph_CN_comb_map(simp_freqs, thresh_freq = .001):
     g = nx.DiGraph()
-    thresh_cumulative = .95
-    thresh_freq = .001
+    
     #selected_simps = simp_sums[simp_sums<=thresh_cumulative].index.values
     selected_simps = simp_freqs[simp_freqs>=thresh_freq].index.values
     selected_simps
