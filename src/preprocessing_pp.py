@@ -11,7 +11,7 @@ import scanpy as sc
 from itertools import product
 
 
-def pp_read_data(path, reg_list, nuc_1):
+def pp_read_data(path, reg_list, nuc_thres = 1, size_thres = 1):
     #Change working directory to where data is stored
     all_files = glob.glob(path + "*.csv")
 
@@ -44,11 +44,11 @@ def pp_read_data(path, reg_list, nuc_1):
     g.set_xticklabels(ticks)
     plt.legend(bbox_to_anchor=(1.02, 1), loc='upper left', borderaxespad=0)
 
-    df_nuc = df_regionout[(df_regionout.DAPI > nuc_1)]
+    df_nuc = df_regionout[(df_regionout.DAPI > nuc_thres) * df_regionout['size'] > size_thres]
     per_keep = len(df_nuc)/len(df_regionout)
     print(per_keep)
     
-    return df_nuc
+    return df_nuc, per_keep
 
 def pp_format(data, list_out, list_keep, method = "zscore", ArcSin_cofactor = 150):
 
