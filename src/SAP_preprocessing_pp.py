@@ -1,23 +1,14 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Wed Apr 19 10:19:07 2023
-
-@author: timnoahkempchen
-"""
-
+# load required packages 
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 import pandas as pd
 from scipy.stats import zscore
 from scipy.stats import norm
-
 import os
 import glob
 import scanpy as sc
 from itertools import product
-
 
 
 def pp_read_data(path, reg_list, nuc_1):

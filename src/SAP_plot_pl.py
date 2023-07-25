@@ -1,10 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Apr 18 12:01:17 2023
-
-@author: timnoahkempchen
-"""
 # load required packages 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -25,17 +18,7 @@ from  SAP_helperfunctions_hf import *
 
 
 # Setup 
-sns.set_style("ticks")
-
-
-
-
-
-
-
-
-
-
+#sns.set_style("ticks")
 
 
 # plotting functions

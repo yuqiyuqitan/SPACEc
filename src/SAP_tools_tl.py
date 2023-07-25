@@ -1,10 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Apr 18 12:00:44 2023
-
-@author: timnoahkempchen
-"""
 # load required packages 
 import matplotlib.pyplot as plt
 import pandas as pd
