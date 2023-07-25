@@ -156,7 +156,7 @@ get_triangulation_distances <- function(df_input,
   
   if(calc_avg_distance == TRUE) {
     calculate_avg_distance(triangulation_distances = triangulation_distances,
-                           csv_output = csv_output)
+                           csv_output = csv_output, region = region)
   }
   
   
@@ -310,7 +310,7 @@ iterate_triangulation_distances <- function(df_input,
 
 
 calculate_avg_distance <- function(triangulation_distances = triangulation_distances,
-                                   csv_output = getwd()) {
+                                   csv_output = getwd(), region) {
   `%>%` <- magrittr::`%>%`
   
   print("Calculateing the average distance to different cell types on a per individual cell level. This can be interpreted as >> For cell #1, the average distance to a cell of type X is ____. <<")
@@ -318,7 +318,7 @@ calculate_avg_distance <- function(triangulation_distances = triangulation_dista
   # This can be interpreted as
   # "For cell #1, the average distance to a cell of type X is ____."
   per_cell_summary <- triangulation_distances %>%
-    dplyr::group_by(celltype1_index, celltype1, celltype2, unique_region) %>%
+    dplyr::group_by(celltype1_index, celltype1, celltype2, region) %>%
     dplyr::summarize(per_cell_mean_dist = mean(distance)) %>%
     dplyr::ungroup()
   print(head(per_cell_summary))

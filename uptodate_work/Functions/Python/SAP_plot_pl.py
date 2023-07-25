@@ -1181,7 +1181,7 @@ def pl_plot_modules_heatmap(data,
     plt.title('Loadings onto CT modules')
     plt.show()
     
-    #figsize(num_tissue_modules*3,3)
+    figsize = (num_tissue_modules*3,3)
     for p in range(num_tissue_modules):
         plt.subplot(1, num_tissue_modules, p+1)
         sns.heatmap(pd.DataFrame(core[p]))
@@ -1247,7 +1247,7 @@ def pl_plot_modules_graphical(data,
         color_dic = sns.color_palette('bright',10)
     palg = sns.color_palette('Greys',10)
     
-    figsize= (3.67*scale,2.00*scale)
+    figsize = (3.67*scale,2.00*scale)
     cn_scatter_size = scale*scale*45
     cel_scatter_size = scale*scale*15
     

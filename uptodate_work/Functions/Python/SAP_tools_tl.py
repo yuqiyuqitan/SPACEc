@@ -284,34 +284,40 @@ The function returns a dictionary stats_group1 containing the Pearson correlatio
 
 # CCA Analysis 
 
-def tl_Perform_CCA(cca, n_perms, nsctf, cns, subsets, group):
+def tl_Perform_CCA(cca, n_perms, nsctf, cns, subsets):
     stats_group1 = {}
-    for cn_i in cns:
-        for cn_j in cns:
-            if cn_i < cn_j:
-                print(cn_i, cn_j)
-                #concat dfs
-                combined = pd.concat([nsctf.loc[cn_i].loc[nsctf.loc[cn_i].index.isin(group)],nsctf.loc[cn_j].loc[nsctf.loc[cn_j].index.isin(group)]], axis = 1).dropna(axis = 0, how = 'any')
-                if combined.shape[0]>2:
-                    if subsets != None:
-                        x = combined.iloc[:,:len(subsets)].values
-                        y = combined.iloc[:,len(subsets):].values
-                    else: 
-                        x = combined.values
-                        y = combined.values
+    total_iterations = len(cns) * (len(cns) - 1) // 2  # Total number of iterations for the progress bar
 
-                    arr = np.zeros(n_perms)
-                    #compute the canonical correlation achieving components with respect to observed data
-                    ccx,ccy = cca.fit_transform(x,y)
-                    stats_group1[cn_i,cn_j] = (pearsonr(ccx[:,0],ccy[:,0])[0],arr)
-                    #initialize array for perm values
-                    for i in range(n_perms):
-                        idx = np.arange(len(x))
-                        np.random.shuffle(idx)
-                        # compute with permuted data
-                        cc_permx,cc_permy = cca.fit_transform(x[idx],y)
-                        arr[i] = pearsonr(cc_permx[:,0],cc_permy[:,0])[0]
-    return stats_group1 
+    with tqdm(total=total_iterations, desc="Performing CCA", initial=0, position=0, leave=True) as pbar:
+        idx = 0  # Variable to track the progress manually
+        for cn_i in cns:
+            for cn_j in cns:
+                if cn_i < cn_j:
+                    idx += 1  # Increment the progress manually
+                    pbar.update(1)  # Update the progress bar
+                    #print(cn_i, cn_j)
+                    # Concat dfs
+                    combined = pd.concat([nsctf.loc[cn_i], nsctf.loc[cn_j]], axis=1).dropna(axis=0, how='any')
+                    if combined.shape[0] > 2:
+                        if subsets is not None:
+                            x = combined.iloc[:, :len(subsets)].values
+                            y = combined.iloc[:, len(subsets):].values
+                        else:
+                            x = combined.values
+                            y = combined.values
+
+                        arr = np.zeros(n_perms)
+                        # Compute the canonical correlation achieving components with respect to observed data
+                        ccx, ccy = cca.fit_transform(x, y)
+                        stats_group1[cn_i, cn_j] = (pearsonr(ccx[:, 0], ccy[:, 0])[0], arr)
+                        # Initialize array for perm values
+                        for i in range(n_perms):
+                            idx = np.arange(len(x))
+                            np.random.shuffle(idx)
+                            # Compute with permuted data
+                            cc_permx, cc_permy = cca.fit_transform(x[idx], y)
+                            arr[i] = pearsonr(cc_permx[:, 0], cc_permy[:, 0])[0]
+    return stats_group1
 
         
 
@@ -326,7 +332,7 @@ This function takes in a DataFrame df and creates a tensor T1 with dimensions (l
 For each sample, neighborhood, and cell type, the corresponding count is stored in T1. The function then normalizes T1 so that each slice represents a joint distribution. Finally, it returns the normalized tensor dat1.
 '''
 
-def tl_build_tensors(df, group, cns, cts, counts):
+def old_tl_build_tensors(df, group, cns, cts, counts):
     
     #initialize the tensors
     T1 = np.zeros((len(group),len(cns),len(cts)))
@@ -344,6 +350,30 @@ def tl_build_tensors(df, group, cns, cts, counts):
     
     return(dat1) 
 
+def tl_build_tensors(df, neighborhood_col, celltype_col, id_col, counts, subset_cns=None, subset_cts=None):
+    uid = list(df[id_col].unique())
+
+    if subset_cns is None:
+        cns = list(df[neighborhood_col].unique())
+    else:
+        cns = subset_cns
+
+    if subset_cts is None:
+        cts = list(df[celltype_col].unique())
+    else:
+        cts = subset_cts
+
+    T1 = np.zeros((len(uid), len(cns), len(cts)))
+
+    for i, pat in enumerate(uid):
+        for j, cn in enumerate(cns):
+            for k, ct in enumerate(cts):
+                T1[i, j, k] = counts.loc[(pat, cn, ct)]
+
+    # normalize so we have joint distributions for each slice
+    dat1 = np.nan_to_num(T1 / T1.sum((1, 2), keepdims=True))
+
+    return dat1, cns, cts
     
 #########
 
