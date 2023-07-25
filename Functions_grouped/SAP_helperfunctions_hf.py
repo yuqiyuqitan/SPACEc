@@ -14,7 +14,9 @@ import time
 import seaborn as sns
 from scipy.spatial.distance import cdist
 from functools import reduce
+import scanpy as sc
 
+sns.set_style("ticks")
 
 # helper functions
 ############################################################
@@ -544,3 +546,13 @@ def hf_get_top_abs_correlations(df, thresh=0.5):
     cc.rename(columns={0:'value'},inplace=True)
     gt_pair = cc.loc[cc['value'].abs().gt(thresh)]
     return gt_pair
+
+################
+# help to convert dataframe after denoising into anndata
+def hf_makeAnndata(df_nn, # data frame coming out from denoising
+                   col_sum, # this is the column index that has the last protein feature
+                   nonFuncAb_list # inspect which markers work, and drop the ones that did not work from the clustering step
+                  ):
+    adata = sc.AnnData(X=df_nn.iloc[:,:col_sum+1].drop(columns = nonFuncAb_list))
+    adata.obs = df_nn.iloc[:,col_sum+1:]
+    return adata

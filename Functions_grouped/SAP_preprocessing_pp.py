@@ -85,122 +85,121 @@ def pp_format(data, list_out, list_keep, method = "zscore", ArcSin_cofactor = 15
     
     # return dfz_all
     list = ["zscore", "double_zscore", "MinMax", "ArcSin"]
-   
-    if method in list:
-        print (method + " was used for normalization")
-        if(method == 'zscore'):
-            #Drop column list
-            list1 = [col for col in data.columns if 'blank' in col]
-            list_out1 = list1+list_out
-            
-            #Drop columns not interested in
-            dfin = data.drop(list_out1, axis = 1)
 
-            #save columns for later
-            df_loc = dfin.loc[:,list_keep]
-
-            #dataframe for normalization
-            dfz = dfin.drop(list_keep, axis = 1)
-
-            #zscore of the column markers 
-            dfz1 = pd.DataFrame(zscore(dfz,0),index = dfz.index,columns = [i for i in dfz.columns])
-
-            #Add back labels for normalization type
-            dfz_all = pd.concat([dfz1, df_loc], axis=1, join='inner')
-            
-            #print("the number of regions = "+str(len(dfz_all.region_num.unique())))
-            
-            return dfz_all
-
-        if(method == "double_zscore"):
-            ##Double Z normalization
-            #Drop column list
-            list1 = [col for col in data.columns if 'blank' in col]
-            list_out1 = list1+list_out
-            
-            #Drop columns not interested in
-            dfin = data.drop(list_out1, axis = 1)
-
-            #save columns for later
-            df_loc = dfin.loc[:,list_keep]
-
-            #dataframe for normalization
-            dfz = dfin.drop(list_keep, axis = 1)
-
-            #zscore of the column markers 
-            dfz1 = pd.DataFrame(zscore(dfz,0),index = dfz.index,columns = [i for i in dfz.columns])
-            
-            #zscore rows 
-            dfz2 = pd.DataFrame(zscore(dfz1,1),index = dfz1.index,columns = [i for i in dfz1.columns])
-            
-            #Take cumulative density function to find probability of z score across a row
-            dfz3 = pd.DataFrame(norm.cdf(dfz2),index = dfz2.index, columns = [i for i in dfz2.columns])
-            
-            #First 1-probability and then take negative logarithm so greater values demonstrate positive cell type
-            dflog = dfz3.apply(lambda x: -np.log(1-x))
-            
-            #Add back labels for normalization type
-            dfz_all = pd.concat([dflog, df_loc], axis=1, join='inner')
-            
-            #print("the number of regions = "+str(len(dfz_all.region_num.unique())))
-            
-            return dfz_all
-        
-        #Min Max normalization
-        if(method == "MinMax"):
-            #Drop column list
-            list1 = [col for col in data.columns if 'blank' in col]
-            list_out1 = list1+list_out
-            
-            #Drop columns not interested in
-            dfin = data.drop(list_out1, axis = 1)
-
-            #save columns for later
-            df_loc = dfin.loc[:,list_keep]
-
-            #dataframe for normalization
-            dfmm = dfin.drop(list_keep, axis = 1)
-            
-            for col in dfmm.columns:
-                max_value = dfmm[col].quantile(.99) 
-                min_value = dfmm[col].quantile(.01)
-                dfmm[col].loc[dfmm[col] > max_value] = max_value
-                dfmm[col].loc[dfmm[col] < min_value] = min_value
-                dfmm[col] = (dfmm[col] - min_value) / (max_value - min_value) 
-                
-            #Add back labels for normalization type
-            dfz_all = pd.concat([dfmm, df_loc], axis=1, join='inner')
-            
-            return dfz_all
-        
-        
-        ##ArcSin transformation
-        if(method == "ArcSin"):
-            
-            #Drop column list
-            list1 = [col for col in data.columns if 'blank' in col]
-            list_out1 = list1+list_out
-            
-            #Drop columns not interested in
-            dfin = data.drop(list_out1, axis = 1)
-
-            #save columns for later
-            df_loc = dfin.loc[:,list_keep]
-
-            #dataframe for normalization
-            dfas = dfin.drop(list_keep, axis = 1)
-            
-            #parameters seit in function
-            #Only decrease the background if the median is higher than the background
-            dfa = dfas.apply(lambda x: np.arcsinh(x/ArcSin_cofactor))
-            
-            #Add back labels for normalization type
-            dfz_all = pd.concat([dfa, df_loc], axis=1, join='inner')
-            
-            return dfz_all
+    if method not in list:
+        print("Please select methods from zscore, double_zscore, MinMax, ArcSin!")
+        exit()
     
+    ##ArcSin transformation
+    if(method == "ArcSin"):       
+        #Drop column list
+        list1 = [col for col in data.columns if 'blank' in col]
+        list_out1 = list1+list_out
+        
+        #Drop columns not interested in
+        dfin = data.drop(list_out1, axis = 1)
+
+        #save columns for later
+        df_loc = dfin.loc[:,list_keep]
+
+        #dataframe for normalization
+        dfas = dfin.drop(list_keep, axis = 1)
+        
+        #parameters seit in function
+        #Only decrease the background if the median is higher than the background
+        dfa = dfas.apply(lambda x: np.arcsinh(x/ArcSin_cofactor))
+        
+        #Add back labels for normalization type
+        dfz_all = pd.concat([dfa, df_loc], axis=1, join='inner')
+        
+        return dfz_all
+
+    ##Double Z normalization
+    elif(method == "double_zscore"):
+        
+        #Drop column list
+        list1 = [col for col in data.columns if 'blank' in col]
+        list_out1 = list1+list_out
+        
+        #Drop columns not interested in
+        dfin = data.drop(list_out1, axis = 1)
+
+        #save columns for later
+        df_loc = dfin.loc[:,list_keep]
+
+        #dataframe for normalization
+        dfz = dfin.drop(list_keep, axis = 1)
+
+        #zscore of the column markers 
+        dfz1 = pd.DataFrame(zscore(dfz,0),index = dfz.index,columns = [i for i in dfz.columns])
+        
+        #zscore rows 
+        dfz2 = pd.DataFrame(zscore(dfz1,1),index = dfz1.index,columns = [i for i in dfz1.columns])
+        
+        #Take cumulative density function to find probability of z score across a row
+        dfz3 = pd.DataFrame(norm.cdf(dfz2),index = dfz2.index, columns = [i for i in dfz2.columns])
+        
+        #First 1-probability and then take negative logarithm so greater values demonstrate positive cell type
+        dflog = dfz3.apply(lambda x: -np.log(1-x))
+        
+        #Add back labels for normalization type
+        dfz_all = pd.concat([dflog, df_loc], axis=1, join='inner')
+        
+        #print("the number of regions = "+str(len(dfz_all.region_num.unique())))
+        
+        return dfz_all
+        
+    #Min Max normalization
+    elif(method == "MinMax"):
+        #Drop column list
+        list1 = [col for col in data.columns if 'blank' in col]
+        list_out1 = list1+list_out
+        
+        #Drop columns not interested in
+        dfin = data.drop(list_out1, axis = 1)
+
+        #save columns for later
+        df_loc = dfin.loc[:,list_keep]
+
+        #dataframe for normalization
+        dfmm = dfin.drop(list_keep, axis = 1)
+        
+        for col in dfmm.columns:
+            max_value = dfmm[col].quantile(.99) 
+            min_value = dfmm[col].quantile(.01)
+            dfmm[col].loc[dfmm[col] > max_value] = max_value
+            dfmm[col].loc[dfmm[col] < min_value] = min_value
+            dfmm[col] = (dfmm[col] - min_value) / (max_value - min_value) 
+            
+        #Add back labels for normalization type
+        dfz_all = pd.concat([dfmm, df_loc], axis=1, join='inner')
+        
+        return dfz_all
+    
+    ## Z normalization
     else:
-        print (method + " is an unknown method. Please use one of the available methods: zscore, double_zscore, MinMax, ArcSin") 
+        #Drop column list
+        list1 = [col for col in data.columns if 'blank' in col]
+        list_out1 = list1+list_out
+        
+        #Drop columns not interested in
+        dfin = data.drop(list_out1, axis = 1)
+
+        #save columns for later
+        df_loc = dfin.loc[:,list_keep]
+
+        #dataframe for normalization
+        dfz = dfin.drop(list_keep, axis = 1)
+
+        #zscore of the column markers 
+        dfz1 = pd.DataFrame(zscore(dfz,0),index = dfz.index,columns = [i for i in dfz.columns])
+
+        #Add back labels for normalization type
+        dfz_all = pd.concat([dfz1, df_loc], axis=1, join='inner')
+        
+        #print("the number of regions = "+str(len(dfz_all.region_num.unique())))
+            
+        return dfz_all
 
    
 
@@ -242,14 +241,13 @@ def pp_xycorr(data, y_rows, x_columns, X_pix, Y_pix):
 #Get rid of noisy cells from dataset
 def pp_remove_noise(df, col_num=24, z_sum_thres=22, z_count_thres=20):
     df_z_1_copy = df.copy()
-    df_z_1_copy['Count']=df_z_1_copy.iloc[:,:col_num].ge(0).sum(axis=1)
-    df_z_1_copy['z_sum']=df_z_1_copy.iloc[:,:col_num].sum(axis=1)
+    df_z_1_copy['Count']=df_z_1_copy.iloc[:,:col_num+1].ge(0).sum(axis=1)
+    df_z_1_copy['z_sum']=df_z_1_copy.iloc[:,:col_num+1].sum(axis=1)
     cc = df_z_1_copy[(df_z_1_copy['z_sum']>z_sum_thres) & (df_z_1_copy['Count']>z_count_thres)]
     df_want = df_z_1_copy[~((df_z_1_copy['z_sum']>z_sum_thres) & (df_z_1_copy['Count']>z_count_thres))]
     percent_removed = len(df_want)/len(df_z_1_copy)
-    print(str(percent_removed))
-    
-    ee = df_z_1_copy['Count'].plot.hist(bins=50, alpha=0.8,logy = False)
+    print(str(percent_removed) + " percent of cells are removed.")
+    #ee = df_z_1_copy['Count'].plot.hist(bins=50, alpha=0.8,logy = False)
     #dd = df_z_1_copy['z_sum'].plot.hist(bins=50, alpha=0.8,logy = False)
     df_want.drop(columns=['Count','z_sum'], inplace=True)
     df_want.reset_index(inplace=True, drop=True)
@@ -275,3 +273,4 @@ def pp_clust_leid(adata, res=1, Matrix_plot=True):
         sc.pl.matrixplot(adata, m_list, 'leiden',standard_scale='var')
     
     return adata, m_list
+

@@ -19,6 +19,7 @@ import os as os
 
 from  SAP_helperfunctions_hf import *
 
+sns.set_style("ticks")
 
 # plotting functions
 ############################################################
@@ -1219,7 +1220,7 @@ def pl_conplot(df,feature,exp = 'Exp',X = 'X',Y = 'Y',invert_y = False,cmap = "R
 
 ##############
 
-def pl_catplot(df,hue,exp = 'Exp',X = 'X',Y = 'Y',invert_y = False,size = 3,legend = True, palette="bright",figsize = 5,style = 'white',exps = None,axis = 'on',scatter_kws = {}):
+def pl_catplot(df, hue, X = 'X',Y = 'Y', exp='Exp', exps = None, invert_y = False,size = 3,legend = True, palette="bright",figsize = 5,style = 'white', axis = 'on',scatter_kws = {}):
     '''
     Plots cells in tissue section color coded by either cell type or node allocation.
     df:  dataframe with cell information
@@ -1257,12 +1258,8 @@ def pl_catplot(df,hue,exp = 'Exp',X = 'X',Y = 'Y',invert_y = False,size = 3,lege
         if axis =='off':
             sns.despine(top=True, right=True, left=True, bottom=True)
             f = f.set(xticks = [],yticks=[]).set_xlabels('').set_ylabels('')
-       
-        
-        
 
         plt.title(name)
-
 
         plt.show()
         figures +=[f] 
@@ -1309,3 +1306,22 @@ def pl_comb_num_freq(data_list, plot_order = None, pal_tis = None, figsize=(5,5)
     sns.despine(trim=True)
     
     return df_exp
+
+##########
+# this function helps to determine what threshold to use for remove noises
+# default cut off is top 1%
+def pl_zcount_thres(dfz, cut_off = 0.01, count_bin = 50, zsum_bin = 50):    
+    dfz_copy = dfz
+    dfz_copy['Count']=dfz.iloc[:,:14].ge(0).sum(axis=1)
+    dfz_copy['z_sum']=dfz.iloc[:,:14].sum(axis=1)
+    fig, axes = plt.subplots(1, 2, constrained_layout=True)
+    axes[0].hist(dfz_copy['Count'], bins = count_bin)
+    axes[0].set_title('Count')
+    axes[0].axvline(dfz_copy['Count'].quantile(1-cut_off), color='k', linestyle='dashed', linewidth=1)
+    axes[0].text(0.75,  0.75, 'Cut off: {:.2f}'.format(dfz_copy['Count'].quantile(1-cut_off)), ha='right', va='bottom',
+        transform=axes[0].transAxes)
+    axes[1].hist(dfz_copy['z_sum'], bins = zsum_bin)
+    axes[1].title.set_text('Zscore sum')
+    axes[1].axvline(dfz_copy['z_sum'].quantile(1-cut_off), color='k', linestyle='dashed', linewidth=1)
+    axes[1].text(0.75,  0.75, 'Cut off: {:.2f}'.format(dfz_copy['z_sum'].quantile(1-cut_off)), ha='right', va='bottom',
+        transform=axes[1].transAxes)
