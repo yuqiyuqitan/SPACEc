@@ -236,7 +236,7 @@ def pp_remove_noise(df, col_num=24, z_sum_thres=22, z_count_thres=20):
     df_z_1_copy['z_sum']=df_z_1_copy.iloc[:,:col_num+1].sum(axis=1)
     cc = df_z_1_copy[(df_z_1_copy['z_sum']>z_sum_thres) & (df_z_1_copy['Count']>z_count_thres)]
     df_want = df_z_1_copy[~((df_z_1_copy['z_sum']>z_sum_thres) & (df_z_1_copy['Count']>z_count_thres))]
-    percent_removed = len(df_want)/len(df_z_1_copy)
+    percent_removed = 1- len(df_want)/len(df_z_1_copy)
     print(str(percent_removed) + " percent of cells are removed.")
     #ee = df_z_1_copy['Count'].plot.hist(bins=50, alpha=0.8,logy = False)
     #dd = df_z_1_copy['z_sum'].plot.hist(bins=50, alpha=0.8,logy = False)
