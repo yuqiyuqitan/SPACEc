@@ -2161,11 +2161,11 @@ def pl_comb_num_freq(data_list, plot_order = None, pal_tis = None, figsize=(5,5)
 ##########
 # this function helps to determine what threshold to use for remove noises
 # default cut off is top 1%
-def pl_zcount_thres(dfz, cut_off = 0.01, count_bin = 50, zsum_bin = 50):    
+def pl_zcount_thres(dfz, col_num, cut_off = 0.01,  count_bin = 50, zsum_bin = 50, figsize=(10,5)):    
     dfz_copy = dfz
-    dfz_copy['Count']=dfz.iloc[:,:14].ge(0).sum(axis=1)
-    dfz_copy['z_sum']=dfz.iloc[:,:14].sum(axis=1)
-    fig, axes = plt.subplots(1, 2, constrained_layout=True)
+    dfz_copy['Count']=dfz.iloc[:,:col_num+1].ge(0).sum(axis=1)
+    dfz_copy['z_sum']=dfz.iloc[:,:col_num+1].sum(axis=1)
+    fig, axes = plt.subplots(1, 2, constrained_layout=True, figsize = figsize)
     axes[0].hist(dfz_copy['Count'], bins = count_bin)
     axes[0].set_title('Count')
     axes[0].axvline(dfz_copy['Count'].quantile(1-cut_off), color='k', linestyle='dashed', linewidth=1)
