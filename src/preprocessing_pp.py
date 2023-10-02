@@ -32,17 +32,17 @@ def pp_read_data(path, reg_list, nuc_thres = 1, size_thres = 1):
     df_regionout = df_rename.loc[~(df_rename.region_num.isin(reg_list))]
 
     #Plot scatter plot by region
-    plt.rcParams["legend.markerscale"] = 1
-    plt.figure(figsize=(7,7))
-    g = sns.scatterplot(data=df_regionout, x='DAPI', y='size', hue='region_num', size=1)
-    g.set_xscale('log')
-    g.set_yscale('log')
-    ticks = [0.1, 1, 10, 100,1000]
-    g.set_yticks(ticks)
-    g.set_yticklabels(ticks)
-    g.set_xticks(ticks)
-    g.set_xticklabels(ticks)
-    plt.legend(bbox_to_anchor=(1.02, 1), loc='upper left', borderaxespad=0)
+    #plt.rcParams["legend.markerscale"] = 1
+    #plt.figure(figsize=(7,7))
+    #g = sns.scatterplot(data=df_regionout, x='DAPI', y='size', hue='region_num', size=1)
+    #g.set_xscale('log')
+    #g.set_yscale('log')
+    #ticks = [0.1, 1, 10, 100,1000]
+    #g.set_yticks(ticks)
+    #g.set_yticklabels(ticks)
+    #g.set_xticks(ticks)
+    #g.set_xticklabels(ticks)
+    #plt.legend(bbox_to_anchor=(1.02, 1), loc='upper left', borderaxespad=0)
 
     df_nuc = df_regionout[(df_regionout.DAPI > nuc_thres) * df_regionout['size'] > size_thres]
     per_keep = len(df_nuc)/len(df_regionout)
