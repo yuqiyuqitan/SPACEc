@@ -12,6 +12,10 @@ from itertools import product
 
 
 def pp_read_data(path, reg_list, nuc_thres = 1, size_thres = 1):
+    #Adjust path if necessary 
+    if not path.endswith('/'):
+        path += '/'
+    
     #Change working directory to where data is stored
     all_files = glob.glob(path + "*.csv")
 
