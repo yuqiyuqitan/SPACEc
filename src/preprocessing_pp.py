@@ -11,7 +11,7 @@ import scanpy as sc
 from itertools import product
 
 
-def pp_read_data(path, reg_list, nuc_thres = 1, size_thres = 1, nuc_marker = "DAPI"):
+def pp_read_data(path, reg_list, nuc_thres = 1, size_thres = 1, nuc_marker = "DAPI", metadata_filename = ["donor", "tissue", "region", 'x1','y1','z1'], redundant_info = ['x1','y1','z1', 'filename'],  cell_size = "area", reg_num = 'region_num'):
     #Adjust path if necessary 
     if not path.endswith('/'):
         path += '/'
@@ -23,10 +23,10 @@ def pp_read_data(path, reg_list, nuc_thres = 1, size_thres = 1, nuc_marker = "DA
     dftest = pd.concat((pd.read_csv(filename, index_col=None, header=0).assign(filename = os.path.basename(filename)) for filename in all_files)) 
 
     #Separate out File Names and Cell Types
-    dftest[['region_num','x1','y1','z1','comp']] = dftest.filename.apply(lambda x: pd.Series(str(x).split("_"))) 
-
-    #Drop redudnent columns
-    df_rename=dftest.drop(['x1','y1','z1','comp', 'filename',], axis = 1)
+    dftest[metadata_filename] = dftest.filename.apply(lambda x: pd.Series(str(x).split("_"))) 
+    
+    #Drop redundant columns
+    df_rename=dftest.drop(redundant_info, axis = 1)
 
     #See resultant dataframe
     df_rename.columns = df_rename.columns.str.split(':').str[-1].tolist()
@@ -38,7 +38,7 @@ def pp_read_data(path, reg_list, nuc_thres = 1, size_thres = 1, nuc_marker = "DA
     #Plot scatter plot by region
     plt.rcParams["legend.markerscale"] = 1
     plt.figure(figsize=(7,7))
-    g = sns.scatterplot(data=df_regionout, x=nuc_marker, y='size', hue='region_num', size=1)
+    g = sns.scatterplot(data=df_regionout, x=nuc_marker, y=cell_size, hue=reg_num, size=1)
     g.set_xscale('log')
     g.set_yscale('log')
     ticks = [0.1, 1, 10, 100,1000]
@@ -48,7 +48,7 @@ def pp_read_data(path, reg_list, nuc_thres = 1, size_thres = 1, nuc_marker = "DA
     g.set_xticklabels(ticks)
     plt.legend(bbox_to_anchor=(1.02, 1), loc='upper left', borderaxespad=0)
 
-    df_nuc = df_regionout[(df_regionout[nuc_marker] > nuc_thres) * df_regionout['size'] > size_thres]
+    df_nuc = df_regionout[(df_regionout[nuc_marker] > nuc_thres) * df_regionout[cell_size] > size_thres]
     per_keep = len(df_nuc)/len(df_regionout)
     print(per_keep)
     
