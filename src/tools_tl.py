@@ -569,28 +569,41 @@ def tl_get_distances(df, cell_list, cell_type_col):
 
 ###############
 # clustering
-def tl_clustering(adata, clustering = 'leiden', res=1, n_neighbors = 10, reclustering = False):
-    if clustering not in ['leiden','louvain']:
+def tl_clustering(adata, clustering='leiden', res=1, n_neighbors=10, reclustering=False, markers_for_clustering=None):
+    if markers_for_clustering is not None:
+        adata_subset = adata[:, markers_for_clustering]
+    else:
+        adata_subset = adata
+        
+    if clustering not in ['leiden', 'louvain']:
         print("Invalid clustering options. Please select from leiden or louvain!")
         exit()
-    #Compute the neighborhood relations of single cells the range 2 to 100 and usually 10
+    
     if reclustering:
+        print("Computing neighbors")
+        sc.pp.neighbors(adata_subset, n_neighbors=n_neighbors)
         print("Clustering")
         if clustering == 'leiden':
-            sc.tl.leiden(adata, resolution = res, key_added = "leiden_" + str(res))
+            sc.tl.leiden(adata_subset, resolution=res, key_added="leiden_" + str(res))
+            adata.obs["leiden_" + str(res)] = adata_subset.obs["leiden_" + str(res)]
         else:
-            sc.tl.louvain(adata, resolution = res, key_added = "louvain" + str(res))        
+            sc.tl.louvain(adata_subset, resolution=res, key_added="louvain" + str(res))      
+            adata.obs["louvain" + str(res)] = adata_subset.obs["louvain" + str(res)]  
     else:
         print("Computing neighbors and UMAP")
-        sc.pp.neighbors(adata, n_neighbors=n_neighbors)
-        #UMAP computation
-        sc.tl.umap(adata)
+        sc.pp.neighbors(adata_subset, n_neighbors=n_neighbors)
+        sc.tl.umap(adata_subset)
         print("Clustering")
-        #Perform leiden clustering - improved version of louvain clustering
         if clustering == 'leiden':
-            sc.tl.leiden(adata, resolution = res, key_added = "leiden_" + str(res))
+            sc.tl.leiden(adata_subset, resolution=res, key_added="leiden_" + str(res))
+            adata.obs["leiden_" + str(res)] = adata_subset.obs["leiden_" + str(res)]
+            adata.obsm.update(adata_subset.obsm)
+            adata.uns.update(adata_subset.uns)
         else:
-            sc.tl.louvain(adata, resolution = res, key_added = "louvain" + str(res))
+            sc.tl.louvain(adata_subset, resolution=res, key_added="louvain" + str(res))
+            adata.obs["louvain" + str(res)] = adata_subset.obs["louvain" + str(res)]
+            adata.obsm.update(adata_subset.obsm)
+            adata.uns.update(adata_subset.uns)
 
 
 ###############

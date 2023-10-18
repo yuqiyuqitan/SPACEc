@@ -10,8 +10,7 @@ import glob
 import scanpy as sc
 from itertools import product
 
-
-def pp_read_data(path, reg_list, nuc_thres = 1, size_thres = 1, nuc_marker = "DAPI", metadata_filename = ["donor", "tissue", "region", 'x1','y1','z1'], redundant_info = ['x1','y1','z1', 'filename'],  cell_size = "area", reg_num = 'region_num'):
+def pp_read_data(path, reg_list, nuc_thres = 1, size_thres = 1, nuc_marker = "DAPI", metadata_filename = ["donor", "tissue", "region", 'x1','y1','z1'], redundant_info = ['x1','y1','z1', 'filename'],  cell_size = "area", reg_num = 'region_num', add_unique_label = True):
     #Adjust path if necessary 
     if not path.endswith('/'):
         path += '/'
@@ -35,18 +34,39 @@ def pp_read_data(path, reg_list, nuc_thres = 1, size_thres = 1, nuc_marker = "DA
     #Remove problematic regions
     df_regionout = df_rename.loc[~(df_rename.region_num.isin(reg_list))]
 
-    #Plot scatter plot by region
-    plt.rcParams["legend.markerscale"] = 1
-    plt.figure(figsize=(7,7))
-    g = sns.scatterplot(data=df_regionout, x=nuc_marker, y=cell_size, hue=reg_num, size=1)
-    g.set_xscale('log')
-    g.set_yscale('log')
-    ticks = [0.1, 1, 10, 100,1000]
-    g.set_yticks(ticks)
-    g.set_yticklabels(ticks)
-    g.set_xticks(ticks)
-    g.set_xticklabels(ticks)
-    plt.legend(bbox_to_anchor=(1.02, 1), loc='upper left', borderaxespad=0)
+    if add_unique_label == True:
+        
+        # get metadata that is not in redundant_info
+        unique_data = [x for x in metadata_filename if x not in redundant_info]
+        
+        df_regionout['unique_label'] = df_regionout[unique_data[1]] + "_" + df_regionout[unique_data[1]] + "_" + "reg" + "_" + df_regionout[reg_num].astype(str)
+         
+        #Plot scatter plot by region
+        plt.rcParams["legend.markerscale"] = 1
+        plt.figure(figsize=(7,7))
+        g = sns.scatterplot(data=df_regionout, x=nuc_marker, y=cell_size, hue="unique_label", size=1)
+        g.set_xscale('log')
+        g.set_yscale('log')
+        ticks = [0.1, 1, 10, 100,1000]
+        g.set_yticks(ticks)
+        g.set_yticklabels(ticks)
+        g.set_xticks(ticks)
+        g.set_xticklabels(ticks)
+        plt.legend(bbox_to_anchor=(1.02, 1), loc='upper left', borderaxespad=0)
+
+    else:
+        #Plot scatter plot by region
+        plt.rcParams["legend.markerscale"] = 1
+        plt.figure(figsize=(7,7))
+        g = sns.scatterplot(data=df_regionout, x=nuc_marker, y=cell_size, hue=reg_num, size=1)
+        g.set_xscale('log')
+        g.set_yscale('log')
+        ticks = [0.1, 1, 10, 100,1000]
+        g.set_yticks(ticks)
+        g.set_yticklabels(ticks)
+        g.set_xticks(ticks)
+        g.set_xticklabels(ticks)
+        plt.legend(bbox_to_anchor=(1.02, 1), loc='upper left', borderaxespad=0)
 
     df_nuc = df_regionout[(df_regionout[nuc_marker] > nuc_thres) * df_regionout[cell_size] > size_thres]
     per_keep = len(df_nuc)/len(df_regionout)
