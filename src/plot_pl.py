@@ -2238,3 +2238,162 @@ def pl_create_cluster_celltype_heatmap(dataframe, cluster_column, celltype_colum
     plt.xlabel("Cell Types")
     plt.ylabel("Cluster IDs")
     plt.show()
+    
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+def pl_catplot_ad(adata, color, unique_region, subset=None,
+               X='x', Y='y',
+               invert_y=False,
+               size=3, alpha=0.5, palette="bright", savefig=False,
+               output_dir='./',
+               figsize=5, style='white', axis='on', scatter_kws={}, 
+               n_columns=4,
+               legend_padding=0.2):
+    '''
+    Plots cells in tissue section color coded by either cell type or node allocation.
+    adata: anndata containing information
+    size: size of point to plot for each cell.
+    color: color by "Clusterid" or "Node" respectively.
+    unique_region: each region is one independent CODEX image
+    legend: to include legend in plot.
+    '''
+    scatter_kws_ = {'s': size, 'alpha': alpha}
+    scatter_kws_.update(scatter_kws)
+
+    df = pd.DataFrame(adata.obs[[X, Y, color, unique_region]])
+
+    df[color] = df[color].astype("category")
+    if invert_y:
+        y_orig = df[Y].values.copy()
+        df[Y] *= -1
+
+    style = {'axes.facecolor': style}
+    sns.set_style(style)
+    if subset is None:
+        region_list = list(df[unique_region].unique().sort_values())  # display all experiments
+    else:
+        if subset not in list(df[unique_region].unique().sort_values()):
+            print(subset + " is not in unique_region!")
+            return
+        else:
+            region_list = [subset]
+
+    n_rows = int(np.ceil(len(region_list) / n_columns))
+    fig, axes = plt.subplots(
+        n_rows, 
+        n_columns, 
+        figsize=(figsize * n_columns, figsize * n_rows),
+        squeeze=False,
+        gridspec_kw={'wspace': 1.1, 'hspace': 0.4})
+    
+    for i_ax, (name, ax) in enumerate(zip(region_list, axes.flatten())):
+        data = df[df[unique_region] == name]
+        #print(name)
+        sns.scatterplot(
+            x=X, y=Y, data=data, hue=color, palette=palette, ax=ax, s=size, alpha=alpha)
+        ax.grid(False)
+        if axis == 'off':
+            ax.axis('off')
+
+        ax.set_title(name)
+        ax.set_aspect('equal')
+
+        # Add padding to the legend
+        ax.legend(loc='upper left', bbox_to_anchor=(1, 1))
+        #frame = legend.get_frame()
+        #frame.set_facecolor('white')  # Adjust the legend background color
+
+    for i in range(i_ax + 1, n_rows * n_columns):
+        axes.flatten()[i].axis('off')
+
+    #fig.tight_layout(pad = 0.5)
+
+    if savefig:
+        fig.savefig(output_dir + "_spatial_plot.png", bbox_inches='tight')
+    #else:
+    #    return fig
+
+def pl_CN_exp_heatmap_ad(adata, cluster_col, 
+                               unique_region,
+                               k,
+                               n_neighborhoods,
+                               X = 'x', 
+                               Y = 'y',
+                               savefig = False,
+                               output_dir = './', 
+                               subset = None):
+    
+    df = pd.DataFrame(adata.obs[[X, Y, cluster_col, unique_region]])
+    cells = pd.concat([df,pd.get_dummies(df[cluster_col])],1)
+    sum_cols = cells[cluster_col].unique()
+    values = cells[sum_cols].values
+
+    neighborhood_name = "CN"+ "_k" +str(k) + "_n" + str(n_neighborhoods)
+    centroids_name = "Centroid"+ "_k" +str(k) + "_n" + str(n_neighborhoods)
+    
+
+    if subset is None:
+        niche_clusters = adata.uns[centroids_name][str(k)]
+        tissue_avgs = values.mean(axis = 0)
+        fc = np.log2(((niche_clusters+tissue_avgs)/(niche_clusters+tissue_avgs).sum(axis = 1, keepdims = True))/tissue_avgs)
+        fc = pd.DataFrame(fc,columns = sum_cols)
+        s=sns.clustermap(fc, vmin =-3,vmax = 3,cmap = 'bwr')
+        #save fig
+        if(savefig):
+            s.savefig(output_dir+"celltypes_perniche_"+neighborhood_name+".png", dpi=600)
+    else:
+        #this plot shows the types of cells (ClusterIDs) in the different niches (0-9)
+        niche_clusters = adata.uns[centroids_name][str(k)]
+        tissue_avgs = values.mean(axis = 0)
+        fc = np.log2(((niche_clusters+tissue_avgs)/(niche_clusters+tissue_avgs).sum(axis = 1, keepdims = True))/tissue_avgs)
+        fc = pd.DataFrame(fc,columns = sum_cols)
+        if subset not in list(adata.obs['neighborhood' + str(35)].unique()):
+            print(str(subset) + " is not in the neighborhood!")
+            return
+        s=sns.clustermap(fc.iloc[subset,:], vmin =-3,vmax = 3,cmap = 'bwr')
+        #save fig
+        if(savefig):
+            s.savefig(output_dir+"celltypes_perniche_"+neighborhood_name+".png", dpi=600)
+
+def pl_generate_CN_comb_map(graph, tops, e0, e1, simp_freqs, palette, figsize = (40,20), 
+                            savefig=False,
+                            output_dir='./',):
+        
+    draw = graph
+    pos = nx.drawing.nx_pydot.graphviz_layout(draw, prog='dot')
+    height = 8
+    
+    plt.figure(figsize = figsize)
+    for n in draw.nodes():
+        col = 'black'
+        if len(draw.in_edges(n))<len(n):
+            col = 'black'
+        plt.scatter(pos[n][0],pos[n][1]-5, s = simp_freqs[list(simp_freqs.index).index(n)]*10000, c = col, zorder = -1)
+        if n in tops:
+            plt.text(pos[n][0],pos[n][1]-7, '*', fontsize = 25, color = 'white', ha = 'center', va = 'center',zorder = 20)
+        delta = 8
+
+        # l is just the color keys
+        l=list(palette.keys())
+        plt.scatter([pos[n][0]]*len(n),[pos[n][1]+delta*(i+1) for i in range(len(n))],c = [palette[l[i]] for i in n] ,marker = 's', zorder = 5,s = 400)
+ 
+    j = 0
+    for e0,e1 in draw.edges():
+        weight = 0.2
+        alpha = .3
+        color='black'
+        if len(draw.in_edges(e1))<len(e1):
+            color = 'black'
+            lw =1
+            weight = 0.4
+
+        plt.plot([pos[e0][0], pos[e1][0]],[pos[e0][1], pos[e1][1]], color = color, linewidth = weight,alpha = alpha,zorder = -10)
+    
+    plt.axis('off')
+    
+    if savefig:
+        plt.savefig(output_dir + "_CNMap.pdf", bbox_inches='tight')
+    else: 
+        plt.show()
