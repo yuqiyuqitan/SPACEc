@@ -2397,3 +2397,141 @@ def pl_generate_CN_comb_map(graph, tops, e0, e1, simp_freqs, palette, figsize = 
         plt.savefig(output_dir + "_CNMap.pdf", bbox_inches='tight')
     else: 
         plt.show()
+
+
+
+def pl_stacked_bar_plot_ad(adata, 
+                        per_cat, 
+                        grouping, 
+                        cell_list, 
+                        output_dir,
+                        norm=True, 
+                        save_name=None,
+                        col_order=None, 
+                        sub_col=None, 
+                        name_cat = 'Cell Type',
+                        fig_sizing=(8,4),
+                        plot_order=None, 
+                        color_dic=None,
+                        remove_leg=False):
+    
+    """
+    Plot a stacked bar plot based on the given data.
+
+    Parameters
+    ----------
+    data : pandas.DataFrame
+        The input data containing the necessary information for plotting.
+    per_cat : str
+        The column name representing the categories.
+    grouping : str
+        The column name representing the grouping.
+    cell_list : list
+        The list of cell types to include in the plot.
+    output_dir : str
+        The output directory for saving the plot.
+    norm : bool, optional
+        Flag indicating whether to normalize the values. Defaults to True.
+    save_name : str, optional
+        The name to use when saving the plot. Defaults to None.
+    col_order : list, optional
+        The order of columns/categories for plotting. Defaults to None.
+    sub_col : str, optional
+        The column name representing sub-categories. Defaults to None.
+    name_cat : str, optional
+        The name for the category column in the plot. Defaults to 'Cell Type'.
+    fig_sizing : tuple, optional
+        The size of the figure (width, height) in inches. Defaults to (8, 4).
+    plot_order : list, optional
+        The order of categories for plotting. Defaults to None.
+    color_dic : dict, optional
+        A dictionary mapping categories to colors for custom colorization. Defaults to None.
+    remove_leg : bool, optional
+        Flag indicating whether to remove the legend. Defaults to False.
+
+    Returns
+    -------
+    pandas.DataFrame
+        The pivoted data used for plotting.
+    list
+        The order of categories used for plotting.
+    """
+    
+    data = adata.obs
+    
+    #Find Percentage of cell type
+    if norm==True:
+        if sub_col is None:
+            test1 = data.loc[data[per_cat].isin(cell_list)]
+            sub_cell_list = list(test1[per_cat].unique())
+        else:
+            test1 = data.loc[data[sub_col].isin(cell_list)]
+            sub_cell_list = list(test1[per_cat].unique())
+    else:
+        if sub_col is None:
+            test1 = data.copy()
+            sub_cell_list = list(data.loc[data[per_cat].isin(cell_list)][per_cat].unique())
+        else:
+            test1 = data.copy()
+            sub_cell_list = list(data.loc[data[sub_col].isin(cell_list)][per_cat].unique())
+            
+    test1[per_cat] = test1[per_cat].astype('category')
+    test_freq = test1.groupby(grouping).apply(lambda x: x[per_cat].value_counts(normalize = True,sort = False)*100)
+    test_freq.columns = test_freq.columns.astype(str)
+    
+    ##### Can subset it here if I do not want normalized per the group
+    test_freq.reset_index(inplace=True)
+    sub_cell_list.append(grouping)
+    test_freq = test_freq[sub_cell_list]
+    melt_test = pd.melt(test_freq, id_vars=[grouping])#, value_vars=test_freq.columns)
+    melt_test.rename(columns = {per_cat: name_cat, 'value':'percent'},  inplace = True)
+    
+    if norm==True:
+        if col_order is None:
+            bb = melt_test.groupby([grouping, per_cat]).sum().reset_index()
+            col_order = bb.loc[bb[per_cat]==bb[per_cat][0]].sort_values(by='percent')[grouping].to_list()
+    else:    
+        if col_order is None:
+            col_order = melt_test.groupby(grouping).sum().reset_index().sort_values(by='percent')[grouping].to_list()
+    
+    if plot_order is None:
+        plot_order = list(melt_test[per_cat].unique()) 
+    
+    #Set up for plotting
+    melt_test_piv = pd.pivot_table(melt_test, columns = [name_cat], index=[grouping], values=['percent'])
+    melt_test_piv.columns = melt_test_piv.columns.droplevel(0)
+    melt_test_piv.reset_index(inplace=True)
+    melt_test_piv.set_index(grouping, inplace=True)
+    melt_test_piv = melt_test_piv.reindex(col_order)
+    melt_test_piv = melt_test_piv[plot_order]
+    
+    #Get color dictionary 
+    if color_dic is None:
+        #first subplot
+        ax1 = melt_test_piv.plot.bar(alpha = 0.8, linewidth=1,\
+                                    figsize =fig_sizing, rot=90,stacked=True, edgecolor='black')
+
+    else: 
+        #first subplot
+        ax1 = melt_test_piv.plot.bar(alpha = 0.8, linewidth=1, color=[color_dic.get(x) for x in melt_test_piv.columns],\
+                                    figsize =fig_sizing, rot=90,stacked=True, edgecolor='black')
+
+    for line in ax1.lines:
+        line.set_color('black')
+    ax1.spines['top'].set_visible(False)
+    ax1.spines['right'].set_visible(False)
+    if remove_leg==True:
+        ax1.set_ylabel('')
+        ax1.set_xlabel('')
+    else:
+        ax1.set_ylabel('percent')
+    #ax1.spines['left'].set_position(('data', 1.0))
+    #ax1.set_xticks(np.arange(1,melt_test.day.max()+1,1))
+    #ax1.set_ylim([0, int(ceil(max(max(melt_test_piv.sum(axis=1)), max(tm_piv.sum(axis=1)))))])
+    plt.xticks(list(range(len(list(melt_test_piv.index)))), list(melt_test_piv.index), rotation=90)
+    lgd2 = ax1.legend(loc='center left', bbox_to_anchor=(1.0, 0.5), ncol=1, frameon=False)
+    if save_name:
+        plt.savefig(output_dir+save_name+'.png', format='png',\
+                    dpi=300, transparent=True, bbox_inches='tight')
+    return melt_test_piv, plot_order  
+
