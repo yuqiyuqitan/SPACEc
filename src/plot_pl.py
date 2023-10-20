@@ -18,7 +18,7 @@ from  helperfunctions_hf import *
 
 
 # Setup 
-#sns.set_style("ticks")
+sns.set_style("ticks")
 
 
 # plotting functions
@@ -2535,3 +2535,196 @@ def pl_stacked_bar_plot_ad(adata,
                     dpi=300, transparent=True, bbox_inches='tight')
     return melt_test_piv, plot_order  
 
+
+
+def pl_swarm_box_ad(adata, 
+                 grouping, 
+                 per_cat,
+                 replicate, 
+                 sub_col, 
+                 sub_list, 
+                 output_dir, 
+                 norm=True,
+                 figure_sizing=(10,5), 
+                 save_name=None, 
+                 plot_order=None, 
+                 col_in=None, 
+                 color_dic=None, 
+                 flip=False):
+      
+    # extract information form adata
+    data = adata.obs
+     
+    #Find Percentage of cell type
+    test= data.copy()
+    sub_list1 = sub_list.copy()
+    
+    if norm==True:
+        test1 = test.loc[test[sub_col].isin(sub_list1)]
+        immune_list = list(test1[per_cat].unique())
+    else:
+        test1=test.copy()
+        immune_list = list(test.loc[test[sub_col].isin(sub_list1)][per_cat].unique())
+    
+    test1[per_cat] = test1[per_cat].astype('category')
+    test_freq = test1.groupby([grouping,replicate]).apply(lambda x: x[per_cat].value_counts(normalize = True,sort = False)*100)
+    test_freq.columns = test_freq.columns.astype(str)
+    test_freq.reset_index(inplace=True)
+    immune_list.extend([grouping,replicate])
+    test_freq1 = test_freq[immune_list]
+
+    melt_per_plot = pd.melt(test_freq1, id_vars=[grouping,replicate,])#,value_vars=immune_list)
+    melt_per_plot.rename(columns={'value': 'percentage'}, inplace=True)
+    
+    if col_in:
+        melt_per_plot = melt_per_plot.loc[melt_per_plot[per_cat].isin(col_in)]
+    else:
+        melt_per_plot = melt_per_plot
+    
+   
+    if plot_order is None:
+        plot_order = list(melt_per_plot[grouping].unique()) 
+    else:
+        #Order by average
+        plot_order = melt_per_plot.groupby(per_cat).mean().reset_index().sort_values(by='percentage')[per_cat].to_list()
+
+    
+    
+    #swarmplot to compare clustering
+    plt.figure(figsize=figure_sizing)
+    if flip==True:
+        plt.figure(figsize=figure_sizing)
+        if color_dic is None:
+            ax = sns.boxplot(data = melt_per_plot, x=grouping,  y='percentage',  dodge=True, order=plot_order)
+            ax = sns.swarmplot(data = melt_per_plot, x=grouping, y='percentage', dodge=True,order=plot_order,\
+                         edgecolor='black',linewidth=1, color="white",  palette=color_dic)
+        else:
+            ax = sns.boxplot(data = melt_per_plot, x=grouping,  y='percentage',  dodge=True,order=plot_order, \
+                         palette=color_dic)
+            ax = sns.swarmplot(data = melt_per_plot, x=grouping, y='percentage', dodge=True,order=plot_order,\
+                           edgecolor='black',linewidth=1, palette=color_dic)
+    
+        for patch in ax.artists:
+            r, g, b, a = patch.get_facecolor()
+            patch.set_facecolor((r, g, b, .3))
+        plt.xticks(rotation=90)
+        plt.xlabel('')
+        plt.ylabel('')
+        plt.title(sub_list[0])
+        sns.despine()
+        
+    else:
+        if color_dic is None:
+            ax = sns.boxplot(data = melt_per_plot, x=grouping,  y='percentage',  dodge=True, order=plot_order)
+            ax = sns.swarmplot(data = melt_per_plot, x=grouping, y='percentage', dodge=True,order=plot_order,\
+                           edgecolor='black',linewidth=1, color="white")
+        else:
+            ax = sns.boxplot(data = melt_per_plot, x=grouping,  y='percentage',  dodge=True,order=plot_order, \
+                         palette=color_dic)
+            ax = sns.swarmplot(data = melt_per_plot, x=grouping, y='percentage', dodge=True,order=plot_order,\
+                           edgecolor='black',linewidth=1, palette=color_dic)
+        for patch in ax.artists:
+            r, g, b, a = patch.get_facecolor()
+            patch.set_facecolor((r, g, b, .3))
+        #ax.set_yscale(\log\)
+        plt.xlabel('')
+        handles, labels = ax.get_legend_handles_labels()
+        plt.legend(handles[:len(melt_per_plot[grouping].unique())], labels[:len(melt_per_plot[grouping].unique())],\
+                   bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.,frameon=False)
+        plt.xticks(rotation=90)
+
+        ax.set(ylim=(0,melt_per_plot['percentage'].max()+1))
+        sns.despine()
+    
+    if output_dir:
+        if save_name:
+            plt.savefig(output_dir+save_name+'_swarm_boxplot.png', format='png', dpi=300, transparent=True, bbox_inches='tight')
+        else:
+            print("define save_name")
+    else: 
+        print("plot was not saved - to save the plot specify an output directory")
+    return melt_per_plot
+
+
+
+def pl_create_pie_charts_ad(adata, group_column, count_column, plot_order=None, show_percentages=True, color_dict=None):
+    """
+    Create pie charts for each group based on a grouping column, showing the percentage of total rows based on a
+    count column.
+
+    Parameters:
+        data (pd.DataFrame): The input DataFrame.
+        group_column (str): The column name for grouping the data.
+        count_column (str): The column name used for counting occurrences.
+        plot_order (list, optional): The order of groups for plotting. Defaults to None.
+        show_percentages (bool, optional): Whether to show the percentage numbers on the pie charts. Defaults to True.
+        color_dict (dict, optional): A dictionary to manually set colors for neighborhoods. Defaults to None.
+
+    Returns:
+        None
+    """
+    data = adata.obs
+    
+    # Group the data by the grouping column
+    grouped_data = data.groupby(group_column)
+
+    # Sort the groups based on the plot_order if provided
+    if plot_order:
+        grouped_data = sorted(grouped_data, key=lambda x: plot_order.index(x[0]))
+
+    # Calculate the number of rows and columns for subplots
+    num_groups = len(grouped_data)
+    num_cols = 3  # Number of columns for subplots
+    num_rows = (num_groups - 1) // num_cols + 1
+
+    # Create subplots
+    fig, axes = plt.subplots(num_rows, num_cols, figsize=(15, 5 * num_rows))
+    axes = axes.flatten()  # Flatten the subplots array
+
+    # Create a color dictionary if not provided
+    if color_dict is None:
+        color_dict = {}
+
+    # Generate a color dictionary for consistent colors if not provided
+    if not color_dict:
+        neighborhoods = data[count_column].unique()
+        color_cycle = plt.cm.tab20.colors
+        color_dict = {neighborhood: color_cycle[i % 20] for i, neighborhood in enumerate(neighborhoods)}
+
+    # Iterate over each group and create a pie chart
+    for i, (group, group_df) in enumerate(grouped_data):
+        # Count the occurrences of each neighborhood within the group
+        neighborhood_counts = group_df[count_column].value_counts()
+
+        # Calculate the percentage of total rows for each neighborhood
+        percentages = neighborhood_counts / group_df.shape[0] * 100
+
+        # Create a color list for neighborhoods in the count column
+        colors = [color_dict.get(neighborhood, 'gray') for neighborhood in percentages.index]
+
+        if show_percentages:
+            wedges, texts, autotexts = axes[i].pie(
+                percentages,
+                labels=percentages.index,
+                autopct='%1.1f%%',
+                colors=colors
+            )
+            axes[i].set_title(f"Group: {group}")
+        else:
+            wedges, texts = axes[i].pie(
+                percentages,
+                labels=percentages.index,
+                colors=colors
+            )
+            axes[i].set_title(f"Group: {group}")
+
+    # Remove unused subplots
+    for j in range(num_groups, num_rows * num_cols):
+        fig.delaxes(axes[j])
+
+    # Adjust spacing between subplots
+    fig.tight_layout()
+
+    # Show the plot
+    plt.show()
+    
