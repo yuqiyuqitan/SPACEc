@@ -2728,3 +2728,38 @@ def pl_create_pie_charts_ad(adata, group_column, count_column, plot_order=None, 
     # Show the plot
     plt.show()
     
+    
+def pl_colored_heatmap_ad(adata, celltype_col, neighborhood_col, neigh_color_dic, figsize = (18,12)):
+    
+    data = adata.obs
+    
+    neigh_data = pd.DataFrame({
+    neighborhood_col:list(neigh_color_dic.keys()),
+    'color':list(neigh_color_dic.values())
+    })
+    neigh_data.set_index(keys=neighborhood_col,inplace=True)
+    
+    df3 = pd.concat([data,pd.get_dummies(data[celltype_col])],1)
+    sum_cols2 = df3[celltype_col].unique()
+    values2 = df3[sum_cols2].values
+    cell_list = sum_cols2.copy()
+    cell_list = cell_list.tolist()
+    cell_list.append(neighborhood_col)
+
+    subset = df3[cell_list]
+    niche_sub = subset.groupby(neighborhood_col).sum()
+    niche_df = niche_sub.apply(lambda x: x/x.sum() * 10, axis=1)
+    neigh_clusters = niche_df.to_numpy()
+
+    tissue_avgs = values2.mean(axis = 0)
+    fc_2 = np.log2(((neigh_clusters+tissue_avgs)/(neigh_clusters+tissue_avgs).sum(axis = 1, keepdims = True))/tissue_avgs)
+    fc_2 = pd.DataFrame(fc_2,columns = sum_cols2)
+    fc_2.set_index(niche_df.index, inplace=True)
+    s=sns.clustermap(fc_2, vmin =-3,vmax = 3,cmap = 'bwr', figsize=figsize, row_colors=[neigh_data.reindex(fc_2.index)['color']],\
+                    cbar_pos=(0.03,0.15,0.03,0.1))
+
+    s.ax_row_dendrogram.set_visible(False)
+    s.ax_col_dendrogram.set_visible(False)
+    s.ax_heatmap.set_ylabel("", labelpad=25)
+    s.ax_heatmap.tick_params(axis='y', pad=42)
+    s.ax_heatmap.yaxis.set_ticks_position("left")
