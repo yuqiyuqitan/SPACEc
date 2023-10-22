@@ -1,0 +1,11 @@
+matplotlib
+pandas
+numpy
+seaborn
+scipy
+statsmodels
+networkx
+tensorly
+scanpy
+tifffile
+scikit-image
