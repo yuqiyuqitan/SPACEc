@@ -2763,3 +2763,70 @@ def pl_colored_heatmap_ad(adata, celltype_col, neighborhood_col, neigh_color_dic
     s.ax_heatmap.set_ylabel("", labelpad=25)
     s.ax_heatmap.tick_params(axis='y', pad=42)
     s.ax_heatmap.yaxis.set_ticks_position("left")
+    
+def pl_area_nuc_cutoff(df, cutoff_area, cutoff_nuc, cellsize_column="area", nuc_marker_column="Hoechst1", color_by="unique_label", palette="Paired", alpha=0.8, size=0.4, log_scale=True):
+    # Custom the inside plot: options are: “scatter” | “reg” | “resid” | “kde” | “hex”
+    g = sns.jointplot(x=df[nuc_marker_column], y=df[cellsize_column], hue=df[color_by], palette=palette, alpha=alpha)
+
+    if log_scale == True:
+        # log scale joint plot
+        g.ax_joint.set_xscale('log')
+        g.ax_joint.set_yscale('log')
+
+    # add horizontal and vertical lines
+    g.ax_joint.axhline(cutoff_area, color='k', linestyle='dashed', linewidth=1)
+    g.ax_joint.axvline(cutoff_nuc, color='k', linestyle='dashed', linewidth=1)
+
+    # place legend outside
+    g.ax_joint.legend(bbox_to_anchor=(1.2, 1), loc='upper left', borderaxespad=0)
+
+    # show plot
+    plt.show()
+    
+    
+ 
+def pl_plot_scatter_correlation(data, x, y, xlabel=None, ylabel=None, save_path=None):
+    g = sns.lmplot(x=x, y=y, data=data, height=5, aspect=1)
+    g.map_dataframe(hf_annotate_cor_plot, x=x, y=y, data=data)
+    
+    if xlabel:
+        plt.xlabel(xlabel, fontsize=14)
+    if ylabel:
+        plt.ylabel(ylabel, fontsize=14)
+        
+    plt.xticks(fontsize=14)
+    plt.yticks(fontsize=14)
+    
+    if save_path:
+        plt.savefig(save_path + ".png", transparent=True, dpi=600, bbox_inches='tight')
+    plt.show()
+    
+def pl_plot_scatter_correlation_ad(adata, x, y, xlabel=None, ylabel=None, save_path=None):
+    
+    data = adata.obs
+    
+    g = sns.lmplot(x=x, y=y, data=data, height=5, aspect=1)
+    g.map_dataframe(hf_annotate_cor_plot, x=x, y=y, data=data)
+    
+    if xlabel:
+        plt.xlabel(xlabel, fontsize=14)
+    if ylabel:
+        plt.ylabel(ylabel, fontsize=14)
+        
+    plt.xticks(fontsize=14)
+    plt.yticks(fontsize=14)
+    
+    if save_path:
+        plt.savefig(save_path + ".png", transparent=True, dpi=600, bbox_inches='tight')
+    plt.show()
+    
+########
+
+def pl_plot_correlation_matrix(cmat):
+    # plot correlation matrix as heatmap
+    # Create a mask to hide the upper triangle
+    mask = np.triu(np.ones_like(cmat, dtype=bool))
+    
+    fig, ax = plt.subplots(figsize=(20, 20)) 
+    sns.heatmap(cmat, annot=True, fmt='.2f', cmap='coolwarm', square=True, mask=mask, ax=ax)
+    plt.show()

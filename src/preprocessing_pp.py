@@ -289,3 +289,14 @@ def pp_clust_leid(adata, res=1, Matrix_plot=True):
     
     return adata, m_list
 
+# Function to remove segmentation artifacts
+def pp_remove_segmentation_artifacts(df, size_thres=0, nuc_thres=0, cellsize_column="area", nuc_marker_column="Hoechst1"):
+    df_copy = df.copy()
+    
+    if size_thres > 0:
+        df_copy = df_copy[df_copy[cellsize_column] > size_thres]
+        
+    if nuc_thres > 0:
+        df_copy = df_copy[df_copy[nuc_marker_column] > nuc_thres]
+        
+    return df_copy

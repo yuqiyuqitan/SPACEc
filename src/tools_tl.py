@@ -1870,4 +1870,157 @@ def tl_spat_cont(data, col_neigh='Neighborhood', col_donor='donor', col_comp='Th
   return sig_lfs, pv1_2ch, meds1_1ch, pv2_2ch, meds2_2ch, cn_names, Pre_dict, Post_dict
 
 
+def tl_format_for_squidpy(adata, x_col, y_col):
+    # Extract the count data from your original AnnData object
+    counts = adata.X
 
+    # Extract the spatial coordinates from the 'obs' metadata
+    spatial_coordinates = adata.obs[[x_col, y_col]].values
+
+    # Create a new AnnData object with the expected format
+    new_adata = anndata.AnnData(counts, obsm={"spatial": spatial_coordinates})
+
+    return new_adata
+
+
+
+# calculates diversity of cell types within a sample 
+def tl_Shan_div_ad(adata, sub_l, group_com, per_categ, rep, sub_column, normalize=True):
+    """
+    Calculates the Shannon Diversity of cell types within a sample.
+
+    Args:
+        adata: Anndata object containing the data.
+        sub_l: List of subcategories.
+        group_com: Grouping column.
+        per_categ: Percentage column.
+        rep: Replicate column.
+        sub_column: Subcategory column.
+        normalize: Boolean indicating whether to normalize the data.
+
+    Returns:
+        Tuple containing the following:
+        - Pandas DataFrame containing the Shannon Diversity calculation.
+        - Test results from the ANOVA.
+        - Pandas DataFrame containing the Shannon Diversity calculation with the Shannon Diversity column multiplied by -1.
+    """
+    data = adata.obs
+    
+    #calculate Shannon Diversity
+    tt = hf_per_only(data = data, per_cat = per_categ, grouping = group_com,\
+              sub_list=sub_l, replicate=rep, sub_col = sub_column, norm=normalize)
+    tt['fraction']= tt['percentage']/100
+    tt['Shannon']=tt['fraction']*np.log(tt['fraction'])
+    tt.fillna(0,inplace=True)
+    sdiv = tt.groupby([rep,group_com]).agg({'Shannon': 'sum'})
+    res = sdiv.reset_index()
+    res['Shannon Diversity'] = res['Shannon']*-1
+
+    #Run Anova on results
+    res_dict = {}
+    for treat in list(res[group_com].unique()):
+        res_dict[treat] = res.loc[res[group_com]==treat]['Shannon Diversity']
+
+    treat_list = []
+    if len(res_dict) > 1:
+        for treat in res_dict.keys():
+            treat_list.append(res_dict[treat])
+        test_results=stats.f_oneway(*treat_list)[1]
+    else:
+        test_results=stats.f_oneway(res_dict[treat][0])[1] 
+        
+    return tt, test_results, res
+
+
+def tl_corr_cell(data, per_categ, grouping_col, rep, sub_column, normed=True, sub_list2=None):
+    """
+    Perform correlation analysis on a pandas DataFrame and plot correlation scatter plots.
+
+    Parameters
+    ----------
+    data : pandas DataFrame
+        The input DataFrame.
+    per_categ : str
+        The categorical column in the DataFrame to be used.
+    grouping_col : str
+        The grouping column in the DataFrame.
+    rep : str
+        The replicate column in the DataFrame.
+    sub_column : str
+        The subcategory column in the DataFrame.
+    normed : bool, optional
+        If the percentage should be normalized. Default is True.
+    sub_list2 : list, optional
+        A list of subcategories to be considered. Default is None.
+
+    Returns
+    -------
+    cmat : pandas DataFrame
+        The correlation matrix DataFrame.
+    cc : pandas DataFrame
+        The DataFrame after pivoting and formatting for correlation function.
+    """
+
+    if sub_list2 is not None:
+        result = hf_per_only(data=data, per_cat=per_categ, grouping=grouping_col,
+                             sub_list=sub_list2, replicate=rep, sub_col=sub_column, norm=normed)
+    else:
+        sub_list2 = data[per_categ].unique()
+        result = hf_per_only(data=data, per_cat=per_categ, grouping=grouping_col,
+                             sub_list=sub_list2, replicate=rep, sub_col=sub_column, norm=normed)
+
+    # Format for correlation function
+    mp = pd.pivot_table(result, columns=[per_categ], index=[grouping_col, rep], values=['percentage'])
+    mp.columns = mp.columns.droplevel(0)
+    cc = mp.reset_index()
+    cmat = cc.corr()
+
+    return cmat, cc
+
+
+def tl_corr_cell_ad(adata, per_categ, grouping_col, rep, sub_column, normed=True, sub_list2=None):
+    """
+    Perform correlation analysis on a pandas DataFrame and plot correlation scatter plots.
+
+    Parameters
+    ----------
+    data : pandas DataFrame
+        The input DataFrame.
+    per_categ : str
+        The categorical column in the DataFrame to be used.
+    grouping_col : str
+        The grouping column in the DataFrame.
+    rep : str
+        The replicate column in the DataFrame.
+    sub_column : str
+        The subcategory column in the DataFrame.
+    normed : bool, optional
+        If the percentage should be normalized. Default is True.
+    sub_list2 : list, optional
+        A list of subcategories to be considered. Default is None.
+
+    Returns
+    -------
+    cmat : pandas DataFrame
+        The correlation matrix DataFrame.
+    cc : pandas DataFrame
+        The DataFrame after pivoting and formatting for correlation function.
+    """
+
+    data = adata.obs
+
+    if sub_list2 is not None:
+        result = hf_per_only(data=data, per_cat=per_categ, grouping=grouping_col,
+                             sub_list=sub_list2, replicate=rep, sub_col=sub_column, norm=normed)
+    else:
+        sub_list2 = data[per_categ].unique()
+        result = hf_per_only(data=data, per_cat=per_categ, grouping=grouping_col,
+                             sub_list=sub_list2, replicate=rep, sub_col=sub_column, norm=normed)
+
+    # Format for correlation function
+    mp = pd.pivot_table(result, columns=[per_categ], index=[grouping_col, rep], values=['percentage'])
+    mp.columns = mp.columns.droplevel(0)
+    cc = mp.reset_index()
+    cmat = cc.corr()
+
+    return cmat, cc

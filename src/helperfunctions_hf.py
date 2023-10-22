@@ -870,3 +870,9 @@ def hf_replace_names(color_dict, name_dict):
             color_dict[color] = name_dict[name]
     color_dict = hf_invert_dictionary(color_dict)
     return color_dict
+
+def hf_annotate_cor_plot(x, y, **kws):
+    data = kws['data']
+    r, p = sp.stats.pearsonr(data[x], data[y])
+    ax = plt.gca()
+    ax.text(0.5, 0.8, f'r={r:.2f}, p={p:.2g}', transform=ax.transAxes, fontsize=14)
