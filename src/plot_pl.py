@@ -310,9 +310,7 @@ def pl_swarm_box(data,
 
 
 #############
-'''
 
-'''
 
 def pl_Shan_div(tt, 
                 test_results, 
@@ -354,7 +352,7 @@ def pl_Shan_div(tt,
     pandas.DataFrame or bool
         The Tukey's test results if the p-value is less than 0.05, otherwise False.
     """
-
+    
     #Order by average
     if color_dic is None:
         if plot_order is None:
@@ -2326,7 +2324,7 @@ def pl_CN_exp_heatmap_ad(adata, cluster_col,
                                subset = None):
     
     df = pd.DataFrame(adata.obs[[X, Y, cluster_col, unique_region]])
-    cells = pd.concat([df,pd.get_dummies(df[cluster_col])],1)
+    cells = pd.concat([df,pd.get_dummies(df[cluster_col])],axis=1)
     sum_cols = cells[cluster_col].unique()
     values = cells[sum_cols].values
 
