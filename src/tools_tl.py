@@ -1205,9 +1205,9 @@ def tl_neighborhood_analysis_ad(adata, unique_region, cluster_col,
     windows = {}
     
     
-    window = pd.concat([pd.DataFrame(out_dict[(exp,k)][0],index = out_dict[(exp,k)][1].astype(int),columns = sum_cols) for exp in exps],0)
+    window = pd.concat([pd.DataFrame(out_dict[(exp,k)][0],index = out_dict[(exp,k)][1].astype(int),columns = sum_cols) for exp in exps],axis=0)
     window = window.loc[cells.index.values]
-    window = pd.concat([cells[keep_cols],window],1)
+    window = pd.concat([cells[keep_cols],window],axis=1)
     windows[k] = window
 
     #Fill in based on above
@@ -1241,7 +1241,6 @@ def tl_neighborhood_analysis_ad(adata, unique_region, cluster_col,
     
    
     return adata 
-
 
 
 def tl_CNmap_ad(adata, cn_col, palette, unique_reg = 'group',
