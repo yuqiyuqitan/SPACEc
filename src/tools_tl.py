@@ -1169,7 +1169,7 @@ def tl_neighborhood_analysis_ad(adata, unique_region, cluster_col,
     '''
     df = pd.DataFrame(adata.obs[[X, Y, cluster_col, unique_region]])
 
-    cells = pd.concat([df,pd.get_dummies(df[cluster_col])],1)
+    cells = pd.concat([df,pd.get_dummies(df[cluster_col])],axis=1)
     sum_cols = cells[cluster_col].unique()
     values = cells[sum_cols].values
 
@@ -1305,7 +1305,10 @@ def tl_Shan_div_ad(adata, sub_l, group_com, per_categ, rep, sub_column, normaliz
               sub_list=sub_l, replicate=rep, sub_col = sub_column, norm=normalize)
     tt['fraction']= tt['percentage']/100
     tt['Shannon']=tt['fraction']*np.log(tt['fraction'])
-    tt.fillna(0,inplace=True)
+   
+    # replace nan with 0
+    tt.replace(np.nan, 0, inplace=True)
+    
     sdiv = tt.groupby([rep,group_com]).agg({'Shannon': 'sum'})
     res = sdiv.reset_index()
     res['Shannon Diversity'] = res['Shannon']*-1
