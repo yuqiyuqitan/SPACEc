@@ -1028,3 +1028,4 @@ def hf_annotate_cor_plot(x, y, **kws):
     r, p = sp.stats.pearsonr(data[x], data[y])
     ax = plt.gca()
     ax.text(0.5, 0.8, f"r={r:.2f}, p={p:.2g}", transform=ax.transAxes, fontsize=14)
+

@@ -20,6 +20,12 @@ from sklearn.cluster import MiniBatchKMeans
 from sklearn.cross_decomposition import CCA
 from tqdm import tqdm
 from yellowbrick.cluster import KElbowVisualizer
+from joblib import Parallel, delayed
+import numpy as np
+from scipy.spatial import Delaunay
+import scipy.stats as st
+
+
 
 from helperfunctions_hf import *
 
@@ -1499,6 +1505,8 @@ def tl_CNmap_ad(
     Y="y",
     threshold=0.85,
     per_keep_thres=0.85,
+    sub_list = None,
+    sub_col = None
 ):
     ks = [k]
     cells_df = pd.DataFrame(adata.obs)
@@ -1518,13 +1526,17 @@ def tl_CNmap_ad(
     )
     windows = Neigh.k_windows()
     w = windows[k]
+    if sub_list:
+        # convert sub_list to list if only str is provided
+        if isinstance(sub_list, str):
+            sub_list = [sub_list]
+        w = w[w[sub_col].isin(sub_list)]
     l = list(palette.keys())
     simps, simp_freqs, simp_sums = tl_calculate_neigh_combs(
         w, l, k, threshold=threshold, per_keep_thres=per_keep_thres  # color palette
     )
     g, tops, e0, e1 = tl_build_graph_CN_comb_map(simp_freqs)
     return g, tops, e0, e1, simp_freqs
-
 
 def tl_format_for_squidpy(adata, x_col, y_col):
     # Extract the count data from your original AnnData object
@@ -1560,6 +1572,13 @@ def tl_Shan_div_ad(adata, sub_l, group_com, per_categ, rep, sub_column, normaliz
         - Pandas DataFrame containing the Shannon Diversity calculation with the Shannon Diversity column multiplied by -1.
     """
     data = adata.obs
+
+    # change per_categ column to string
+    data[per_categ] = data[per_categ].astype(str)
+    # change replicate column to string
+    data[rep] = data[rep].astype(str)
+    # chage grouping column to string
+    data[group_com] = data[group_com].astype(str)
 
     # calculate Shannon Diversity
     tt = hf_per_only(
@@ -1725,3 +1744,243 @@ def tl_corr_cell_ad(
     cmat = cc.corr()
 
     return cmat, cc
+
+
+
+####
+
+import os
+import pandas as pd
+from joblib import Parallel, delayed
+import numpy as np
+from scipy.spatial import Delaunay
+import scipy.stats as st
+
+def calculate_triangulation_distances(df_input, id, x_pos, y_pos, cell_type, region):
+    # Perform Delaunay triangulation
+    points = df_input[[x_pos, y_pos]].values
+    tri = Delaunay(points)
+    indices = tri.simplices
+    
+    # Get interactions going both directions
+    edges = set()
+    for simplex in indices:
+        for i in range(3):
+            for j in range(i + 1, 3):
+                edges.add(tuple(sorted([simplex[i], simplex[j]])))
+    edges = np.array(list(edges))
+    
+    # Create dataframe from edges
+    rdelaun_result = pd.DataFrame(edges, columns=['ind1', 'ind2'])
+    rdelaun_result[['x1', 'y1']] = df_input.iloc[rdelaun_result['ind1']][[x_pos, y_pos]].values
+    rdelaun_result[['x2', 'y2']] = df_input.iloc[rdelaun_result['ind2']][[x_pos, y_pos]].values
+    
+    # Annotate results with cell type and region information
+    df_input['XYcellID'] = df_input[x_pos].astype(str) + "_" + df_input[y_pos].astype(str)
+    rdelaun_result['cell1ID'] = rdelaun_result['x1'].astype(str) + "_" + rdelaun_result['y1'].astype(str)
+    rdelaun_result['cell2ID'] = rdelaun_result['x2'].astype(str) + "_" + rdelaun_result['y2'].astype(str)
+    
+    annotated_result = pd.merge(rdelaun_result, df_input, left_on='cell1ID', right_on='XYcellID')
+    annotated_result = annotated_result.rename(columns={cell_type: 'celltype1', id: 'celltype1_index'})
+    annotated_result = annotated_result.drop(columns=[x_pos, y_pos, region, 'XYcellID'])
+    
+    annotated_result = pd.merge(annotated_result, df_input, left_on='cell2ID', right_on='XYcellID', suffixes=('.x', '.y'))
+    annotated_result = annotated_result.rename(columns={cell_type: 'celltype2', id: 'celltype2_index'})
+    annotated_result = annotated_result.drop(columns=[x_pos, y_pos, 'XYcellID'])
+    
+    # Calculate distance
+    annotated_result['distance'] = np.sqrt((annotated_result['x2'] - annotated_result['x1']) ** 2 +
+                                           (annotated_result['y2'] - annotated_result['y1']) ** 2)
+    
+    # Reorder columns
+    annotated_result = annotated_result[[region, 'celltype1_index', 'celltype1', 'x1', 'y1', 'celltype2_index', 'celltype2', 'x2', 'y2', 'distance']]
+    annotated_result.columns = [region, 'celltype1_index', 'celltype1', 'celltype1_X', 'celltype1_Y',
+                                'celltype2_index', 'celltype2', 'celltype2_X', 'celltype2_Y', 'distance']
+    
+    return annotated_result
+
+
+# Define the process_region function at the top level
+def process_region(df, unique_region, id, x_pos, y_pos, cell_type, region):
+    subset = df[df[region] == unique_region].copy()
+    subset['uniqueID'] = subset[id].astype(str) + "-" + subset[x_pos].astype(str) + "-" + subset[y_pos].astype(str)
+    subset['XYcellID'] = subset[x_pos].astype(str) + "_" + subset[y_pos].astype(str)
+    result = calculate_triangulation_distances(df_input=subset, id=id, x_pos=x_pos, y_pos=y_pos,
+                                               cell_type=cell_type, region=region)
+    return result
+
+def get_triangulation_distances(df_input, id, x_pos, y_pos, cell_type, region,
+                                num_cores=None, correct_dtype = True):
+    
+    if correct_dtype == True:
+        # change columns to pandas string
+        df_input[cell_type] = df_input[cell_type].astype(str)
+        df_input[region] = df_input[region].astype(str)
+    
+    # Check if x_pos and y_pos are integers, and if not, convert them
+    if not issubclass(df_input[x_pos].dtype.type, np.integer):
+        print("This function expects integer values for xy coordinates.")
+        print("Class will be changed to integer. Please check the generated output!")
+        df_input[x_pos] = df_input[x_pos].astype(int)
+        df_input[y_pos] = df_input[y_pos].astype(int)
+    
+    # Get unique regions
+    unique_regions = df_input[region].unique()
+    
+    # Select only necessary columns
+    df_input = df_input[[id, x_pos, y_pos, cell_type, region]]
+    
+    # Set up parallelization
+    if num_cores is None:
+        num_cores = os.cpu_count() // 2  # default to using half of available cores
+    
+    # Parallel processing using joblib
+    results = Parallel(n_jobs=num_cores)(delayed(process_region)(df_input, reg, id, x_pos, y_pos, cell_type, region)
+                                         for reg in unique_regions)
+    
+    triangulation_distances = pd.concat(results)
+    
+    
+    return triangulation_distances
+
+import pandas as pd
+import numpy as np
+
+def shuffle_annotations(df_input, cell_type, region, permutation):
+    # Set the seed for reproducibility
+    np.random.seed(permutation + 1234)
+
+    # Create a copy to avoid modifying the original dataframe
+    df_shuffled = df_input.copy()
+
+    # Shuffle annotations within each region
+    for region_name in df_shuffled[region].unique():
+        region_mask = df_shuffled[region] == region_name
+        shuffled_values = df_shuffled.loc[region_mask, cell_type].sample(frac=1).values
+        df_shuffled.loc[region_mask, 'random_annotations'] = shuffled_values
+
+    return df_shuffled
+
+
+def iterate_triangulation_distances(df_input, id, x_pos, y_pos, cell_type, region, num_cores=None, num_iterations=1000):
+    unique_regions = df_input[region].unique()
+    # Use only the necessary columns
+    df_input = df_input[[id, x_pos, y_pos, cell_type, region]]
+
+    if num_cores is None:
+        num_cores = os.cpu_count() // 2  # Default to using half of available cores
+    
+    # Define a helper function to process each region and iteration
+    def process_iteration(region_name, iteration):
+        # Filter by region
+        subset = df_input[df_input[region] == region_name]
+        # Create unique IDs
+        subset['uniqueID'] = subset[id].astype(str) + "-" + subset[x_pos].astype(str) + "-" + subset[y_pos].astype(str)
+        subset['XYcellID'] = subset[x_pos].astype(str) + "_" + subset[y_pos].astype(str)
+        
+        # Shuffle annotations
+        shuffled = shuffle_annotations(subset, cell_type, region, iteration)
+  
+        # Get triangulation distances
+        results = get_triangulation_distances(df_input = shuffled, id = id, x_pos = x_pos, y_pos= y_pos, cell_type="random_annotations", region = region, num_cores = num_cores,  correct_dtype = False)
+        
+        # Summarize results
+        per_cell_summary = results.groupby(['celltype1_index', 'celltype1', 'celltype2']).distance.mean().reset_index(name='per_cell_mean_dist')
+        
+        per_celltype_summary = per_cell_summary.groupby(['celltype1', 'celltype2']).per_cell_mean_dist.mean().reset_index(name='mean_dist')
+        per_celltype_summary[region] = region_name
+        per_celltype_summary['iteration'] = iteration
+        
+        return per_celltype_summary
+    
+    # Parallel processing for each region and iteration
+    results = Parallel(n_jobs=num_cores)(
+        delayed(process_iteration)(region_name, iteration)
+        for region_name in unique_regions
+        for iteration in range(1, num_iterations + 1)
+    )
+    
+    # Combine all results
+    iterative_triangulation_distances = pd.concat(results, ignore_index=True)
+    #iterative_triangulation_distances = iterative_triangulation_distances.dropna()
+    return iterative_triangulation_distances
+
+
+def add_missing_columns(triangulation_distances, metadata, shared_column='unique_region'):
+    # Find the difference in columns
+    missing_columns = set(metadata.columns) - set(triangulation_distances.columns)
+    # Add missing columns to triangulation_distances with NaN values
+    for column in missing_columns:
+        triangulation_distances[column] = pd.NA
+        # Create a mapping from unique_region to tissue in metadata
+        region_to_tissue = pd.Series(metadata[column].values, index=metadata['unique_region']).to_dict()
+
+        # Apply this mapping to the triangulation_distances dataframe to create/update the tissue column
+        triangulation_distances[column] = triangulation_distances['unique_region'].map(region_to_tissue)
+
+        # Handle regions with no corresponding tissue in the metadata by filling in a default value
+        triangulation_distances[column].fillna('Unknown', inplace=True)
+    return triangulation_distances
+
+# Calculate p-values and log fold differences
+# def calculate_pvalue(row):
+#    try:
+#        return st.ttest_ind(row['expected'], row['observed'], alternative='two-sided', equal_var = False).pvalue
+#    except ValueError:  # This handles cases with insufficient data
+#        return np.nan
+
+# Calculate p-values and log fold differences
+def calculate_pvalue(row):
+    try:
+        return st.mannwhitneyu(row['expected'], row['observed'], alternative='two-sided').pvalue
+    except ValueError:  # This handles cases with insufficient data
+        return np.nan
+    
+def identify_potential_interactions(triangulation_distances, iterative_triangulation_distances, metadata, min_observed = 10, distance_threshold = 128, comparison = 'tissue'):
+    
+    # Reformat observed dataset
+    triangulation_distances_long = add_missing_columns(triangulation_distances, metadata, shared_column='unique_region')
+
+    observed_distances = (
+        triangulation_distances_long
+        .query('distance <= @distance_threshold')
+        .groupby(['celltype1_index', 'celltype1', 'celltype2', comparison, 'unique_region'])
+        .agg(mean_per_cell=('distance', 'mean'))
+        .reset_index()
+        .groupby(['celltype1', 'celltype2', comparison])
+        .agg(observed=('mean_per_cell', list),
+            observed_mean=('mean_per_cell', 'mean'))
+        .reset_index()
+    )
+    
+    # Reformat expected dataset
+    iterated_triangulation_distances_long = add_missing_columns(iterative_triangulation_distances, metadata, shared_column='unique_region')
+
+    expected_distances = (
+        iterated_triangulation_distances_long
+        .query('mean_dist <= @distance_threshold')
+        .groupby(['celltype1', 'celltype2', comparison])
+        .agg(expected=('mean_dist', list),
+            expected_mean=('mean_dist', 'mean'))
+        .reset_index()
+    )
+    
+    # Drop comparisons with low numbers of observations
+    observed_distances['keep'] = observed_distances['observed'].apply(lambda x: len(x) > min_observed)
+    observed_distances = observed_distances[observed_distances['keep']]
+
+    expected_distances['keep'] = expected_distances['expected'].apply(lambda x: len(x) > min_observed)
+    expected_distances = expected_distances[expected_distances['keep']]
+    
+    # concatenate observed and expected distances
+    distance_pvals = expected_distances.merge(observed_distances, on=['celltype1', 'celltype2', comparison], how='left')
+    
+    distance_pvals = expected_distances.merge(observed_distances, on=['celltype1', 'celltype2', comparison], how='left')
+    distance_pvals['pvalue'] = distance_pvals.apply(calculate_pvalue, axis=1)
+    distance_pvals['logfold_group'] = np.log2(distance_pvals['observed_mean'] / distance_pvals['expected_mean'])
+    distance_pvals['interaction'] = distance_pvals['celltype1'] + " --> " + distance_pvals['celltype2']
+    
+    #drop na from distance_pvals
+    # distance_pvals = distance_pvals.dropna()
+    
+    return distance_pvals

@@ -3674,20 +3674,14 @@ def pl_create_pie_charts_ad(
     plt.show()
 
 
-def pl_colored_heatmap_ad(
-    adata, celltype_col, neighborhood_col, neigh_color_dic, figsize=(18, 12)
-):
-    data = adata.obs
-
-    neigh_data = pd.DataFrame(
-        {
-            neighborhood_col: list(neigh_color_dic.keys()),
-            "color": list(neigh_color_dic.values()),
-        }
-    )
-    neigh_data.set_index(keys=neighborhood_col, inplace=True)
-
-    df3 = pd.concat([data, pd.get_dummies(data[celltype_col])], 1)
+def pl_colored_heatmap(data, celltype_col, neighborhood_col, neigh_color_dic, figsize = (18,12)):
+    neigh_data = pd.DataFrame({
+    neighborhood_col:list(neigh_color_dic.keys()),
+    'color':list(neigh_color_dic.values())
+    })
+    neigh_data.set_index(keys=neighborhood_col,inplace=True)
+    
+    df3 = pd.concat([data,pd.get_dummies(data[celltype_col])],axis=1)
     sum_cols2 = df3[celltype_col].unique()
     values2 = df3[sum_cols2].values
     cell_list = sum_cols2.copy()
@@ -3696,35 +3690,35 @@ def pl_colored_heatmap_ad(
 
     subset = df3[cell_list]
     niche_sub = subset.groupby(neighborhood_col).sum()
-    niche_df = niche_sub.apply(lambda x: x / x.sum() * 10, axis=1)
+    niche_df = niche_sub.apply(lambda x: x/x.sum() * 10, axis=1)
     neigh_clusters = niche_df.to_numpy()
 
-    tissue_avgs = values2.mean(axis=0)
-    fc_2 = np.log2(
-        (
-            (neigh_clusters + tissue_avgs)
-            / (neigh_clusters + tissue_avgs).sum(axis=1, keepdims=True)
-        )
-        / tissue_avgs
-    )
-    fc_2 = pd.DataFrame(fc_2, columns=sum_cols2)
+ 
+    tissue_avgs = values2.mean(axis = 0)
+    
+        
+    fc_2 = np.log2(((neigh_clusters+tissue_avgs)/(neigh_clusters+tissue_avgs).sum(axis = 1, keepdims = True))/tissue_avgs)
+    fc_2 = pd.DataFrame(fc_2,columns = sum_cols2)
     fc_2.set_index(niche_df.index, inplace=True)
-    s = sns.clustermap(
-        fc_2,
-        vmin=-3,
-        vmax=3,
-        cmap="bwr",
-        figsize=figsize,
-        row_colors=[neigh_data.reindex(fc_2.index)["color"]],
-        cbar_pos=(0.03, 0.15, 0.03, 0.1),
-    )
+    s=sns.clustermap(fc_2, vmin =-3,vmax = 3,cmap = 'bwr', figsize=figsize, row_colors=[neigh_data.reindex(fc_2.index)['color']],\
+                    cbar_pos=(0.03,0.15,0.03,0.1))
 
     s.ax_row_dendrogram.set_visible(False)
     s.ax_col_dendrogram.set_visible(False)
     s.ax_heatmap.set_ylabel("", labelpad=25)
-    s.ax_heatmap.tick_params(axis="y", pad=42)
+    s.ax_heatmap.tick_params(axis='y', pad=42)
     s.ax_heatmap.yaxis.set_ticks_position("left")
 
+def pl_colored_heatmap_ad(
+    adata, x_col, ycol, color_dic, figsize = (18,12)
+):
+    data = adata.obs
+
+    pl_colored_heatmap(data = data, 
+                   celltype_col = x_col, 
+                   neighborhood_col = ycol, 
+                   neigh_color_dic = color_dic, 
+                   figsize = figsize)
 
 def pl_area_nuc_cutoff(
     df,
@@ -3814,3 +3808,40 @@ def pl_plot_correlation_matrix(cmat):
         cmat, annot=True, fmt=".2f", cmap="coolwarm", square=True, mask=mask, ax=ax
     )
     plt.show()
+
+
+def pl_dumbbell(data, figsize=(10,10), colors = ['#DB444B', '#006BA2']):
+    fig, ax = plt.subplots(figsize=figsize, facecolor = "white")
+    #plot each country one at a time
+
+    # Create grid 
+    # Zorder tells it which layer to put it on. We are setting this to 1 and our data to 2 so the grid is behind the data.
+    ax.grid(which="major", axis='both', color='#758D99', alpha=0.6, zorder=1)
+
+    # Remove splines. Can be done one at a time or can slice with a list.
+    ax.spines[['top','right','bottom']].set_visible(False)
+
+    # Plot data
+    comp_cat = data.columns
+    
+    # Plot horizontal lines first
+    ax.hlines(y=data.index, xmin=data[comp_cat[0]], xmax=data[comp_cat[1]], color='#758D99', zorder=2, linewidth=2, label='_nolegend_', alpha=.8)
+    # Plot bubbles next
+    ax.scatter(data[comp_cat[0]], data.index, label='2014', s=60, color=colors[0], zorder=3)
+    ax.scatter(data[comp_cat[1]], data.index, label='2018', s=60, color=colors[1], zorder=3)
+
+    # Set xlim
+    #ax.set_xlim(-3, 3)
+
+    # Reformat x-axis tick labels
+
+    ax.xaxis.set_tick_params(labeltop=True,      # Put x-axis labels on top
+                            labelbottom=False,  # Set no x-axis labels on bottom
+                            bottom=False,       # Set no ticks on bottom
+                            labelsize=11,       # Set tick label size
+                            pad=-1)             # Lower tick labels a bit
+
+    ax.axvline(x=0, color='k', linestyle='--')
+
+    # Set Legend
+    ax.legend(data.columns, loc=(0,1.076), ncol=2, frameon=False, handletextpad=-.1, handleheight=1) 
