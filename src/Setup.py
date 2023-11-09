@@ -14,6 +14,7 @@ adata_path = os.path.join(base_dir, "adata/") # Path to output folder
 output_dir = '/Volumes/Tim_D260/Projects/Stanford_scCODEX/Results/' # Path to output folder for plots
 custom_functions_path = '/Users/timnoahkempchen/Desktop/SAP5/src' # Path to custom functions
 
+silence_warnings = True # If True, warnings will be silenced
 
 #################### DO NOT CHANGE ANYTHING BELOW THIS LINE ####################
 
@@ -35,3 +36,8 @@ if not os.path.exists(output_dir):
 # detect path of this file
 path = os.path.dirname(os.path.abspath(__file__))
 
+
+# silence warnings
+if silence_warnings == True:
+    import warnings
+    warnings.filterwarnings('ignore')

@@ -482,13 +482,7 @@ def pl_Shan_div(
     # Order by average
     if color_dic is None:
         if plot_order is None:
-            plot_order = (
-                res.groupby(grouping)
-                .mean()
-                .reset_index()
-                .sort_values(by="Shannon Diversity")[grouping]
-                .to_list()
-            )
+            plot_order = res[grouping].unique()
         else:
             plot_order = plot_order
         # Plot the swarmplot of results
@@ -511,13 +505,7 @@ def pl_Shan_div(
 
     else:
         if plot_order is None:
-            plot_order = (
-                res.groupby(grouping)
-                .mean()
-                .reset_index()
-                .sort_values(by="Shannon Diversity")[grouping]
-                .to_list()
-            )
+            plot_order = res[grouping].unique()
         else:
             plot_order = plot_order
         # Plot the swarmplot of results

@@ -1669,13 +1669,15 @@ def tl_corr_cell(
             norm=normed,
         )
 
+    print(result)
     # Format for correlation function
     mp = pd.pivot_table(
         result, columns=[per_categ], index=[grouping_col, rep], values=["percentage"]
     )
     mp.columns = mp.columns.droplevel(0)
     cc = mp.reset_index()
-    cmat = cc.corr()
+    cc_short = cc.drop(columns=[grouping_col, rep])
+    cmat = cc_short.corr()
 
     return cmat, cc
 
@@ -1710,38 +1712,10 @@ def tl_corr_cell_ad(
     cc : pandas DataFrame
         The DataFrame after pivoting and formatting for correlation function.
     """
-
     data = adata.obs
-
-    if sub_list2 is not None:
-        result = hf_per_only(
-            data=data,
-            per_cat=per_categ,
-            grouping=grouping_col,
-            sub_list=sub_list2,
-            replicate=rep,
-            sub_col=sub_column,
-            norm=normed,
-        )
-    else:
-        sub_list2 = data[per_categ].unique()
-        result = hf_per_only(
-            data=data,
-            per_cat=per_categ,
-            grouping=grouping_col,
-            sub_list=sub_list2,
-            replicate=rep,
-            sub_col=sub_column,
-            norm=normed,
-        )
-
-    # Format for correlation function
-    mp = pd.pivot_table(
-        result, columns=[per_categ], index=[grouping_col, rep], values=["percentage"]
+    cmat, cc = tl_corr_cell(
+        data, per_categ, grouping_col=grouping_col, rep=rep, sub_column=sub_column, normed=normed, sub_list2=sub_list2
     )
-    mp.columns = mp.columns.droplevel(0)
-    cc = mp.reset_index()
-    cmat = cc.corr()
 
     return cmat, cc
 

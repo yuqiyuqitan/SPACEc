@@ -11,6 +11,7 @@ import seaborn as sns
 import tifffile as tiff
 from scipy.spatial.distance import cdist
 from scipy.stats import pearsonr
+import scipy as sp
 from sklearn.cross_decomposition import CCA
 from sklearn.neighbors import NearestNeighbors
 from tqdm import tqdm
