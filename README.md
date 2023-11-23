@@ -7,7 +7,7 @@ pip install cellpose
 
 conda install glob2 matplotlib numpy pandas scanpy seaborn scipy networkx tensorly statsmodels scikit-learn yellowbrick joblib tifffile tensorflow
 
-conda install -c conda-forge scikit-image
+conda install -c conda-forge scikit-image leidenalg
 
 ## General outline of CODEX analysis
 ### I.	Image preprocessing (Matlab) | python version possible?! [Matlab AWS machine] [CPU Matlab container?]
