@@ -333,10 +333,10 @@ def mesmer_segmentation(nuclei_image,
     return segmented_image
 
 # plot membrane channel selectd segmentation
-def pl_membrane_ch(file_name, # image for segmentation
+def pl_segmentation_ch(file_name, # image for segmentation
                    channel_file, # all channels used for staining
                    output_dir, #
-                   membrane_channel_list = None, # channels used for membrane segmentation
+                   extra_seg_ch_list = None, # channels used for membrane segmentation
                    nuclei_channel = 'DAPI',
                    technology = 'Phenocycler' # CODEX or Phenocycler --> This depends on the machine you are using and the resulting file format (see documentation above)
                   ):
@@ -352,7 +352,7 @@ def pl_membrane_ch(file_name, # image for segmentation
                               channel_names = channel_names, 
                               technology = technology)
 
-    image_dict = combine_channels(image_dict, membrane_channel_list, new_channel_name = 'segmentation_channel')
+    image_dict = combine_channels(image_dict, extra_seg_ch_list, new_channel_name = 'segmentation_channel')
     fig, ax = plt.subplots(1,2, figsize=(15,15))
     ax[0].imshow(image_dict[nuclei_channel])
     ax[1].imshow(image_dict['segmentation_channel'])
@@ -360,6 +360,7 @@ def pl_membrane_ch(file_name, # image for segmentation
     ax[1].set_title('membrane')
     plt.show()
 
+# perform cell segmentation
 # perform cell segmentation
 def tl_cell_segmentation(file_name, 
                       channel_file,
@@ -402,7 +403,7 @@ def tl_cell_segmentation(file_name,
         print("Segmenting with Mesmer!")
         if membrane_channel_list is None:
             print("Mesmer expects two-channel images as input, where the first channel must be a nuclear channel (e.g. DAPI) and the second channel must be a membrane or cytoplasmic channel (e.g. E-Cadherin).")
-            sys.exit("In the absence of any membrane or cytoplasm channel, please try cellpose!")
+            sys.exit("Please provide any membrane or cytoplasm channel!")
         else:
             masks = mesmer_segmentation(nuclei_image = image_dict[nuclei_channel], 
                                                 membrane_image = image_dict['segmentation_channel'], 
@@ -444,5 +445,5 @@ def tl_cell_segmentation(file_name,
     
     print("Done!")
 
-
+    return img, masks, image_dict
     
