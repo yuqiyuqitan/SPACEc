@@ -17,6 +17,8 @@ from deepcell.applications import Mesmer
 from deepcell.utils.plot_utils import create_rgb_image
 from deepcell.utils.plot_utils import make_outline_overlay
 from tensorflow.keras.models import load_model
+from skimage.color import rgb2gray
+from skimage import exposure
 
 def format_CODEX(image, 
                  channel_names = None, 
@@ -212,9 +214,6 @@ def extract_features(image_dict, segmentation_masks, channels_to_quantify, outpu
 
 
 
-from skimage.color import rgb2gray
-from skimage import exposure
-
 def overlay_masks_on_image(image, masks, gamma = 1.5):
     # Convert image to grayscale
     gray_image = rgb2gray(image)
@@ -288,7 +287,38 @@ def combine_channels(image_dict, channel_list, new_channel_name):
 # locate this python file
 path = os.path.dirname(os.path.abspath(__file__))
 
-model_path = path + "/Mesmer_model/"
+# check if folder Mesmer_model exist 
+if not os.path.exists(os.path.join(path, 'Mesmer_model')):
+    os.makedirs(os.path.join(path, 'Mesmer_model'))
+
+    print("downloading Mesmer model")
+
+    # download model from https://deepcell-data.s3-us-west-1.amazonaws.com/saved-models/MultiplexSegmentation-9.tar.gz
+    url = 'https://deepcell-data.s3-us-west-1.amazonaws.com/saved-models/MultiplexSegmentation-9.tar.gz'
+    response = requests.get(url)
+
+    # Ensure the download was successful
+    response.raise_for_status()
+
+    # Write the content of the response to a file in the 'Mesmer_model' directory
+    with open(os.path.join(path, 'Mesmer_model/MultiplexSegmentation.tar.gz'), 'wb') as f:
+        f.write(response.content)
+
+    # unpack tar file
+    shutil.unpack_archive(os.path.join(path, 'Mesmer_model/MultiplexSegmentation.tar.gz'), os.path.join(path, 'Mesmer_model/'))
+
+    # delete the .tar.gz file
+    os.remove(os.path.join(path, 'Mesmer_model/MultiplexSegmentation.tar.gz'))
+    
+    # move content of folder MultiplexSegmentation to Mesmer_model
+    #shutil.move(os.path.join(path, 'Mesmer_model/MultiplexSegmentation'), os.path.join(path, 'Mesmer_model/'))
+    
+    # remove empty folder MultiplexSegmentation
+    #os.rmdir(os.path.join(path, 'Mesmer_model/MultiplexSegmentation'))
+    
+    print("Mesmer model downloaded and unpacked")
+
+model_path = os.path.join(path, "Mesmer_model/MultiplexSegmentation")
 
 mesmer_pretrained_model = load_model(model_path, compile=False)
 
@@ -332,6 +362,7 @@ def mesmer_segmentation(nuclei_image,
         # The output will be a numpy array with the segmentation results
     return segmented_image
 
+
 # plot membrane channel selectd segmentation
 def pl_segmentation_ch(file_name, # image for segmentation
                    channel_file, # all channels used for staining
@@ -360,7 +391,6 @@ def pl_segmentation_ch(file_name, # image for segmentation
     ax[1].set_title('membrane')
     plt.show()
 
-# perform cell segmentation
 # perform cell segmentation
 def tl_cell_segmentation(file_name, 
                       channel_file,
