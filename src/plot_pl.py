@@ -3621,3 +3621,51 @@ def pl_CNmap(adata,
         plt.savefig(output_dir + output_fname + "_CNMap.pdf", bbox_inches="tight")
     else:
         plt.show()
+
+
+def plot_coordinates_on_image(df, overlay_data, color= None, 
+                              x ='x', y = 'y',
+                              fig_width=20, fig_height=20, dot_size = 10, 
+                              convert_to_grey=True, 
+                              scale=False,
+                              cmap='inferno'):
+    # Create a new figure with increased size
+    plt.figure(figsize=(fig_width, fig_height))
+    
+    if convert_to_grey:
+        # Convert the image to grayscale
+        overlay_data = skimage.color.rgb2gray(overlay_data)
+        plt.imshow(overlay_data, cmap='gray')
+    
+    else:
+        plt.imshow(overlay_data)
+    
+    image_width, image_height = overlay_data.shape[1], overlay_data.shape[0]
+    
+    
+    # Plot the coordinates on top of the image
+    # colorscale by area
+    
+    if color != None:
+        
+        if scale:
+            # minmax scale the variable
+            df[color] = (df[color] - df[color].min())/(df[color].max() - df[color].min())
+            # change dot size based on variable
+            plt.scatter(df[x], df[y], s=df[color]*30, c=df[color], cmap=cmap)
+        else:
+            plt.scatter(df[x], df[y], c=df[color], s=dot_size, cmap=cmap)   
+            
+    else:
+        plt.scatter(df[x], df['y'], s=dot_size)
+    
+    # add colorbar
+    plt.colorbar()
+    
+    
+    # set axis limits
+    plt.xlim(0, image_width)
+    plt.ylim(image_height, 0)
+
+    # Show the plot
+    plt.show()
