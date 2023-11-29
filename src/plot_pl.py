@@ -3523,6 +3523,7 @@ def pl_dumbbell(data, figsize=(10,10), colors = ['#DB444B', '#006BA2']):
 
 
 def pl_CNmap(
+    adata,
     cnmap_dict,
     cn_col,
     palette = None,
