@@ -1,6 +1,6 @@
 # load required packages
 import os as os
-
+import skimage
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
@@ -3623,7 +3623,7 @@ def pl_CNmap(adata,
         plt.show()
 
 
-def plot_coordinates_on_image(df, overlay_data, color= None, 
+def pl_coordinates_on_image(df, overlay_data, color= None, 
                               x ='x', y = 'y',
                               fig_width=20, fig_height=20, dot_size = 10, 
                               convert_to_grey=True, 
