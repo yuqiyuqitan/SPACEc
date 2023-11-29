@@ -1501,21 +1501,33 @@ def tl_neighborhood_analysis_ad(
 def tl_CNmap_ad(
     adata,
     cn_col,
-    palette,
-    unique_reg="group",
+    unique_region,
+    palette = None,
     k=75,
     X="x",
     Y="y",
     threshold=0.85,
     per_keep_thres=0.85,
     sub_list = None,
-    sub_col = None
+    sub_col = None,
+    rand_seed = 1
 ):
-    ks = [k]
+    ks=[k]
     cells_df = pd.DataFrame(adata.obs)
+    cells_df = cells_df[[X, Y,unique_region, cn_col]]
     cells_df.reset_index(inplace=True)
-    sum_cols = cells_df[cn_col].unique()
+    sum_cols=cells_df[cn_col].unique()
     keep_cols = cells_df.columns
+
+    cn_colors = hf_generate_random_colors(len(adata.obs[cn_col].unique()), rand_seed = rand_seed)
+
+    if palette is None:
+        if cn_col + '_colors' not in adata.uns.keys():
+            palette = dict(zip(np.sort(adata.obs[cn_col].unique()), cn_colors))
+            adata.uns[cn_col + "_colors"] = cn_colors
+        else:
+            palette = dict(zip(np.sort(adata.obs[cn_col].unique()), adata.uns[cn_col + '_colors']))   
+
     Neigh = Neighborhoods(
         cells_df,
         ks,
@@ -1524,7 +1536,7 @@ def tl_CNmap_ad(
         keep_cols,
         X,
         Y,
-        reg=unique_reg,
+        reg=unique_region,
         add_dummies=True,
     )
     windows = Neigh.k_windows()
@@ -1539,7 +1551,7 @@ def tl_CNmap_ad(
         w, l, k, threshold=threshold, per_keep_thres=per_keep_thres  # color palette
     )
     g, tops, e0, e1 = tl_build_graph_CN_comb_map(simp_freqs)
-    return g, tops, e0, e1, simp_freqs
+    return {'g':g, 'tops':tops, 'e0':e0, 'e1':e1, 'simp_freqs':simp_freqs}
 
 def tl_format_for_squidpy(adata, x_col, y_col):
     # Extract the count data from your original AnnData object
