@@ -214,8 +214,7 @@ def pl_stacked_bar_plot(
     )
     if save_name:
         plt.savefig(
-            output_dir + save_name + ".png",
-            format="png",
+            output_dir + save_name + "_stacked_barplot.pdf",
             dpi=300,
             transparent=True,
             bbox_inches="tight",
@@ -419,8 +418,7 @@ def pl_swarm_box(
     if output_dir:
         if save_name:
             plt.savefig(
-                output_dir + save_name + "_swarm_boxplot.png",
-                format="png",
+                output_dir + save_name + "_swarm_boxplot.pdf",
                 dpi=300,
                 transparent=True,
                 bbox_inches="tight",
@@ -540,8 +538,7 @@ def pl_Shan_div(
     sns.despine()
     if save == True:
         plt.savefig(
-            output_dir + sub_list[0] + "_Shannon.png",
-            format="png",
+            output_dir + sub_list[0] + "_Shannon.pdf",
             dpi=300,
             transparent=True,
             bbox_inches="tight",
@@ -2137,128 +2134,6 @@ def pl_Barycentric_coordinate_projection(
 ########
 
 
-def pl_generate_CN_comb_map(
-    graph, tops, e0, e1, simp_freqs, l, color_dic, figsize=(40, 20)
-):
-    """
-    Generate a combination map plot based on a graph representation.
-
-    Parameters
-    ----------
-    graph : networkx.Graph
-        The input graph representing the combination map.
-    tops : list
-        The list of top nodes in the graph.
-    e0, e1 : list
-        Lists of edges in the graph.
-    simp_freqs : pandas Series
-        The simplified frequencies of the nodes.
-    l : list
-        A list of cluster IDs.
-    color_dic : dict
-        A dictionary mapping cluster IDs to colors.
-    figsize : tuple, optional
-        The figure size. Default is (40, 20).
-    """
-
-    draw = graph
-    pos = nx.drawing.nx_pydot.graphviz_layout(draw, prog="dot")
-    height = 8
-
-    plt.figure(figsize=figsize)
-    for n in draw.nodes():
-        col = "black"
-        if len(draw.in_edges(n)) < len(n):
-            col = "black"
-        plt.scatter(
-            pos[n][0],
-            pos[n][1] - 5,
-            s=simp_freqs[list(simp_freqs.index).index(n)] * 10000,
-            c=col,
-            zorder=-1,
-        )
-        if n in tops:
-            plt.text(
-                pos[n][0],
-                pos[n][1] - 7,
-                "*",
-                fontsize=25,
-                color="white",
-                ha="center",
-                va="center",
-                zorder=20,
-            )
-        delta = 8
-        # plot_sim((pos[n][0]+delta, pos[n][1]+delta),n, scale = 20,s = 200,text = True,fontsize = 15)
-        plt.scatter(
-            [pos[n][0]] * len(n),
-            [pos[n][1] + delta * (i + 1) for i in range(len(n))],
-            c=[color_dic[l[i]] for i in n],
-            marker="s",
-            zorder=5,
-            s=400,
-        )
-
-    #     #add profiles below node
-    #     x = pos[n][0]
-    #     y = pos[n][1]
-    #     y = y-height*2
-    #     standard_node_size =  16
-    #     node_heights = [0,3,8,5,3,2,1,5]
-    #     marker_colors = ['red','red','blue','blue','red','red','blue','blue']
-
-    #     plt.plot([x+(18*(i-1.5)) for i in range(len(node_heights))],[(y-height*.9)+v for v in node_heights],c = 'red',zorder =3)#,s = v*2 ,c= c,edgecolors='black',lw = 1)
-    #     plt.scatter([x+(18*(i-1.5)) for i in range(len(node_heights))],[(y-height*.9)+v for v in node_heights],c = marker_colors,s = standard_node_size,zorder = 4)
-
-    j = 0
-    for e0, e1 in draw.edges():
-        weight = 0.2
-        alpha = 0.3
-        color = "black"
-        if len(draw.in_edges(e1)) < len(e1):
-            color = "black"
-            lw = 1
-            weight = 0.4
-
-        #     if (e0,e1) in set(draw.out_edges(tuple(sorted([lmap['3'],lmap['1']])))):
-        #         j+=1
-        #         print(j)
-        #         color = 'green'
-        #         weight = 2
-        #         alpha = 1
-
-        #     if (lmap['3'] in e0) and (lmap['1'] not in e0) and (lmap['1'] in e1):
-        #         color = 'green'
-        #         weight = 2
-        #         alpha = 1
-
-        plt.plot(
-            [pos[e0][0], pos[e1][0]],
-            [pos[e0][1], pos[e1][1]],
-            color=color,
-            linewidth=weight,
-            alpha=alpha,
-            zorder=-10,
-        )
-
-    plt.axis("off")
-    # plt.savefig('CNM.pdf')
-    plt.show()
-
-
-# def add_patient_IDs(df, ID_component1, ID_component2):
-# Spacer for output
-
-# Combine two columns to form unique ID which will be stored as patients column
-#    df['patients'] = df[ID_component1]+'_'+df[ID_component2]
-#    print("You assigned following identifiers to the column 'patients':")
-#    print(df['patients'].unique())
-
-#    return(df)
-
-#######
-
-
 def pl_get_network(
     ttl_per_thres,
     comb_per_thres,
@@ -2914,66 +2789,6 @@ def pl_catplot_ad(
     #    return fig
 
 
-def pl_CN_exp_heatmap_ad(
-    adata,
-    cluster_col,
-    unique_region,
-    k,
-    n_neighborhoods,
-    X="x",
-    Y="y",
-    figsize=(10,8),
-    savefig=False,
-    output_dir="./",
-    subset=None,
-):
-    df = pd.DataFrame(adata.obs[[X, Y, cluster_col, unique_region]])
-    cells = pd.concat([df, pd.get_dummies(df[cluster_col])], axis=1)
-    sum_cols = cells[cluster_col].unique()
-    values = cells[sum_cols].values
-
-    neighborhood_name = "CN" + "_k" + str(k) + "_n" + str(n_neighborhoods)
-    centroids_name = "Centroid" + "_k" + str(k) + "_n" + str(n_neighborhoods)
-
-    if subset is None:
-        niche_clusters = adata.uns[centroids_name][str(k)]
-        tissue_avgs = values.mean(axis=0)
-        fc = np.log2(
-            (
-                (niche_clusters + tissue_avgs)
-                / (niche_clusters + tissue_avgs).sum(axis=1, keepdims=True)
-            )
-            / tissue_avgs
-        )
-        fc = pd.DataFrame(fc, columns=sum_cols)
-        s = sns.clustermap(fc, vmin=-3, vmax=3, cmap="bwr", figsize=figsize)
-        # save fig
-        if savefig:
-            s.savefig(
-                output_dir + "celltypes_perCN_" + neighborhood_name + ".pdf", dpi=600
-            )
-    else:
-        # this plot shows the types of cells (ClusterIDs) in the different niches (0-9)
-        niche_clusters = adata.uns[centroids_name][str(k)]
-        tissue_avgs = values.mean(axis=0)
-        fc = np.log2(
-            (
-                (niche_clusters + tissue_avgs)
-                / (niche_clusters + tissue_avgs).sum(axis=1, keepdims=True)
-            )
-            / tissue_avgs
-        )
-        fc = pd.DataFrame(fc, columns=sum_cols)
-        if subset not in list(adata.obs["neighborhood" + str(35)].unique()):
-            print(str(subset) + " is not in the neighborhood!")
-            return
-        s = sns.clustermap(fc.iloc[subset, :], vmin=-3, vmax=3, cmap="bwr", figsize=figsize)
-        # save fig
-        if savefig:
-            s.savefig(
-                output_dir + "celltypes_perCN_" + neighborhood_name + ".pdf", dpi=600
-            )
-
 
 def pl_generate_CN_comb_map(
     graph,
@@ -3515,15 +3330,18 @@ def pl_create_pie_charts_ad(
         plt.show()
 
 
-def pl_colored_heatmap_ad(adata, 
-    celltype_col, 
-    cn_col, 
-    palette=None, 
-    figsize = (18,12),
-    rand_seed =1,
-    savefig=False,
-    output_fname = "",
-    output_dir = './'):
+def pl_CN_exp_heatmap_ad(adata, 
+                         cluster_col, 
+                         cn_col, 
+                         palette=None, 
+                         figsize = (18,12),
+                         rand_seed =1,
+                         savefig=False,
+                         output_fname = "",
+                         output_dir = './',
+                         row_clus = True,
+                         col_clus = True
+                        ):
     
     data = adata.obs
     # Create a color dictionary if not provided
@@ -3542,8 +3360,8 @@ def pl_colored_heatmap_ad(adata,
     })
     neigh_data.set_index(keys=cn_col,inplace=True)
     
-    df3 = pd.concat([data,pd.get_dummies(data[celltype_col])],axis=1)
-    sum_cols2 = df3[celltype_col].unique()
+    df3 = pd.concat([data,pd.get_dummies(data[cluster_col])],axis=1)
+    sum_cols2 = df3[cluster_col].unique()
     values2 = df3[sum_cols2].values
     cell_list = sum_cols2.copy()
     cell_list = cell_list.tolist()
@@ -3565,8 +3383,8 @@ def pl_colored_heatmap_ad(adata,
                     cbar_pos=(0.03,0.06,0.03,0.1),
                     )
 
-    #s.ax_row_dendrogram.set_visible(False)
-    s.ax_col_dendrogram.set_visible(False)
+    s.ax_row_dendrogram.set_visible(row_clus)
+    s.ax_col_dendrogram.set_visible(col_clus)
     s.ax_heatmap.set_ylabel("", labelpad=25)
     s.ax_heatmap.tick_params(axis='y', pad=42)
     s.ax_heatmap.yaxis.set_ticks_position("right")
@@ -3627,7 +3445,7 @@ def pl_plot_scatter_correlation(data, x, y, xlabel=None, ylabel=None, save_path=
     plt.yticks(fontsize=14)
 
     if save_path:
-        plt.savefig(save_path + ".png", transparent=True, dpi=600, bbox_inches="tight")
+        plt.savefig(save_path + "_corrplot.pdf", transparent=True, dpi=600, bbox_inches="tight")
     plt.show()
 
 
@@ -3648,7 +3466,7 @@ def pl_plot_scatter_correlation_ad(
     plt.yticks(fontsize=14)
 
     if save_path:
-        plt.savefig(save_path + ".png", transparent=True, dpi=600, bbox_inches="tight")
+        plt.savefig(save_path + "_corrplot.pdf", transparent=True, dpi=600, bbox_inches="tight")
     plt.show()
 
 
@@ -3701,3 +3519,96 @@ def pl_dumbbell(data, figsize=(10,10), colors = ['#DB444B', '#006BA2']):
 
     # Set Legend
     ax.legend(data.columns, loc=(0,1.076), ncol=2, frameon=False, handletextpad=-.1, handleheight=1) 
+
+
+
+def pl_CNmap(
+    cnmap_dict,
+    cn_col,
+    palette = None,
+    figsize=(40, 20),
+    savefig=False,
+    output_fname = "",
+    output_dir="./",
+    rand_seed = 1
+):
+    
+    graph = cnmap_dict['g']
+    tops = cnmap_dict['tops']
+    e0 = cnmap_dict['e0']
+    e1 = cnmap_dict['e1']
+    simp_freqs = cnmap_dict['simp_freqs']
+    draw = graph
+    pos = nx.drawing.nx_pydot.graphviz_layout(draw, prog="dot")
+    height = 8
+
+    # generate color
+    cn_colors = hf_generate_random_colors(len(adata.obs[cn_col].unique()), rand_seed = rand_seed)
+    if palette is None:
+        if cn_col + '_colors' not in adata.uns.keys():
+            palette = dict(zip(np.sort(adata.obs[cn_col].unique()), cn_colors))
+            adata.uns[cn_col + "_colors"] = cn_colors
+        else:
+            palette = dict(zip(np.sort(adata.obs[cn_col].unique()), adata.uns[cn_col + '_colors']))  
+
+    plt.figure(figsize=figsize)
+    for n in draw.nodes():
+        col = "black"
+        if len(draw.in_edges(n)) < len(n):
+            col = "black"
+        plt.scatter(
+            pos[n][0],
+            pos[n][1] - 5,
+            s=simp_freqs[list(simp_freqs.index).index(n)] * 10000,
+            c=col,
+            zorder=-1,
+        )
+        if n in tops:
+            plt.text(
+                pos[n][0],
+                pos[n][1] - 7,
+                "*",
+                fontsize=25,
+                color="white",
+                ha="center",
+                va="center",
+                zorder=20,
+            )
+        delta = 8
+
+        # l is just the color keys
+        l = list(palette.keys())
+        plt.scatter(
+            [pos[n][0]] * len(n),
+            [pos[n][1] + delta * (i + 1) for i in range(len(n))],
+            c=[palette[l[i]] for i in n],
+            marker="s",
+            zorder=5,
+            s=400,
+        )
+
+    j = 0
+    for e0, e1 in draw.edges():
+        weight = 0.2
+        alpha = 0.3
+        color = "black"
+        if len(draw.in_edges(e1)) < len(e1):
+            color = "black"
+            lw = 1
+            weight = 0.4
+
+        plt.plot(
+            [pos[e0][0], pos[e1][0]],
+            [pos[e0][1], pos[e1][1]],
+            color=color,
+            linewidth=weight,
+            alpha=alpha,
+            zorder=-10,
+        )
+
+    plt.axis("off")
+
+    if savefig:
+        plt.savefig(output_dir + output_fname + "_CNMap.pdf", bbox_inches="tight")
+    else:
+        plt.show()
