@@ -2713,6 +2713,7 @@ def pl_catplot_ad(
     scatter_kws={},
     n_columns=4,
     legend_padding=0.2,
+    rand_seed = 1
 ):
     """
     Plots cells in tissue section color coded by either cell type or node allocation.
@@ -2734,9 +2735,11 @@ def pl_catplot_ad(
     
     if palette is None:
         if color + '_colors' not in adata.uns.keys():
-            palette = 'bright' 
+            ct_colors = hf_generate_random_colors(len(adata.obs[color].unique()), rand_seed = rand_seed)
+            palette = dict(zip(np.sort(adata.obs[color].unique()), ct_colors))
+            adata.uns[color + "_colors"] = ct_colors
         else:
-            palette = dict(zip(np.sort(adata.obs[color].unique()), adata.uns[ color + '_colors']))   
+            palette = dict(zip(np.sort(adata.obs[color].unique()), adata.uns[color + '_colors']))   
 
     style = {"axes.facecolor": style}
     sns.set_style(style)
@@ -2884,6 +2887,7 @@ def pl_stacked_bar_plot_ad(
     plot_order=None,
     palette=None,
     remove_leg=False,
+    rand_seed = 1
 ):
     """
     Plot a stacked bar plot based on the given data.
@@ -2950,9 +2954,11 @@ def pl_stacked_bar_plot_ad(
             )
     if palette is None:
         if color + '_colors' not in adata.uns.keys():
-            palette = 'bright' 
+            ct_colors = hf_generate_random_colors(len(adata.obs[color].unique()), rand_seed = rand_seed)
+            palette = dict(zip(np.sort(adata.obs[color].unique()), ct_colors))
+            adata.uns[color + "_colors"] = ct_colors
         else:
-            palette = dict(zip(np.sort(adata.obs[color].unique()), adata.uns[ color + '_colors']))   
+            palette = dict(zip(np.sort(adata.obs[color].unique()), adata.uns[color + '_colors']))   
 
     test1[color] = test1[color].astype("category")
     test_freq = test1.groupby(grouping).apply(
@@ -3244,7 +3250,8 @@ def pl_create_pie_charts_ad(
     palette=None,
     savefig=False,
     output_fname = "",
-    output_dir = './'
+    output_dir = './',
+    rand_seed = 1
 
 ):
     """
@@ -3283,9 +3290,11 @@ def pl_create_pie_charts_ad(
     # Create a color dictionary if not provided
     if palette is None:
         if color + '_colors' not in adata.uns.keys():
-            palette = 'bright' 
+            ct_colors = hf_generate_random_colors(len(adata.obs[color].unique()), rand_seed = rand_seed)
+            palette = dict(zip(np.sort(adata.obs[color].unique()), ct_colors))
+            adata.uns[color + "_colors"] = ct_colors
         else:
-            palette = dict(zip(np.sort(adata.obs[color].unique()), adata.uns[ color + '_colors']))   
+            palette = dict(zip(np.sort(adata.obs[color].unique()), adata.uns[color + '_colors']))   
 
     # Iterate over each group and create a pie chart
     for i, (group, group_df) in enumerate(grouped_data):
@@ -3335,20 +3344,20 @@ def pl_CN_exp_heatmap_ad(adata,
                          cn_col, 
                          palette=None, 
                          figsize = (18,12),
-                         rand_seed =1,
                          savefig=False,
                          output_fname = "",
                          output_dir = './',
                          row_clus = True,
-                         col_clus = True
+                         col_clus = True,
+                         rand_seed = 1
                         ):
     
     data = adata.obs
-    # Create a color dictionary if not provided
-    cn_colors = hf_generate_random_colors(len(adata.obs[cn_col].unique()), rand_seed = rand_seed)
-    
+   
     if palette is None:
         if cn_col + '_colors' not in adata.uns.keys():
+            # Create a color dictionary if not provided 
+            cn_colors = hf_generate_random_colors(len(adata.obs[cn_col].unique()), rand_seed = rand_seed)
             palette = dict(zip(np.sort(adata.obs[cn_col].unique()), cn_colors))
             adata.uns[cn_col + "_colors"] = cn_colors
         else:
@@ -3522,8 +3531,7 @@ def pl_dumbbell(data, figsize=(10,10), colors = ['#DB444B', '#006BA2']):
 
 
 
-def pl_CNmap(
-    adata,
+def pl_CNmap(adata,
     cnmap_dict,
     cn_col,
     palette = None,
