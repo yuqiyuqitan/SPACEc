@@ -10,8 +10,11 @@ pip install git+https://github.com/yuqiyuqitan/SAP.git@preppip
 
 * Prepare environment:
 	```bash
-	conda create -n spacodex python=3.10 jupyterlab
-	pip install git+https://github.com/yuqiyuqitan/SAP.git@preppip
+		conda create -n spacodex python=3.10 jupyterlab
+		export GITHUB_USER=YOUR_GITHUB_USERNAME  # <--------- CHANGE THIS
+		# to get a token: https://github.com/settings/tokens (generate new token (classic))
+		export GITHUB_TOKEN=YOUR_GITHUB_TOKEN    # <--------- CHANGE THIS
+		pip install git+https://${GITHUB_USER}:${GITHUB_TOKEN}@github.com/yuqiyuqitan/SAP.git@preppip
 	```
 
 * Prepare data:
