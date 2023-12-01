@@ -20,6 +20,11 @@ pip install git+https://github.com/yuqiyuqitan/SAP.git@preppip
 
 * Put notebooks into `notebooks` folder.
 
+* Run Jupyter Lab to execute the notebooks:
+	```bash
+	jupyter lab
+	```
+
 ## General outline of CODEX analysis
 ### I.	Image preprocessing (Matlab) | python version possible?! [Matlab AWS machine] [CPU Matlab container?]
 	a.	Deconvolution
