@@ -1,6 +1,7 @@
 # SAP
 
 ## Installation notes
+```
 conda create -n sap python==3.8.0
 pip install deepcell
 pip install cellpose
@@ -9,6 +10,7 @@ conda install glob2 matplotlib numpy pandas scanpy seaborn scipy networkx tensor
 
 conda install -c conda-forge scikit-image
 pip install leidenalg
+```
 
 ## General outline of CODEX analysis
 ### I.	Image preprocessing (Matlab) | python version possible?! [Matlab AWS machine] [CPU Matlab container?]
