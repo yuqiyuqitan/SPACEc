@@ -1,14 +1,24 @@
 # SAP
 
 ## Installation notes
-conda create -n sap python==3.8.0
-pip install deepcell
-pip install cellpose
 
-conda install glob2 matplotlib numpy pandas scanpy seaborn scipy networkx tensorly statsmodels scikit-learn yellowbrick joblib tifffile tensorflow
+```bash
+pip install git+https://github.com/yuqiyuqitan/SAP.git
+```
 
-conda install -c conda-forge scikit-image
-pip install leidenalg
+## Prepare execution environment
+
+* Prepare environment:
+	```
+	conda create -n spacodex python=3.10 jupyterlab
+	pip install git+https://github.com/yuqiyuqitan/SAP.git
+	```
+
+* Prepare data:
+	* copy content of `tonsil.zip` to `data/raw/tonsil` 
+	* copy content of `cellseg.zip` to `data/processed/cellseg`
+
+* Put notebooks into `notebooks` folder.
 
 ## General outline of CODEX analysis
 ### I.	Image preprocessing (Matlab) | python version possible?! [Matlab AWS machine] [CPU Matlab container?]
