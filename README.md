@@ -3,15 +3,15 @@
 ## Installation notes
 
 ```bash
-pip install git+https://github.com/yuqiyuqitan/SAP.git
+pip install git+https://github.com/yuqiyuqitan/SAP.git@preppip
 ```
 
 ## Prepare execution environment
 
 * Prepare environment:
-	```
+	```bash
 	conda create -n spacodex python=3.10 jupyterlab
-	pip install git+https://github.com/yuqiyuqitan/SAP.git
+	pip install git+https://github.com/yuqiyuqitan/SAP.git@preppip
 	```
 
 * Prepare data:
