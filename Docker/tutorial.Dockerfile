@@ -54,5 +54,5 @@ ENV ENV_NAME=${ENV_NAME}
 EXPOSE 8888
 
 WORKDIR /workspace
-COPY tutorial_init.sh .
-CMD ["./tutorial_init.sh"]
+COPY tutorial_init.sh /
+CMD ["bash", "/tutorial_init.sh"]
