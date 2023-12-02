@@ -33,10 +33,6 @@ ENV LC_ALL=en_US.UTF-8 \
 
 # install and setup micromamba
 ENV MAMBA_ROOT_PREFIX=/opt/mamba
-# NOTE: because of some weird bug, 
-#       we need to use a mamba installation
-#       rather than micromamba directly
-#       source: https://github.com/mamba-org/mamba/issues/2167#issuecomment-1355533652
 RUN curl -Ls https://micro.mamba.pm/api/micromamba/linux-64/latest | tar -xvj bin/micromamba \
    && /bin/micromamba shell init -s zsh -p ${MAMBA_ROOT_PREFIX} \
    && echo "alias mamba=micromamba" >> ~/.zshrc
@@ -51,5 +47,8 @@ ARG GITHUB_TOKEN
 RUN ${MAMBA_EXEC} run -n ${ENV_NAME} pip install --no-cache-dir \
     git+https://${GITHUB_USER}:${GITHUB_TOKEN}@github.com/yuqiyuqitan/SAP.git@preppip
 
+EXPOSE 8888
+
 # run jupyterlab on startup
-CMD ${MAMBA_EXEC} run -n ${ENV_NAME} jupyter lab
+ENV ENV_NAME=${ENV_NAME}
+CMD ${MAMBA_EXEC} run -n ${ENV_NAME} jupyter lab --allow-root --NotebookApp.token="" --ip="*"
