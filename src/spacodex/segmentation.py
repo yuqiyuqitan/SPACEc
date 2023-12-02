@@ -401,24 +401,25 @@ def pl_segmentation_ch(file_name, # image for segmentation
     plt.show()
 
 # perform cell segmentation
-def tl_cell_segmentation(file_name, 
-                      channel_file,
-                      output_dir,
-                      output_fname = "",
-                      seg_method ='mesmer', 
-                      nuclei_channel = 'DAPI',
-                      technology ='Phenocycler', # CODEX or Phenocycler --> This depends on the machine you are using and the resulting file format (see documentation above)
-                      membrane_channel_list = None,
-                      size_cutoff = 0, #quantificaition
-                      compartment = 'whole-cell', # mesmer # segment whole cells or nuclei only
-                      plot_predictions = True, # mesmer # plot segmentation results
-                      model = "tissuenet", # cellpose
-                      use_gpu = True, # cellpose
-                      cytoplasm_channel_list = None, #celpose
-                      pretrained_model= True, # cellpose 
-                      diameter = None, #cellpose
-                      save_mask_as_png = False #cellpose
-                        ):
+def tl_cell_segmentation(
+        file_name, 
+        channel_file,
+        output_dir,
+        output_fname = "",
+        seg_method ='mesmer', 
+        nuclei_channel = 'DAPI',
+        technology ='Phenocycler', # CODEX or Phenocycler --> This depends on the machine you are using and the resulting file format (see documentation above)
+        membrane_channel_list = None,
+        size_cutoff = 0, #quantificaition
+        compartment = 'whole-cell', # mesmer # segment whole cells or nuclei only
+        plot_predictions = True, # mesmer # plot segmentation results
+        model = "tissuenet", # cellpose
+        use_gpu = True, # cellpose
+        cytoplasm_channel_list = None, #celpose
+        pretrained_model= True, # cellpose 
+        diameter = None, #cellpose
+        save_mask_as_png = False, #cellpose
+        model_path="./models"):
 
     print("Create image channels!")
     # Load the image
@@ -435,8 +436,10 @@ def tl_cell_segmentation(file_name,
 
     # Generate image for segmentation
     if membrane_channel_list is not None:
-        image_dict = combine_channels(image_dict, membrane_channel_list, 
-                                  new_channel_name = 'segmentation_channel') # combine channels for better segmentation. In this example we combine channels to get a membrane outline for all cells in the image
+        image_dict = combine_channels(
+            image_dict, 
+            membrane_channel_list, 
+            new_channel_name = 'segmentation_channel') # combine channels for better segmentation. In this example we combine channels to get a membrane outline for all cells in the image
     
     if seg_method == 'mesmer':
         print("Segmenting with Mesmer!")
@@ -444,35 +447,39 @@ def tl_cell_segmentation(file_name,
             print("Mesmer expects two-channel images as input, where the first channel must be a nuclear channel (e.g. DAPI) and the second channel must be a membrane or cytoplasmic channel (e.g. E-Cadherin).")
             sys.exit("Please provide any membrane or cytoplasm channel!")
         else:
-            masks = mesmer_segmentation(nuclei_image = image_dict[nuclei_channel], 
-                                                membrane_image = image_dict['segmentation_channel'], 
-                                                plot_predictions = plot_predictions, # plot segmentation results
-                                                compartment=compartment) # segment whole cells or nuclei only
+            masks = mesmer_segmentation(
+                nuclei_image = image_dict[nuclei_channel], 
+                membrane_image = image_dict['segmentation_channel'], 
+                plot_predictions = plot_predictions, # plot segmentation results
+                compartment=compartment,
+                model_path=model_path) # segment whole cells or nuclei only
 
     else:
         print("Segmenting with Cellpose!")
         if membrane_channel_list is None:
-            masks, flows, styles, input_image, rgb_channels = cellpose_segmentation(image_dict = image_dict, 
-                                                                                output_dir = output_dir, 
-                                                                                membrane_channel = None, 
-                                                                                cytoplasm_channel = cytoplasm_channel_list, 
-                                                                                nucleus_channel = nuclei_channel, 
-                                                                                use_gpu = use_gpu, 
-                                                                                model = model, 
-                                                                                pretrained_model= pretrained_model,
-                                                                                diameter = diameter, 
-                                                                                save_mask_as_png = save_mask_as_png)
+            masks, flows, styles, input_image, rgb_channels = cellpose_segmentation(
+                image_dict = image_dict, 
+                output_dir = output_dir, 
+                membrane_channel = None, 
+                cytoplasm_channel = cytoplasm_channel_list, 
+                nucleus_channel = nuclei_channel, 
+                use_gpu = use_gpu, 
+                model = model, 
+                pretrained_model= pretrained_model,
+                diameter = diameter, 
+                save_mask_as_png = save_mask_as_png)
         else:
-            masks, flows, styles, input_image, rgb_channels = cellpose_segmentation(image_dict = image_dict, 
-                                                                                output_dir = output_dir, 
-                                                                                membrane_channel = "segmentation_channel", 
-                                                                                cytoplasm_channel = cytoplasm_channel_list, 
-                                                                                nucleus_channel = nuclei_channel, 
-                                                                                use_gpu = use_gpu, 
-                                                                                model = model, 
-                                                                                pretrained_model= pretrained_model,
-                                                                                diameter = diameter, 
-                                                                                save_mask_as_png = save_mask_as_png)
+            masks, flows, styles, input_image, rgb_channels = cellpose_segmentation(
+                image_dict = image_dict, 
+                output_dir = output_dir, 
+                membrane_channel = "segmentation_channel", 
+                cytoplasm_channel = cytoplasm_channel_list, 
+                nucleus_channel = nuclei_channel, 
+                use_gpu = use_gpu, 
+                model = model, 
+                pretrained_model= pretrained_model,
+                diameter = diameter, 
+                save_mask_as_png = save_mask_as_png)
         
     
     print("Quantifying features after segmentation!")
