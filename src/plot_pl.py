@@ -3623,12 +3623,17 @@ def pl_CNmap(adata,
         plt.show()
 
 
-def pl_coordinates_on_image(df, overlay_data, color= None, 
-                              x ='x', y = 'y',
-                              fig_width=20, fig_height=20, dot_size = 10, 
-                              convert_to_grey=True, 
-                              scale=False,
-                              cmap='inferno'):
+def pl_coordinates_on_image(df, 
+                            overlay_data, 
+                            color= None, 
+                            x ='x', y = 'y',
+                            fig_width=20, fig_height=20, dot_size = 10, 
+                            convert_to_grey=True, 
+                            scale=False,
+                            cmap='inferno',
+                            savefig = False,
+                            output_dir = "./",
+                            output_fname = ""):
     # Create a new figure with increased size
     plt.figure(figsize=(fig_width, fig_height))
     
@@ -3668,4 +3673,35 @@ def pl_coordinates_on_image(df, overlay_data, color= None,
     plt.ylim(image_height, 0)
 
     # Show the plot
-    plt.show()
+    if savefig:
+        plt.savefig(output_dir + output_fname +"_seg_masks_overlay.pdf", bbox_inches="tight")
+    else:
+        plt.show()
+
+
+def pl_count_patch_proximity_res(adata, 
+                           x, 
+                           hue,
+                           palette="Set3",
+                           order = True,
+                           key_name = 'ppa_result',
+                           savefig = False,
+                           output_dir = "./",
+                           output_fname = ""
+                          ):
+    
+    region_results = adata.uns[key_name]
+    ax = sns.countplot(x=x, 
+                   hue=hue, 
+                   data=region_results, 
+                   palette=palette, 
+                   order=region_results[x].value_counts().index)
+    
+    tick_positions = range(len(region_results[x].value_counts()))
+    tick_labels = region_results[x].value_counts().index
+    ax.set_xticks(tick_positions)
+    ax.set_xticklabels(tick_labels, rotation=90)
+    if savefig:
+        plt.savefig(output_dir + output_fname +"_count_ppa_result.pdf", bbox_inches="tight")
+    else:
+        plt.show()
