@@ -27,16 +27,13 @@ if [ ! -d "/workspace/data" ] && [ ! -d "/workspace/notebooks" ]; then
 		rm materials.zip
 		echo
 		echo "Downloading model:"
-		cd notebooks
-		mkdir models
-		cd models
-		mkdir Mesmer_model
-		cd Mesmer_model
+		mkdir -p notebooks/models/Mesmer_model
+		cd notebooks/models/Mesmer_model
 		wget -O model.tar.gz "https://deepcell-data.s3-us-west-1.amazonaws.com/saved-models/MultiplexSegmentation-9.tar.gz"
 		tar -xzvf model.tar.gz
 		rm model.tar.gz
 		chown -R ${UID}:${UID} .
-		cd ../../..
+		cd -
 	fi
 else
 	echo "Data and notebooks folders for the tutorial are present. Skipping download."

@@ -53,6 +53,14 @@ RUN ${MAMBA_EXEC} run -n ${ENV_NAME} pip install --no-cache-dir \
 ENV ENV_NAME=${ENV_NAME}
 EXPOSE 8888
 
+# attempt to fix situation by running with -u $UID
+# but then new files end up with weird permissions: drwxr-Sr--+
+# probably could be done easier with some MAMBA path change
+#RUN \
+#  mkdir -p /.cache/mamba; chmod -R 777 /.cache; \
+#  mkdir /.local; chmod 777 /.local; \
+#  mkdir /.jupyter; chmod 777 /.jupyter;
+
 WORKDIR /workspace
 COPY tutorial_init.sh /
 CMD ["bash", "/tutorial_init.sh"]
