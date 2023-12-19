@@ -3328,7 +3328,7 @@ def pl_create_pie_charts_ad(
     fig.tight_layout()
     if savefig:
         plt.savefig(
-            output_dir + output_fname + ".pdf",
+            output_dir + output_fname + "_piechart.pdf",
             format="pdf",
             dpi=300,
             transparent=True,
