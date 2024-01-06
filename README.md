@@ -1,4 +1,4 @@
-# SPatial Analysis for CodEX data (spaCodEx)
+# SPatial Analysis for CodEX data (SPACEc)
 
 ## Installation notes
 ```bash
@@ -11,7 +11,7 @@ conda install -c conda-forge scikit-image
 pip install leidenalg concave-hull==0.0.6
 ```
 
-## General outline of spaCodEx analysis
+## General outline of SPACEc analysis
 
 ### I.	Cell segmentation & visualization
 	a.	Mesmer

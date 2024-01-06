@@ -99,7 +99,7 @@ copyright = "2023, yuqiyuqitan"
 # If you don’t need the separation provided between version and release,
 # just set them both to the same value.
 try:
-    from spacodex import __version__ as version
+    from spacec import __version__ as version
 except ImportError:
     version = ""
 

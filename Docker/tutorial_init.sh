@@ -4,9 +4,9 @@ echo "=============================="
 
 # TODO: tryin to fix issue with extracted files keeing ids from inside the archive
 #echo "Setup for user: ${RUN_UID}"
-#useradd --uid ${RUN_UID} spacodex
-#mkdir /home/spacodex
-#chown -R spacodex:spacodex /home/spacodex
+#useradd --uid ${RUN_UID} spacec
+#mkdir /home/spacec
+#chown -R spacec:spacec /home/spacec
 #chown -R ${RUN_ID}:${RUN_ID} /workspace
 
 echo "Checking tutorial materials."

@@ -1,4 +1,4 @@
-name: spacodex
+name: SPACEc
 channels:
   - conda-forge
   - defaults

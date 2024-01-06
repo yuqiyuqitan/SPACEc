@@ -38,7 +38,7 @@ RUN curl -Ls https://micro.mamba.pm/api/micromamba/linux-64/latest | tar -xvj bi
    && echo "alias mamba=micromamba" >> ~/.zshrc
 ENV MAMBA_EXEC=/bin/micromamba
 
-ARG ENV_NAME="spacodex"
+ARG ENV_NAME="SPACEc"
 RUN ${MAMBA_EXEC} env create -n ${ENV_NAME} -c conda-forge python=3.10 jupyterlab
 
 # install python packages
