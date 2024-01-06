@@ -1,64 +1,38 @@
-# SAP
+# SPatial Analysis for CodEX data (spaCodEx)
 
 ## Installation notes
-
 ```bash
-pip install git+https://github.com/yuqiyuqitan/SAP.git@preppip
+conda create -n sap python==3.8.0
+pip install deepcell cellpose
+
+conda install glob2 matplotlib numpy pandas scanpy seaborn scipy networkx tensorly statsmodels scikit-learn yellowbrick joblib tifffile tensorflow
+
+conda install -c conda-forge scikit-image
+pip install leidenalg concave-hull==0.0.6
 ```
 
-## Prepare execution environment
+## General outline of spaCodEx analysis
 
-* Prepare environment:
-	```bash
-		conda create -n spacodex python=3.10 jupyterlab
-		export GITHUB_USER=YOUR_GITHUB_USERNAME  # <--------- CHANGE THIS
-		# to get a token: https://github.com/settings/tokens (generate new token (classic))
-		export GITHUB_TOKEN=YOUR_GITHUB_TOKEN    # <--------- CHANGE THIS
-		pip install git+https://${GITHUB_USER}:${GITHUB_TOKEN}@github.com/yuqiyuqitan/SAP.git@preppip
-	```
-
-* Prepare data:
-	* copy content of `tonsil.zip` to `data/raw/tonsil` 
-	* copy content of `cellseg.zip` to `data/processed/cellseg`
-
-* Put notebooks into `notebooks` folder.
-
-* Run Jupyter Lab to execute the notebooks:
-	```bash
-	jupyter lab
-	```
-
-## General outline of CODEX analysis
-### I.	Image preprocessing (Matlab) | python version possible?! [Matlab AWS machine] [CPU Matlab container?]
-	a.	Deconvolution
-	b.	Title stitch
-	c.	Co-registration of all data
-	d.	Background subtraction
-	e.	Concatenate all the stacks into a hyperstack
-	f.	(optional) H&E staining
-### II.	Cell segmentation
-	a.	CellSeg (CPU version is faster than the GPU version) [Trying to get it working] [Andrew Dockerfile]
-	b.	CellPose (different preprocessing in python) 
-	c.	Mesmer
-### III.	Data normalization 
-	a.	Z normalization
-	b.	Double Z normalization
-	c.	Min Max normalization
-	d.	Arcsinh normalization
-### IV.	Cell type annotation
-	a.	Clustering [Leiden clustering; GPU requirement] [Andrew Dockerfile]
-	b.	SVM annotation
-	c.	STELLAR annotation [RapidAIs] [Done, try to test it] [Yuqi Dockerfile]
-### V.	Downstream spatial analysis
-	a.	Cell type composition
-	b.	Cellular neighborhood analysis [Jupyter notebook]
-	c.	Community analysis [Jupyter notebook]
-	d.	Cell density analysis
+### I.	Cell segmentation & visualization
+	a.	Mesmer
+	b.	CellPose
+	c.	CellSeg [Under Development]
+### II.	Data prepcoessing 
+	a.  First filtering based on size and DAPI 	
+	b.	Normalization
+	c.	Second filtering based on noisy signals
+	d.	Data type conversion (df --> anndata)
+### III.	Clustering & cell type annotation
+	a.	Clustering [GPU implementation UD]
+	b.	ML annotation [e.g. STELLAR, UD]
+	c.	Cell type statistics and visualization
+### IV.	Downstream spatial analysis
+	a.	Cellular neighborhood analysis
+	b.	Tissue schematic analysis 
+	c.	Distance permutation analysis
+	d.	Neighbor permutation analysis [UD]
+	e.	Patch proximity analysis
 	e.	Shannon diversity function
-	f.	Tissue schematic analysis (R) [Jupyter notebook]
-	g.	Distance permutation analysis (R) [Andrew]
-	h.	Neighbor permutation analysis [long time]
-	i.	Compositional differences for CN?
-	j.	(optional) Mario or MaxFuse integration
-	k.	Transcriptomics? [DEG]
+	f.	(optional) Mario or MaxFuse integration[UD]
+
 
