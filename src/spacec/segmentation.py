@@ -327,12 +327,13 @@ def load_mesmer_model(path):
 
     return mesmer_pretrained_model
 
-def mesmer_segmentation(nuclei_image, 
-                              membrane_image, 
-                              image_mpp=0.5, 
-                              plot_predictions = True, 
-                              compartment='whole-cell', # or 'nuclear'
-                              model_path="./models"): 
+def mesmer_segmentation(
+        nuclei_image, 
+        membrane_image, 
+        image_mpp=0.5, 
+        plot_predictions = True, 
+        compartment='whole-cell', # or 'nuclear'
+        model_path="./models"): 
     
     pathlib.Path(model_path).mkdir(parents=True, exist_ok=True)
     mesmer_pretrained_model = load_mesmer_model(model_path)
@@ -349,18 +350,22 @@ def mesmer_segmentation(nuclei_image,
     combined_image = np.expand_dims(combined_image, axis=0)
 
     # Run the Mesmer model
-    segmented_image = app.predict(combined_image, image_mpp=image_mpp, compartment=compartment)
+    segmented_image = app.predict(
+        combined_image, image_mpp=image_mpp, compartment=compartment)
 
     if plot_predictions == True:
         # create rgb overlay of image data for visualization
-        rgb_images = create_rgb_image(combined_image, channel_colors=['green', 'blue'])
+        rgb_images = create_rgb_image(
+            combined_image, channel_colors=['green', 'blue'])
         # create overlay of segmentation results
-        overlay_data = make_outline_overlay(rgb_data=rgb_images, predictions=segmented_image)
+        overlay_data = make_outline_overlay(
+            rgb_data=rgb_images, predictions=segmented_image)
         
         # select index for displaying
         idx = 0
 
         # plot the data
+        # TODO: plotting and calculating should probably not be in the same figure
         fig, ax = plt.subplots(1, 2, figsize=(15, 15))
         ax[0].imshow(rgb_images[idx, ...])
         ax[1].imshow(overlay_data[idx, ...])
@@ -368,18 +373,20 @@ def mesmer_segmentation(nuclei_image,
         ax[1].set_title('Predictions')
         plt.show()
         
-        # The output will be a numpy array with the segmentation results
+    # The output will be a numpy array with the segmentation results
     return segmented_image
 
 
 # plot membrane channel selectd segmentation
-def pl_segmentation_ch(file_name, # image for segmentation
-                   channel_file, # all channels used for staining
-                   output_dir, #
-                   extra_seg_ch_list = None, # channels used for membrane segmentation
-                   nuclei_channel = 'DAPI',
-                   technology = 'Phenocycler' # CODEX or Phenocycler --> This depends on the machine you are using and the resulting file format (see documentation above)
-                  ):
+def pl_segmentation_ch(
+        file_name, # image for segmentation
+        channel_file, # all channels used for staining
+        output_dir, #
+        extra_seg_ch_list = None, # channels used for membrane segmentation
+        nuclei_channel = 'DAPI',
+        technology = 'Phenocycler' # CODEX or Phenocycler --> This depends on the machine you are using and the resulting file format (see documentation above)
+    ):
+
     # Load the image
     img = skimage.io.imread(file_name)
 
@@ -387,18 +394,25 @@ def pl_segmentation_ch(file_name, # image for segmentation
     with open(channel_file, 'r') as f:
         channel_names = f.read().splitlines()
 
-    # Function reads channels and stores them as dictonary (storing as dictionary allows to select specific channels by name)
-    image_dict = format_CODEX(image = img, 
-                              channel_names = channel_names, 
-                              technology = technology)
+    # Function reads channels and stores them as dictonary 
+    # (storing as dictionary allows to select specific channels by name)
+    image_dict = format_CODEX(
+        image = img, 
+        channel_names = channel_names, 
+        technology = technology)
 
-    image_dict = combine_channels(image_dict, extra_seg_ch_list, new_channel_name = 'segmentation_channel')
+    image_dict = combine_channels(
+        image_dict, 
+        extra_seg_ch_list, 
+        new_channel_name = 'segmentation_channel')
+    
     fig, ax = plt.subplots(1,2, figsize=(15,15))
     ax[0].imshow(image_dict[nuclei_channel])
     ax[1].imshow(image_dict['segmentation_channel'])
     ax[0].set_title('nuclei')
     ax[1].set_title('membrane')
-    plt.show()
+
+    return fig
 
 # perform cell segmentation
 def tl_cell_segmentation(
@@ -430,9 +444,10 @@ def tl_cell_segmentation(
         channel_names = f.read().splitlines()
         
     # Function reads channels and stores them as a dictionary (storing as a dictionary allows to select specific channels by name)
-    image_dict = format_CODEX(image = img, 
-                            channel_names = channel_names, # file with list of channel names (see channelnames.txt)
-                            technology = technology) 
+    image_dict = format_CODEX(
+        image = img, 
+        channel_names = channel_names, # file with list of channel names (see channelnames.txt)
+        technology = technology) 
 
     # Generate image for segmentation
     if membrane_channel_list is not None:
@@ -483,11 +498,12 @@ def tl_cell_segmentation(
         
     
     print("Quantifying features after segmentation!")
-    extract_features(image_dict= image_dict, # image dictionary
-                 segmentation_masks = masks, # segmentation masks generated by cellpose
-                 channels_to_quantify = channel_names, # list of channels to quantify (here: all channels)
-                 output_file = pathlib.Path(output_dir) / (output_fname + "_" + seg_method + "_result.csv"), # output path to store results as csv 
-                 size_cutoff = size_cutoff) # size cutoff for segmentation masks (default = 0)
+    extract_features(
+        image_dict= image_dict, # image dictionary
+        segmentation_masks = masks, # segmentation masks generated by cellpose
+        channels_to_quantify = channel_names, # list of channels to quantify (here: all channels)
+        output_file = pathlib.Path(output_dir) / (output_fname + "_" + seg_method + "_result.csv"), # output path to store results as csv 
+        size_cutoff = size_cutoff) # size cutoff for segmentation masks (default = 0)
     
     print("Done!")
 
