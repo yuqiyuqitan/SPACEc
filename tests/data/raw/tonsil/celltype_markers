@@ -1,0 +1,5 @@
+'FoxP3', 'HLA-DR', 'EGFR', 'CD206', 'BCL2', 'panCK', 'CD11b', 'CD56', 'CD163', 'CD21', 'CD8',
+       'Vimentin', 'CCR7', 'CD57', 'CD34', 'CD31', 'CXCR5', 'CD3', 'CD38', 'LAG3', 'CD25', 'CD16',
+       'CLEC9A', 'CD11c', 'CD68', 'aSMA', 'CD20', 'CD4',
+       'Podoplanin', 'CD15', 'betaCatenin', 'PAX5', 'MCT',
+       'CD138', 'GranzymeB', 'IDO-1', 'CD45', 'CollagenIV','Arginase-1'
