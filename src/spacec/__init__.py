@@ -14,3 +14,15 @@ except PackageNotFoundError:  # pragma: no cover
     __version__ = "unknown"
 finally:
     del version, PackageNotFoundError
+
+
+# from . import plotting as pl
+# from . import preprocessing as pp
+# from . import tools as tl
+
+# __all__ = [
+#     "__version__",
+#     "pl",
+#     "pp",
+#     "tl",
+# ]
