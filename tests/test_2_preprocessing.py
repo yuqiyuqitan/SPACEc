@@ -38,8 +38,11 @@ def test_2_preprocessing():
 
     with TemporaryDirectory() as output_dir:
 
-        output_path = pathlib.Path(output_dir)
+        # output_dir = pathlib.Path("tests/_out")
+        # output_dir.mkdir(exist_ok=True, parents=True)
 
+        output_path = pathlib.Path(output_dir)
+        
         # ## 2.1 Load data
 
         # Read and concatenate the csv files (outputs from the cell segmentation algorithms). 
