@@ -30,6 +30,9 @@ def test_3_clustering():
 
     with TemporaryDirectory() as output_dir:
 
+        # output_dir = pathlib.Path("tests/_out")
+        # output_dir.mkdir(exist_ok=True, parents=True)
+
         output_path = pathlib.Path(output_dir)
 
         sc.settings.set_figure_params(dpi=80, facecolor='white')
@@ -90,9 +93,24 @@ def test_3_clustering():
         # ### Round 1 subclustering
 
         # subclustering cluster 0, 3, 4 sequentially (could be optional for your own data)
-        sc.tl.leiden(adata, seed=clustering_random_seed, restrict_to=('leiden_0.4',['0']), resolution=0.15, key_added='leiden_0.4_subcluster_0')
-        sc.tl.leiden(adata, seed=clustering_random_seed, restrict_to=('leiden_0.4_subcluster_0',['3']), resolution=0.1, key_added='leiden_0.4_subcluster_3')
-        sc.tl.leiden(adata, seed=clustering_random_seed, restrict_to=('leiden_0.4_subcluster_3',['4']), resolution=0.1, key_added='leiden_0.4_subcluster_4')
+        sc.tl.leiden(
+            adata, 
+            seed=clustering_random_seed, 
+            restrict_to=('leiden_0.4',['0']), 
+            resolution=0.15, 
+            key_added='leiden_0.4_subcluster_0')
+        sc.tl.leiden(
+            adata, 
+            seed=clustering_random_seed, 
+            restrict_to=('leiden_0.4_subcluster_0',['3']), 
+            resolution=0.1, 
+            key_added='leiden_0.4_subcluster_3')
+        sc.tl.leiden(
+            adata, 
+            seed=clustering_random_seed, 
+            restrict_to=('leiden_0.4_subcluster_3',['4']), 
+            resolution=0.1, 
+            key_added='leiden_0.4_subcluster_4')
         sc.pl.umap(adata, color = ['leiden_0.4_subcluster_4'])
 
         sc.pl.dotplot(adata, marker_list, 'leiden_0.4_subcluster_4', dendrogram=True)
@@ -131,9 +149,25 @@ def test_3_clustering():
         # ### Round 2 subclustering
 
         ## subclustering cluster 0, 3, 4 sequentially (could be optional for your own data)
-        sc.tl.leiden(adata, seed=clustering_random_seed, restrict_to=('leiden_0.4_subcluster_4',['2']), resolution=0.4, key_added='leiden_0.4_subcluster_2') # 2,4 DC; 2,0 B
-        sc.tl.leiden(adata, seed=clustering_random_seed, restrict_to=('leiden_0.4_subcluster_2',['11']), resolution=0.1, key_added='leiden_0.4_subcluster_11')
-        sc.tl.leiden(adata, seed=clustering_random_seed, restrict_to=('leiden_0.4_subcluster_11',['0,0']), resolution=0.4, key_added='leiden_0.4_subcluster_0sub') #0,0,3 noise, 0,0,1 CD4T, 0.0,4 vessel
+        sc.tl.leiden(
+            adata, 
+            seed=clustering_random_seed, 
+            restrict_to=('leiden_0.4_subcluster_4',['2']), 
+            resolution=0.4, 
+            key_added='leiden_0.4_subcluster_2') # 2,4 DC; 2,0 B
+        
+        sc.tl.leiden(
+            adata, 
+            seed=clustering_random_seed, 
+            restrict_to=('leiden_0.4_subcluster_2',['5']), 
+            resolution=0.1, 
+            key_added='leiden_0.4_subcluster_5')
+        sc.tl.leiden(
+            adata, 
+            seed=clustering_random_seed, 
+            restrict_to=('leiden_0.4_subcluster_3',['0,0']), 
+            resolution=0.4, 
+            key_added='leiden_0.4_subcluster_0sub') #0,0,3 noise, 0,0,1 CD4T, 0.0,4 vessel
         sc.pl.dotplot(adata, marker_list, 'leiden_0.4_subcluster_0sub')
 
         # ## 3.4 Annotate cell types
@@ -149,6 +183,7 @@ def test_3_clustering():
             '0,0,5': 'Vessel',
             '0,1': 'CD4T',
             '1': 'B',
+            '2': 'B',
             '2,0': 'B',
             '2,1': 'B',
             '2,2': 'B',
@@ -158,6 +193,7 @@ def test_3_clustering():
             '2,6': 'B',
             '3,0': 'CD4T',
             '3,1': 'CD8T',
+            '4': 'CDX',
             '4,0': 'CD4T',
             '4,1': 'CD8T',
             '4,2': 'CD8T',
