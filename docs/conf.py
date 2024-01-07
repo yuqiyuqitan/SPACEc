@@ -34,7 +34,7 @@ except ImportError:
     from sphinx import apidoc
 
 output_dir = os.path.join(__location__, "api")
-module_dir = os.path.join(__location__, "../src/spacescan")
+module_dir = os.path.join(__location__, "../src/spacec")
 try:
     shutil.rmtree(output_dir)
 except FileNotFoundError:
@@ -87,7 +87,7 @@ source_suffix = ".rst"
 master_doc = "index"
 
 # General information about the project.
-project = "my_project"
+project = "spacec"
 copyright = "2023, yuqiyuqitan"
 
 # The version info for the project you're documenting, acts as replacement for
@@ -229,7 +229,7 @@ html_static_path = ["_static"]
 # html_file_suffix = None
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = "my_project-doc"
+htmlhelp_basename = "spacec-doc"
 
 
 # -- Options for LaTeX output ------------------------------------------------
@@ -246,7 +246,7 @@ latex_elements = {
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title, author, documentclass [howto/manual]).
 latex_documents = [
-    ("index", "user_guide.tex", "my_project Documentation", "yuqiyuqitan", "manual")
+    ("index", "user_guide.tex", "SPACEc Documentation", "yuqiyuqitan", "manual")
 ]
 
 # The name of an image file (relative to this directory) to place at the top of

@@ -1,5 +1,5 @@
 """
-    Setup file for my_project.
+    Setup file for SPACEc.
     Use setup.cfg to configure your project.
 
     This file was generated with PyScaffold 4.5.

@@ -1,8 +1,8 @@
 ==========
-my_project
+SPACEc
 ==========
 
-This is the documentation of **my_project**.
+This is the documentation of **SPACEc**.
 
 .. note::
 

@@ -27,7 +27,7 @@
 Contributing
 ============
 
-Welcome to ``my_project`` contributor's guide.
+Welcome to ``SPACEc`` contributor's guide.
 
 This document focuses on getting any potential contributor familiarized
 with the development processes, but `other kinds of contributions`_ are also
@@ -46,7 +46,7 @@ guidelines.
 Issue Reports
 =============
 
-If you experience bugs or general issues with ``my_project``, please have a look
+If you experience bugs or general issues with ``SPACEc``, please have a look
 on the `issue tracker`_. If you don't see anything useful there, please feel
 free to fire an issue report.
 
@@ -65,10 +65,10 @@ you help us to identify the root cause of the issue.
 Documentation Improvements
 ==========================
 
-You can help improve ``my_project`` docs by making them more readable and coherent, or
+You can help improve ``SPACEc`` docs by making them more readable and coherent, or
 by adding missing information and correcting mistakes.
 
-``my_project`` documentation uses Sphinx_ as its main documentation compiler.
+``SPACEc`` documentation uses Sphinx_ as its main documentation compiler.
 This means that the docs are kept in the same repository as the project code, and
 that any documentation update is done in the same way was a code contribution.
 
@@ -80,7 +80,7 @@ that any documentation update is done in the same way was a code contribution.
 
    .. tip::
       Please notice that the `GitHub web interface`_ provides a quick way of
-      propose changes in ``my_project``'s files. While this mechanism can
+      propose changes in ``SPACEc``'s files. While this mechanism can
       be tricky for normal code contributions, it works perfectly fine for
       contributing to the docs, and can be quite handy.
 
@@ -131,8 +131,8 @@ This can easily be done via either |virtualenv|_::
 
 or Miniconda_::
 
-    conda create -n my_project python=3 six virtualenv pytest pytest-cov
-    conda activate my_project
+    conda create -n SPACEc python=3 six virtualenv pytest pytest-cov
+    conda activate SPACEc
 
 Clone the repository
 --------------------
@@ -142,8 +142,8 @@ Clone the repository
    page. This creates a copy of the code under your account on |the repository service|.
 #. Clone this copy to your local disk::
 
-    git clone git@github.com:YourLogin/my_project.git
-    cd my_project
+    git clone git@github.com:YourLogin/SPACEc.git
+    cd SPACEc
 
 #. You should run::
 
@@ -158,7 +158,7 @@ Clone the repository
     pip install pre-commit
     pre-commit install
 
-   ``my_project`` comes with a lot of hooks configured to automatically help the
+   ``SPACEc`` comes with a lot of hooks configured to automatically help the
    developer to check the code being written.
 
 Implement your changes
@@ -285,7 +285,7 @@ Releases
 
 If you are part of the group of maintainers and have correct user permissions
 on PyPI_, the following steps can be used to release a new version for
-``my_project``:
+``SPACEc``:
 
 #. Make sure all unit tests are successful.
 #. Tag the current commit on the main branch with a release tag, e.g., ``v1.2.3``.
@@ -314,8 +314,8 @@ on PyPI_, the following steps can be used to release a new version for
 .. |the repository service| replace:: GitHub
 .. |contribute button| replace:: "Create pull request"
 
-.. _repository: https://github.com/<USERNAME>/my_project
-.. _issue tracker: https://github.com/<USERNAME>/my_project/issues
+.. _repository: https://github.com/<USERNAME>/SPACEc
+.. _issue tracker: https://github.com/<USERNAME>/SPACEc/issues
 .. <-- end -->
 
 

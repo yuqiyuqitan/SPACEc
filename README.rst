@@ -1,27 +1,27 @@
 .. These are examples of badges you might want to add to your README:
    please update the URLs accordingly
 
-    .. image:: https://api.cirrus-ci.com/github/<USER>/my_project.svg?branch=main
+    .. image:: https://api.cirrus-ci.com/github/<USER>/SPACEc.svg?branch=main
         :alt: Built Status
-        :target: https://cirrus-ci.com/github/<USER>/my_project
-    .. image:: https://readthedocs.org/projects/my_project/badge/?version=latest
+        :target: https://cirrus-ci.com/github/<USER>/SPACEc
+    .. image:: https://readthedocs.org/projects/SPACEc/badge/?version=latest
         :alt: ReadTheDocs
-        :target: https://my_project.readthedocs.io/en/stable/
-    .. image:: https://img.shields.io/coveralls/github/<USER>/my_project/main.svg
+        :target: https://SPACEc.readthedocs.io/en/stable/
+    .. image:: https://img.shields.io/coveralls/github/<USER>/SPACEc/main.svg
         :alt: Coveralls
-        :target: https://coveralls.io/r/<USER>/my_project
-    .. image:: https://img.shields.io/pypi/v/my_project.svg
+        :target: https://coveralls.io/r/<USER>/SPACEc
+    .. image:: https://img.shields.io/pypi/v/SPACEc.svg
         :alt: PyPI-Server
-        :target: https://pypi.org/project/my_project/
-    .. image:: https://img.shields.io/conda/vn/conda-forge/my_project.svg
+        :target: https://pypi.org/project/SPACEc/
+    .. image:: https://img.shields.io/conda/vn/conda-forge/SPACEc.svg
         :alt: Conda-Forge
-        :target: https://anaconda.org/conda-forge/my_project
-    .. image:: https://pepy.tech/badge/my_project/month
+        :target: https://anaconda.org/conda-forge/SPACEc
+    .. image:: https://pepy.tech/badge/SPACEc/month
         :alt: Monthly Downloads
-        :target: https://pepy.tech/project/my_project
+        :target: https://pepy.tech/project/SPACEc
     .. image:: https://img.shields.io/twitter/url/http/shields.io.svg?style=social&label=Twitter
         :alt: Twitter
-        :target: https://twitter.com/my_project
+        :target: https://twitter.com/SPACEc
 
 .. image:: https://img.shields.io/badge/-PyScaffold-005CA0?logo=pyscaffold
     :alt: Project generated with PyScaffold
@@ -30,7 +30,7 @@
 |
 
 ==========
-my_project
+SPACEc
 ==========
 
 
