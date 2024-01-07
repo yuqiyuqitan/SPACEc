@@ -685,7 +685,7 @@ def hf_get_top_abs_correlations(df, thresh=0.5):
 
 ################
 # help to convert dataframe after denoising into anndata
-def hf_makeAnndata(
+def hf_make_anndata(
     df_nn,  # data frame coming out from denoising
     col_sum,  # this is the column index that has the last protein feature
     nonFuncAb_list,  # inspect which markers work, and drop the ones that did not work from the clustering step

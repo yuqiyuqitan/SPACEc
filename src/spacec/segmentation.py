@@ -216,7 +216,6 @@ def extract_features(image_dict, segmentation_masks, channels_to_quantify, outpu
     markers.to_csv(output_file)
 
 
-
 def overlay_masks_on_image(image, masks, gamma = 1.5):
     # Convert image to grayscale
     gray_image = rgb2gray(image)
@@ -269,6 +268,7 @@ def check_segmentation(overlay, grayscale, n=10, tilesize = 1000):
     plt.tight_layout()
     plt.show()
     
+
 # combine multiple channels in one image and add as new image to image_dict with the name segmentation_channel
 def combine_channels(image_dict, channel_list, new_channel_name):
     
@@ -411,8 +411,8 @@ def pl_segmentation_ch(
     ax[1].imshow(image_dict['segmentation_channel'])
     ax[0].set_title('nuclei')
     ax[1].set_title('membrane')
+    plt.show()
 
-    return fig
 
 # perform cell segmentation
 def tl_cell_segmentation(
@@ -509,18 +509,19 @@ def tl_cell_segmentation(
 
     return {'img':img, 'masks':masks, 'image_dict':image_dict}
 
-def pl_show_masks(seg_output, 
-                   nucleus_channel, 
-                   additional_channels = None,
-                   show_subsample = True,
-                   n=2, # need to be at least 2
-                  tilesize = 100,
-                  idx = 0,
-                  rand_seed = 1):
+
+def pl_show_masks(
+        seg_output, 
+        nucleus_channel, 
+        additional_channels = None,
+        show_subsample = True,
+        n=2, # need to be at least 2
+        tilesize = 100,
+        idx = 0,
+        rand_seed = 1):
 
     image_dict = seg_output['image_dict']
     masks = seg_output['masks']
-    
     
     # Create a combined image stack
     # Assumes nuclei_image and membrane_image are numpy arrays of the same shape
