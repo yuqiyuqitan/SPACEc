@@ -1,5 +1,6 @@
 # load required packages
 import os as os
+import pathlib
 import skimage
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -3343,20 +3344,22 @@ def pl_create_pie_charts_ad(
         plt.show()
 
 
-def pl_CN_exp_heatmap_ad(adata, 
-                         cluster_col, 
-                         cn_col, 
-                         palette=None, 
-                         figsize = (18,12),
-                         savefig=False,
-                         output_fname = "",
-                         output_dir = './',
-                         row_clus = True,
-                         col_clus = True,
-                         rand_seed = 1
-                        ):
+def pl_CN_exp_heatmap_ad(
+        adata, 
+        cluster_col, 
+        cn_col, 
+        palette=None, 
+        figsize = (18,12),
+        savefig=False,
+        output_fname = "",
+        output_dir = './',
+        row_clus = True,
+        col_clus = True,
+        rand_seed = 1
+    ):
     
     data = adata.obs
+    output_dir = pathlib.Path(output_dir)
    
     if palette is None:
         if cn_col + '_colors' not in adata.uns.keys():
@@ -3392,9 +3395,10 @@ def pl_CN_exp_heatmap_ad(adata,
     fc_2 = np.log2(((neigh_clusters+tissue_avgs)/(neigh_clusters+tissue_avgs).sum(axis = 1, keepdims = True))/tissue_avgs)
     fc_2 = pd.DataFrame(fc_2,columns = sum_cols2)
     fc_2.set_index(niche_df.index, inplace=True)
-    s=sns.clustermap(fc_2, vmin =-3,vmax = 3,cmap = 'bwr', figsize=figsize, row_colors=[neigh_data.reindex(fc_2.index)['color']],\
-                    cbar_pos=(0.03,0.06,0.03,0.1),
-                    )
+    s=sns.clustermap(
+        fc_2, vmin =-3,vmax = 3,cmap = 'bwr', figsize=figsize, row_colors=[neigh_data.reindex(fc_2.index)['color']],\
+        cbar_pos=(0.03,0.06,0.03,0.1),
+    )
 
     s.ax_row_dendrogram.set_visible(row_clus)
     s.ax_col_dendrogram.set_visible(col_clus)
@@ -3404,7 +3408,7 @@ def pl_CN_exp_heatmap_ad(adata,
     
     if savefig:
         s.figure.savefig(
-            output_dir + output_fname + "_cn_heatmap.pdf"
+            output_dir / (output_fname + "_cn_heatmap.pdf")
         )
 
 

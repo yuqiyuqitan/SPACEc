@@ -6,7 +6,7 @@
         - [ ] write all tests
     - [ ] modularize: pl (plot?), tl (tools), hp (helper), pp (preprocessing)
     - [ ] docs
-        - [ ] move docs to markdown
+        - [x] move docs to markdown
     - [ ] timings of notebooks
         - [ ] based on what data?
     - [ ] optional

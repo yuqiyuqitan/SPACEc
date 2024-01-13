@@ -1837,8 +1837,9 @@ def get_triangulation_distances(df_input, id,x_pos, y_pos, cell_type, region,
         num_cores = os.cpu_count() // 2  # default to using half of available cores
     
     # Parallel processing using joblib
-    results = Parallel(n_jobs=num_cores)(delayed(process_region)(df_input, reg, id, x_pos, y_pos, cell_type, region)
-                                         for reg in unique_regions)
+    results = Parallel(n_jobs=num_cores)(delayed(process_region)(
+        df_input, reg, id, x_pos, y_pos, cell_type, region)
+        for reg in unique_regions)
     
     triangulation_distances = pd.concat(results)
     
@@ -2300,8 +2301,11 @@ def plot_selected_neighbors_with_shapes(full_df, selected_df, target_df, radius,
 # generate a dataframe with the points in proximity to the selected points
 ## points are selected based on the coordinates of a 2D concave hull
 ### set edge_neighbours to 3 to select the 3 nearest points to the hull or 1 to disable functionality
-def identify_points_in_proximity(df, full_df, identification_column, cluster_column="cluster",\
-                                 x_column='x', y_column='y', radius=200, edge_neighbours=3, plot=True, concave_hull_length_threshold=50):
+def identify_points_in_proximity(
+        df, full_df, identification_column, cluster_column="cluster",
+        x_column='x', y_column='y', radius=200, edge_neighbours=3, 
+        plot=True, concave_hull_length_threshold=50):
+
     result_list = []
 
     # Loop through clusters in the DataFrame
@@ -2327,9 +2331,10 @@ def identify_points_in_proximity(df, full_df, identification_column, cluster_col
         hull_nearest_neighbors = df.iloc[indices.flatten()]
 
         # Plot selected neighbors and get the DataFrame with different clusters in the circle
-        prox_points = plot_selected_neighbors_with_shapes(full_df=full_df, \
-                                                          selected_df=hull_nearest_neighbors, target_df=full_df, \
-                                                          radius=radius, plot=plot, identification_column=identification_column)
+        prox_points = plot_selected_neighbors_with_shapes(
+            full_df=full_df, \
+            selected_df=hull_nearest_neighbors, target_df=full_df, \
+            radius=radius, plot=plot, identification_column=identification_column)
 
         # Add a 'patch_id' column to identify the cluster
         prox_points['patch_id'] = cluster
@@ -2346,22 +2351,23 @@ def identify_points_in_proximity(df, full_df, identification_column, cluster_col
     return result
 
 # This function answers the what is in proximity of this group. 
-def tl_patch_proximity_analysis(adata, 
-                             region_column, 
-                             patch_column,
-                             group, 
-                             min_samples=80, 
-                             x_column='x', 
-                             y_column='y', 
-                             radius = 128,
-                             edge_neighbours = 3, 
-                             plot = True,
-                             savefig = False,
-                             output_dir = "./",
-                             output_fname = "",
-                             key_name = 'ppa_result'
+def tl_patch_proximity_analysis(
+        adata, 
+        region_column, 
+        patch_column,
+        group, 
+        min_samples=80, 
+        x_column='x', 
+        y_column='y', 
+        radius = 128,
+        edge_neighbours = 3, 
+        plot = True,
+        savefig = False,
+        output_dir = "./",
+        output_fname = "",
+        key_name = 'ppa_result'
+    ):
 
-                            ):
     df = adata.obs
     
     for col in df.select_dtypes(['category']).columns:
@@ -2392,9 +2398,10 @@ def tl_patch_proximity_analysis(adata,
             else:
                 plt.show()
             
-        results = identify_points_in_proximity(df = df_community, full_df= df_region, cluster_column = "cluster", 
-                                               identification_column = patch_column, x_column=x_column, y_column=y_column, 
-                                               radius = radius,edge_neighbours = edge_neighbours, plot = plot)
+        results = identify_points_in_proximity(
+            df = df_community, full_df= df_region, cluster_column = "cluster", 
+            identification_column = patch_column, x_column=x_column, y_column=y_column, 
+            radius = radius, edge_neighbours = edge_neighbours, plot = plot)
             
         print(f"Finished {region}_{group}")
             
@@ -2405,7 +2412,10 @@ def tl_patch_proximity_analysis(adata,
     final_results = pd.concat(region_results)
     
     # generate new column named unique_patch_ID that combines the region, group and patch ID
-    final_results["unique_patch_ID"] = final_results[region_column] + "_" + final_results[patch_column] + "_" + "patch_no_" + final_results["patch_id"].astype(str)
+    final_results["unique_patch_ID"] = final_results[region_column] \
+        + "_" + final_results[patch_column] \
+        + "_" + "patch_no_" \
+        + final_results["patch_id"].astype(str)
     
     adata.uns[key_name] = final_results
 

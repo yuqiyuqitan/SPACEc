@@ -7,7 +7,6 @@ TEST_DIR = pathlib.Path(__file__).parent
 def test_4_cellular_neighborhood_analysis():
 
     # Set up environment
-    import os
     import scanpy as sc
 
     from spacec.tools_tl import \
@@ -26,6 +25,12 @@ def test_4_cellular_neighborhood_analysis():
     with TemporaryDirectory() as output_dir:
 
         sc.settings.set_figure_params(dpi=80, facecolor='white')
+
+        # output_dir = pathlib.Path("tests/_out")
+        # output_dir.mkdir(exist_ok=True, parents=True)
+
+        output_path = pathlib.Path(output_dir)
+
 
         # Loading the denoise/filtered anndata from notebook 3 [cell type or cluster annotation is necessary for the step]
         adata = sc.read(processed_path / 'adata_nn_demo_annotated.h5ad')
@@ -61,7 +66,7 @@ def test_4_cellular_neighborhood_analysis():
             palette=cn_palette,
             figsize=(10,8),
             savefig = False,
-            output_dir = output_dir,
+            output_dir = output_path,
             rand_seed = 1
         )
 
@@ -74,7 +79,7 @@ def test_4_cellular_neighborhood_analysis():
             X='x', Y='y',
             palette= cn_palette, 
             savefig=False,
-            output_dir=output_dir,
+            output_dir=output_path,
         )
 
         # %%
@@ -101,18 +106,19 @@ def test_4_cellular_neighborhood_analysis():
             for key, value in cn_palette.items()}
 
         # replotting with CN annotation
-        pl_CN_exp_heatmap_ad(adata, 
-                            cluster_col = "celltype", 
-                            cn_col = "CN_k20_n6_annot",
-                            palette = cn_annt_palette, #if None, there is randomly generated in the code 
-                            savefig=True,
-                            figsize=(12,10),
-                            output_fname = "",
-                            output_dir = output_dir,
-                            )
+        pl_CN_exp_heatmap_ad(
+            adata, 
+            cluster_col = "celltype", 
+            cn_col = "CN_k20_n6_annot",
+            palette = cn_annt_palette, #if None, there is randomly generated in the code 
+            savefig=True,
+            figsize=(12,10),
+            output_fname = "",
+            output_dir = output_path,
+        )
 
         # %%
-        adata.write_h5ad(output_dir + 'adata_nn_demo_annotated_cn.h5ad')
+        adata.write_h5ad(output_path / 'adata_nn_demo_annotated_cn.h5ad')
 
         # %% [markdown]
         # ## 4.2 Spatial context maps
@@ -127,50 +133,54 @@ def test_4_cellular_neighborhood_analysis():
         # #### tonsil
 
         # %%
-        cnmap_dict_tonsil = tl_CNmap_ad(adata = adata_tonsil, # adata object
-                                            cn_col = "CN_k20_n6",# column with CNs
-                                            palette = None, # color dictionary
-                                            unique_region = 'region_num',# column with unique regions
-                                            k = 70, # number of neighbors
-                                            X='x', Y='y',  # coordinates
-                                            threshold = 0.85, # threshold for percentage of cells in CN
-                                            per_keep_thres = 0.85,) # threshold for percentage of cells in CN
+        cnmap_dict_tonsil = tl_CNmap_ad(
+            adata = adata_tonsil, # adata object
+            cn_col = "CN_k20_n6",# column with CNs
+            palette = None, # color dictionary
+            unique_region = 'region_num',# column with unique regions
+            k = 70, # number of neighbors
+            X='x', Y='y',  # coordinates
+            threshold = 0.85, # threshold for percentage of cells in CN
+            per_keep_thres = 0.85,) # threshold for percentage of cells in CN
 
         # %%
         # Compute for the frequency of the CNs and paly around with the threshold
-        pl_CNmap(cnmap_dict = cnmap_dict_tonsil,
-                adata = adata_tonsil,
-                cn_col = "CN_k20_n6",
-                palette = None,
-                figsize=(40, 20),
-                savefig=False,
-                output_fname = "",
-                output_dir= output_dir
-            )
+        pl_CNmap(
+            cnmap_dict = cnmap_dict_tonsil,
+            adata = adata_tonsil,
+            cn_col = "CN_k20_n6",
+            palette = None,
+            figsize=(40, 20),
+            savefig=False,
+            output_fname = "",
+            output_dir= output_path
+        )
 
         # %% [markdown]
         # ### tonsillitis
 
         # %%
-        cnmap_dict_tonsillitis = tl_CNmap_ad(adata = adata_tonsillitis, # adata object
-                                            cn_col = "CN_k20_n6",# column with CNs
-                                            palette = None, # color dictionary
-                                            unique_region = 'region_num',# column with unique regions
-                                            k = 70, # number of neighbors
-                                            X='x', Y='y',  # coordinates
-                                            threshold = 0.85, # threshold for percentage of cells in CN
-                                            per_keep_thres = 0.85,) # threshold for percentage of cells in CN
+        cnmap_dict_tonsillitis = tl_CNmap_ad(
+            adata = adata_tonsillitis, # adata object
+            cn_col = "CN_k20_n6",# column with CNs
+            palette = None, # color dictionary
+            unique_region = 'region_num',# column with unique regions
+            k = 70, # number of neighbors
+            X='x', Y='y',  # coordinates
+            threshold = 0.85, # threshold for percentage of cells in CN
+            per_keep_thres = 0.85,) # threshold for percentage of cells in CN
 
         # %%
-        pl_CNmap(cnmap_dict = cnmap_dict_tonsillitis,
-                adata = adata_tonsillitis,
-                cn_col = "CN_k20_n6",
-                palette = None,
-                figsize=(40, 20),
-                savefig=False,
-                output_fname = "",
-                output_dir= output_dir
-            )
+        pl_CNmap(
+            cnmap_dict = cnmap_dict_tonsillitis,
+            adata = adata_tonsillitis,
+            cn_col = "CN_k20_n6",
+            palette = None,
+            figsize=(40, 20),
+            savefig=False,
+            output_fname = "",
+            output_dir= output_path
+        )
 
 if __name__ == '__main__':
     test_4_cellular_neighborhood_analysis()
