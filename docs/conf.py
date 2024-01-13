@@ -72,13 +72,32 @@ extensions = [
     "sphinx.ext.ifconfig",
     "sphinx.ext.mathjax",
     "sphinx.ext.napoleon",
+    "sphinx_rtd_theme",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
 
+
+# Enable markdown
+extensions.append("myst_parser")
+
+# Configure MyST-Parser
+myst_enable_extensions = [
+    "amsmath",
+    "colon_fence",
+    "deflist",
+    "dollarmath",
+    "html_image",
+    "linkify",
+    "replacements",
+    "smartquotes",
+    "substitution",
+    "tasklist",
+]
+
 # The suffix of source filenames.
-source_suffix = ".rst"
+source_suffix = [".rst", ".md"]
 
 # The encoding of source files.
 # source_encoding = 'utf-8-sig'
@@ -87,8 +106,8 @@ source_suffix = ".rst"
 master_doc = "index"
 
 # General information about the project.
-project = "spacec"
-copyright = "2023, yuqiyuqitan"
+project = "SPACEc"
+copyright = "2024, yuqiyuqitan"
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -153,7 +172,7 @@ todo_emit_warnings = True
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-html_theme = "alabaster"
+html_theme = "sphinx_rtd_theme"
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
@@ -229,7 +248,7 @@ html_static_path = ["_static"]
 # html_file_suffix = None
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = "spacec-doc"
+htmlhelp_basename = "SPACEc-doc"
 
 
 # -- Options for LaTeX output ------------------------------------------------
@@ -246,7 +265,7 @@ latex_elements = {
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title, author, documentclass [howto/manual]).
 latex_documents = [
-    ("index", "user_guide.tex", "SPACEc Documentation", "yuqiyuqitan", "manual")
+    ("index", "user_guide.tex", "SPACEc Documentation", "mgbckr", "manual")
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
