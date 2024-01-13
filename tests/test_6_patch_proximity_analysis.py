@@ -31,10 +31,10 @@ def test_6_patch_proximity_analysis():
         region_column = "unique_region", 
         patch_column = "CN_k20_n6_annot", 
         group="Germinal center",
-        min_samples=5, 
+        min_samples=5, # TODO: this break if we don't have no clusters!
         x_column='x', y_column='y', 
         radius = 128,
-        edge_neighbours = 3,
+        edge_neighbours = 3, 
         key_name = 'ppa_result',
         plot = True)
 
