@@ -16,13 +16,15 @@ finally:
     del version, PackageNotFoundError
 
 
-# from . import plotting as pl
-# from . import preprocessing as pp
-# from . import tools as tl
+from . import preprocessing as pp
+from . import tools as tl
+from . import helperfunctions as hf
+from . import plotting as pl
 
-# __all__ = [
-#     "__version__",
-#     "pl",
-#     "pp",
-#     "tl",
-# ]
+__all__ = [
+    "__version__",
+    "pp",
+    "tl",
+    "hf",
+    "pl",
+]

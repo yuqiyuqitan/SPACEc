@@ -8,13 +8,7 @@ def test_5_distance_permutation_analysis():
 
     # Set up environment
     import scanpy as sc
-
-    from spacec.tools.tools_tl import \
-        tl_identify_interactions_ad,\
-        tl_filter_interactions
-        
-    from spacec.plotting.plot_pl import \
-        pl_dumbbell
+    import spacec as sp
 
     import matplotlib
     matplotlib.use('Agg')
@@ -33,7 +27,7 @@ def test_5_distance_permutation_analysis():
         # ## 5.1 Identify potential interactions
 
         # %%
-        distance_pvals = tl_identify_interactions_ad(
+        distance_pvals = sp.tl.tl_identify_interactions_ad(
             adata = adata, 
             id = "index", 
             x_pos = "x", 
@@ -50,7 +44,7 @@ def test_5_distance_permutation_analysis():
         # Identify significant cell-cell interactions
         # dist_table_filt is a simplified table used for plotting
         # dist_data_filt contains the filtered raw data with more information about the pairs
-        dist_table_filt, dist_data_filt = tl_filter_interactions(
+        dist_table_filt, dist_data_filt = sp.tl.tl_filter_interactions(
             distance_pvals = distance_pvals,
             pvalue = 0.05,
             logfold_group_abs = 0.1)
@@ -59,7 +53,7 @@ def test_5_distance_permutation_analysis():
         dist_data_filt.head()
 
         # %%
-        pl_dumbbell(
+        sp.pl.pl_dumbbell(
             data = dist_table_filt, figsize=(10,10), colors = ['#DB444B', '#006BA2'])
 
 

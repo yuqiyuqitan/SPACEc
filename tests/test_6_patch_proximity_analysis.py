@@ -8,12 +8,7 @@ def test_6_patch_proximity_analysis():
 
     # Set up environment
     import scanpy as sc
-
-    from spacec.tools.tools_tl import \
-        tl_patch_proximity_analysis
-        
-    from spacec.plotting.plot_pl import \
-        pl_count_patch_proximity_res
+    import spacec as sp
 
     import matplotlib
     matplotlib.use('Agg')
@@ -26,7 +21,7 @@ def test_6_patch_proximity_analysis():
 
     # %%
     # this region result is also saved to adata.uns
-    region_results = tl_patch_proximity_analysis(
+    region_results = sp.tl.tl_patch_proximity_analysis(
         adata, 
         region_column = "unique_region", 
         patch_column = "CN_k20_n6_annot", 
@@ -40,7 +35,7 @@ def test_6_patch_proximity_analysis():
 
     # %%
     # plot the result to see the cell types enriched around the edge of the patches
-    pl_count_patch_proximity_res(
+    sp.pl.pl_count_patch_proximity_res(
         adata, 
         x="celltype_fine", 
         hue="condition", 

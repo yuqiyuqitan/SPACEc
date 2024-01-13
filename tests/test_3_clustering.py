@@ -12,15 +12,7 @@ def test_3_clustering():
     import pathlib
     import pandas as pd
     import scanpy as sc
-
-    # tools - perform calculation on the data KEY: tl
-    from spacec.tools.tools_tl import tl_clustering
-
-    # plotting functions - used to visualize results KEY: pl
-    from spacec.plotting.plot_pl import \
-        pl_catplot_ad, \
-        pl_stacked_bar_plot_ad, \
-        pl_create_pie_charts_ad
+    import spacec as sp
 
     import matplotlib
     matplotlib.use('Agg')
@@ -54,7 +46,7 @@ def test_3_clustering():
             'MCT', 'CD138', 'GranzymeB', 'IDO-1', 'CD45', 'CollagenIV', 'Arginase-1']
 
         # clustering
-        adata = tl_clustering(
+        adata = sp.tl.tl_clustering(
             adata, 
             clustering='leiden', # can choose between leiden and louvian
             n_neighbors=10,
@@ -228,7 +220,7 @@ def test_3_clustering():
 
         # ## 3.5 Single-cell visualzation
 
-        pl_catplot_ad(
+        sp.pl.pl_catplot_ad(
             adata, 
             color = "celltype_fine", # specify group column name here (e.g. celltype_fine)
             unique_region = "condition", # specify unique_regions here
@@ -241,7 +233,7 @@ def test_3_clustering():
         )
 
         # cell type percentage tab and visualization [much few]
-        ct_perc_tab, _ = pl_stacked_bar_plot_ad(
+        ct_perc_tab, _ = sc.pl.pl_stacked_bar_plot_ad(
             adata = adata, # adata object to use 
             color = 'celltype_fine', # column containing the categories that are used to fill the bar plot
             grouping = 'condition', # column containing a grouping variable (usually a condition or cell group) 
@@ -253,7 +245,7 @@ def test_3_clustering():
             norm = False # if True, then whatever plotted will be scaled to sum of 1
         )
 
-        pl_create_pie_charts_ad(
+        sc.pl.pl_create_pie_charts_ad(
             adata,
             color = "celltype_fine", 
             grouping = "condition", 

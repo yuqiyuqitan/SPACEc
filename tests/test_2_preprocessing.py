@@ -11,26 +11,9 @@ def test_2_preprocessing():
     import matplotlib
     matplotlib.use('Agg')
 
-    # silencing warnings
-    import warnings
-    warnings.filterwarnings('ignore')
-
-    # Helper functions - used by other functions to execute steps like table formatting etc. KEY: hf
-    from spacec.helperfunctions.helperfunctions_hf import \
-        hf_make_anndata
-
-    # Preprocessing functions - to normalize and prepare data for further analysis KEY: pp
-    from spacec.preprocessing.preprocessing_pp import \
-        pp_read_segdf, \
-        pp_filter_data, \
-        pp_format, \
-        pp_remove_noise
+    import spacec as sp
 
     # plotting functions - used to visualize results KEY: pl
-    from spacec.plotting.plot_pl import \
-        pl_zcount_thres, \
-        pl_coordinates_on_image
-
     data_path = TEST_DIR / 'data' # where the data is stored
     overlay_path = TEST_DIR / 'data/processed/tonsil/1'
 
@@ -48,7 +31,7 @@ def test_2_preprocessing():
         # Read and concatenate the csv files (outputs from the cell segmentation algorithms). 
 
         #read in segmentation csv files
-        df_seg = pp_read_segdf(
+        df_seg = sp.pp.pp_read_segdf(
             segfile_list = [
                 data_path / "processed/cellseg/reg010_X01_Y01_Z01_compensated.csv", 
                 data_path / "processed/cellseg/reg001_X01_Y01_Z01_compensated.csv"
@@ -67,7 +50,7 @@ def test_2_preprocessing():
 
         # If necessary filter the dataframe to remove too small objects or cells without a nucleus. 
 
-        df_filt = pp_filter_data(
+        df_filt = sp.pp.pp_filter_data(
             df_seg, 
             nuc_thres=1,
             size_thres=one_percent_area,
@@ -80,7 +63,7 @@ def test_2_preprocessing():
         # Normalize data with one of the four available methods (zscore as default)
 
         # This is to normalize the data 
-        dfz = pp_format(
+        dfz = sp.pp.pp_format(
             data=df_filt, 
             list_out=['cell_id', 'tile_num', 'z', 'x_tile', 'y_tile'], 
             # in case of other segmentation methods: ['eccentricity', 'perimeter', 'convex_area', 'axis_major_length', 'axis_minor_length', "first_index", "filename", "label"]
@@ -96,7 +79,7 @@ def test_2_preprocessing():
 
         # This function helps to figure out what the cut-off should be
         # This is to remove top 1 % of all cells that are highly expressive for all antibodies
-        pl_zcount_thres(
+        sp.pl.pl_zcount_thres(
             dfz = dfz, 
             col_num = col_num_last_marker, # last antibody index
             cut_off=0.01, #top 1% of cells
@@ -104,7 +87,7 @@ def test_2_preprocessing():
 
         # This step removes the remaining noisy cells from the analysis
 
-        df_nn, cc = pp_remove_noise(
+        df_nn, cc = sp.pp.pp_remove_noise(
             df=dfz, 
             col_num=col_num_last_marker, # this is the column index that has the last protein feature
             z_count_thres=51, # number obtained from the function above
@@ -122,7 +105,7 @@ def test_2_preprocessing():
 
         # inspect which markers work, and drop the ones that did not work from the clustering step
         # make an anndata to be compatible with the downstream clustering step
-        adata = hf_make_anndata(
+        adata = sp.hf.hf_make_anndata(
             df_nn = df_nn,
             col_sum = col_num_last_marker, # this is the column index that has the last protein feature # the rest will go into obs
             nonFuncAb_list = [] # Remove the antibodies that are not working
@@ -137,7 +120,7 @@ def test_2_preprocessing():
         with open(overlay_path / 'overlay_tonsil1.pickle', 'rb') as f:
             overlay_data1 = pickle.load(f)
 
-        pl_coordinates_on_image(
+        sp.pl.pl_coordinates_on_image(
             df = df_nn.loc[df_nn['unique_region'] == 'reg010',:], 
             overlay_data = overlay_data1, color='area',  
             scale=False, # whether to scale to 1 or not

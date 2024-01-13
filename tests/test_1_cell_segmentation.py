@@ -18,8 +18,9 @@ def test_cell_segmentation():
         # output_dir.mkdir(exist_ok=True, parents=True)
 
         print("Segmentation CH")
-        from spacec.segmentation import pl_segmentation_ch
-        pl_segmentation_ch(
+        import spacec as sp
+
+        sp.pl.pl_segmentation_ch(
             # image for segmentation
             file_name = data_path / 'raw/tonsil/1/reg010_X01_Y01_Z01.tif',
             # all channels used for staining
@@ -32,11 +33,10 @@ def test_cell_segmentation():
         )
 
         print("Cell Segmentation")
-        from spacec.segmentation import tl_cell_segmentation
         # choose between cellpose or mesmer for segmentation
         # first image
         # seg_output contains {'img': img, 'image_dict': image_dict, 'masks': masks}
-        seg_output1 = tl_cell_segmentation(
+        seg_output1 = sp.tl.tl_cell_segmentation(
             file_name = data_path / 'raw/tonsil/1/reg010_X01_Y01_Z01.tif',
             channel_file = data_path / 'raw/tonsil/channelnames.txt',
             output_dir = output_dir,
@@ -49,8 +49,7 @@ def test_cell_segmentation():
             size_cutoff = 0)
         
         print("Show Masks")
-        from spacec.segmentation import pl_show_masks
-        overlay_data1, rgb_images1 = pl_show_masks(
+        overlay_data1, rgb_images1 = sp.pl.pl_show_masks(
             seg_output=seg_output1,
             nucleus_channel = 'DAPI', # channel used for nuclei segmentation (displayed in blue)
             additional_channels = ["CD45", "betaCatenin"], # additional channels to display (displayed in green - channels will be combined into one image)
