@@ -13,7 +13,7 @@ from scipy import stats
 from statsmodels.stats.multicomp import pairwise_tukeyhsd
 from tensorly.decomposition import non_negative_tucker
 
-from .helperfunctions_hf import *
+from ..helperfunctions.helperfunctions_hf import *
 
 # Setup
 sns.set_style("ticks")

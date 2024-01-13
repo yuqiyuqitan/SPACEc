@@ -16,18 +16,18 @@ def test_2_preprocessing():
     warnings.filterwarnings('ignore')
 
     # Helper functions - used by other functions to execute steps like table formatting etc. KEY: hf
-    from spacec.helperfunctions_hf import \
+    from spacec.helperfunctions.helperfunctions_hf import \
         hf_make_anndata
 
     # Preprocessing functions - to normalize and prepare data for further analysis KEY: pp
-    from spacec.preprocessing_pp import \
+    from spacec.preprocessing.preprocessing_pp import \
         pp_read_segdf, \
         pp_filter_data, \
         pp_format, \
         pp_remove_noise
 
     # plotting functions - used to visualize results KEY: pl
-    from spacec.plot_pl import \
+    from spacec.plotting.plot_pl import \
         pl_zcount_thres, \
         pl_coordinates_on_image
 

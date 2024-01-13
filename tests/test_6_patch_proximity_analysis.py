@@ -9,10 +9,10 @@ def test_6_patch_proximity_analysis():
     # Set up environment
     import scanpy as sc
 
-    from spacec.tools_tl import \
+    from spacec.tools.tools_tl import \
         tl_patch_proximity_analysis
         
-    from spacec.plot_pl import \
+    from spacec.plotting.plot_pl import \
         pl_count_patch_proximity_res
 
     import matplotlib

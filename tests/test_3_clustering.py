@@ -14,10 +14,10 @@ def test_3_clustering():
     import scanpy as sc
 
     # tools - perform calculation on the data KEY: tl
-    from spacec.tools_tl import tl_clustering
+    from spacec.tools.tools_tl import tl_clustering
 
     # plotting functions - used to visualize results KEY: pl
-    from spacec.plot_pl import \
+    from spacec.plotting.plot_pl import \
         pl_catplot_ad, \
         pl_stacked_bar_plot_ad, \
         pl_create_pie_charts_ad

@@ -9,10 +9,10 @@ def test_4_cellular_neighborhood_analysis():
     # Set up environment
     import scanpy as sc
 
-    from spacec.tools_tl import \
+    from spacec.tools.tools_tl import \
         tl_neighborhood_analysis_ad,\
         tl_CNmap_ad
-    from spacec.plot_pl import \
+    from spacec.plotting.plot_pl import \
         pl_CN_exp_heatmap_ad,\
         pl_catplot_ad,\
         pl_CNmap

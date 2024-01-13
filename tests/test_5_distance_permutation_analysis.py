@@ -9,11 +9,11 @@ def test_5_distance_permutation_analysis():
     # Set up environment
     import scanpy as sc
 
-    from spacec.tools_tl import \
+    from spacec.tools.tools_tl import \
         tl_identify_interactions_ad,\
         tl_filter_interactions
         
-    from spacec.plot_pl import \
+    from spacec.plotting.plot_pl import \
         pl_dumbbell
 
     import matplotlib

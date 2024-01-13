@@ -27,7 +27,7 @@ import concave_hull
 from concave_hull import concave_hull_indexes
 from sklearn.cluster import HDBSCAN
 
-from .helperfunctions_hf import *
+from ..helperfunctions.helperfunctions_hf import *
 
 # Tools
 ############################################################
