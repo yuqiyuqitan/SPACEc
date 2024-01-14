@@ -26,6 +26,10 @@ import scipy.stats as st
 import concave_hull
 from concave_hull import concave_hull_indexes
 from sklearn.cluster import HDBSCAN
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.svm import SVC
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import classification_report, f1_score
 
 from helperfunctions_hf import *
 
@@ -2398,4 +2402,52 @@ def tl_patch_proximity_analysis(adata,
     adata.uns[key_name] = final_results
 
     return final_results
+
+
+def tl_ml_train(adata_train, 
+                label, 
+                test_size =0.33,
+                random_state = 0,
+                model = 'svm',
+                showfig = True):
+    X = pd.DataFrame(adata_train.X)
+    y = adata_train.obs[label].values
+    X_train, X_test, y_train, y_test = train_test_split(X, y,  test_size=test_size, random_state=random_state)
+
+    print("Training now!")
+    svc = SVC(kernel = 'linear',probability=True)
+    svc.fit(X_train, y_train)
+    pred = []
+    y_prob = svc.predict_proba(X_test)
+    y_prob = pd.DataFrame(y_prob)
+    y_prob.columns = svc.classes_
+    
+    svm_label = y_prob.idxmax(axis=1, skipna=True)
+    target_names = svc.classes_
+    print("Evaluating now!")
+    svm_eval = classification_report(y_true = y_test, y_pred = svm_label, target_names=target_names,output_dict=True)
+    if showfig:
+        sns.heatmap(pd.DataFrame(svm_eval).iloc[:-1, :].T, annot=True)
+        plt.show()
+
+    return svc
+
+def tl_ml_predict(adata_val,
+                  svc,
+                 save_name = "svm_pred",
+                 return_prob_mat = False):
+    print("Classifying!")
+    X_val = pd.DataFrame(adata_val.X)
+    y_prob_val = svc.predict_proba(X_val)
+    y_prob_val = pd.DataFrame(y_prob_val)
+    y_prob_val.columns = svc.classes_
+    svm_label_val = y_prob_val.idxmax(axis=1, skipna=True)
+    svm_label_val.index = X_val.index
+    print("Saving cell type labels to adata!")
+    adata_val.obs[save_name] = svm_label_val.values
+    if return_prob_mat:
+        print("Returning probability matrix!")
+        y_prob_val.columns = svc.classes_
+        svm_label_val = y_prob_val.idxmax(axis=1, skipna=True)
+        return svm_label_val
     
