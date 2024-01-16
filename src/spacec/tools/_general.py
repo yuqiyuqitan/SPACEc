@@ -2431,10 +2431,23 @@ def tl_ml_train(adata_train,
                 test_size =0.33,
                 random_state = 0,
                 model = 'svm',
+                nan_policy_y='raise',
                 showfig = True):
     X = pd.DataFrame(adata_train.X)
     y = adata_train.obs[label].values
+
+    if nan_policy_y == 'omit':
+        y_msk = ~y.isna()
+        X = X[y_msk]
+        y = y[y_msk]
+    elif nan_policy_y == 'raise':
+        pass
+    else:
+        raise ValueError("nan_policy_y must be either 'omit' or 'raise'")
+
     X_train, X_test, y_train, y_test = train_test_split(X, y,  test_size=test_size, random_state=random_state)
+
+    print(y.unique().sort_values())
 
     print("Training now!")
     svc = SVC(kernel = 'linear',probability=True)

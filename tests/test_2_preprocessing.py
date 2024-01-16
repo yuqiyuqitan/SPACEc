@@ -13,12 +13,10 @@ def test_2_preprocessing():
 
     import spacec as sp
 
-    # plotting functions - used to visualize results KEY: pl
     data_path = TEST_DIR / 'data' # where the data is stored
     overlay_path = TEST_DIR / 'data/processed/tonsil/1'
 
     # where you want to store the output
-
     with TemporaryDirectory() as output_dir:
 
         # output_dir = pathlib.Path("tests/_out")
