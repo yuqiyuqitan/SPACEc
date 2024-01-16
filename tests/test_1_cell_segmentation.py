@@ -49,7 +49,7 @@ def test_cell_segmentation():
             size_cutoff = 0)
         
         print("Show Masks")
-        overlay_data1, rgb_images1 = sp.pl.pl_show_masks(
+        overlay_data1, rgb_images1 = sp.pl.show_masks(
             seg_output=seg_output1,
             nucleus_channel = 'DAPI', # channel used for nuclei segmentation (displayed in blue)
             additional_channels = ["CD45", "betaCatenin"], # additional channels to display (displayed in green - channels will be combined into one image)

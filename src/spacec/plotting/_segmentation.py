@@ -46,7 +46,7 @@ def pl_segmentation_ch(
 
 
 
-def pl_show_masks(
+def show_masks(
         seg_output, 
         nucleus_channel, 
         additional_channels = None,
