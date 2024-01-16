@@ -12,6 +12,7 @@
         - [ ] **Yuqi:** some stuff plots even though it is not called `pl`!
     - [ ] docs
         - [x] move docs to markdown
+        - [ ] tutorial notebooks
     - [ ] timings of notebooks
         - [ ] based on what data?
     - [ ] optional
