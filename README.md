@@ -6,7 +6,7 @@ conda create -n sap python==3.8.0
 pip install deepcell cellpose
 
 conda install glob2 matplotlib numpy pandas scanpy seaborn scipy networkx tensorly statsmodels scikit-learn yellowbrick joblib tifffile tensorflow
-
+conda install anaconda::graphviz
 conda install -c conda-forge scikit-image
 pip install leidenalg concave-hull==0.0.6
 ```
