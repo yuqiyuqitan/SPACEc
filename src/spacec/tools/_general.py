@@ -79,127 +79,6 @@ def tl_Shan_div(data, sub_l, group_com, per_categ, rep, sub_column, normalize=Tr
     return tt, test_results, res
 
 
-#############
-
-"""
-The tl_neighborhood_analysis_2 function performs neighborhood analysis on single-cell data. It takes in data as input along with values, sum_cols, X and Y coordinates, reg, cluster_col, k, n_neighborhoods, and calc_silhouette_score as arguments. 
-The function first groups cells into neighborhoods, calculates cluster centroids, and assigns cells to neighborhoods based on the nearest centroid. 
-If calc_silhouette_score is True, it also returns the silhouette score. Finally, it returns the cell data with neighborhood labels and the cluster centroids.
-
-The windows variable is used to store the data after grouping cells into neighborhoods. Each window represents a neighborhood and contains the values of a certain number of neighboring cells.
-
-The function creates windows by grouping cells based on their location and a user-specified k value, which determines the number of neighbors to consider. It then calculates the sum of specified columns for each window.
-
-The windows are stored in a dictionary called out_dict, with keys consisting of tuples (tissue_name, k) and values consisting of a numpy array with the summed column values for that window and a list of indices indicating the cells that were used to create that window.
-
-After all windows have been created, the function combines them into a single DataFrame called window by concatenating the arrays for each tissue and adding the original cell indices as row indices. 
-This DataFrame is then combined with the original cell DataFrame to produce a new DataFrame that includes a neighborhood label column called neighborhood_name.
-
-The function also uses the windows dictionary to calculate the centroids of each neighborhood using k-means clustering. The centroids are stored in a dictionary called k_centroids, with keys consisting of the same k values used to create the windows.
-
-"""
-
-
-def tl_neighborhood_analysis_2(
-    data,
-    values,
-    sum_cols,
-    X="x",
-    Y="y",
-    reg="unique_region",
-    cluster_col="Cell Type",
-    k=35,
-    n_neighborhoods=30,
-    elbow=False,
-    metric="distortion",
-):
-    cells = data.copy()
-
-    neighborhood_name = "neighborhood" + str(k)
-
-    keep_cols = [X, Y, reg, cluster_col]
-
-    n_neighbors = k
-
-    cells[reg] = cells[reg].astype("str")
-
-    # Get each region
-    tissue_group = cells[[X, Y, reg]].groupby(reg)
-    exps = list(cells[reg].unique())
-    tissue_chunks = [
-        (time.time(), exps.index(t), t, a)
-        for t, indices in tissue_group.groups.items()
-        for a in np.array_split(indices, 1)
-    ]
-
-    tissues = [
-        hf_get_windows(job, n_neighbors, exps=exps, tissue_group=tissue_group, X=X, Y=Y)
-        for job in tissue_chunks
-    ]
-
-    # Loop over k to compute neighborhoods
-    out_dict = {}
-
-    for neighbors, job in zip(tissues, tissue_chunks):
-        chunk = np.arange(len(neighbors))  # indices
-        tissue_name = job[2]
-        indices = job[3]
-        window = (
-            values[neighbors[chunk, :k].flatten()]
-            .reshape(len(chunk), k, len(sum_cols))
-            .sum(axis=1)
-        )
-        out_dict[(tissue_name, k)] = (window.astype(np.float16), indices)
-
-    windows = {}
-
-    window = pd.concat(
-        [
-            pd.DataFrame(
-                out_dict[(exp, k)][0],
-                index=out_dict[(exp, k)][1].astype(int),
-                columns=sum_cols,
-            )
-            for exp in exps
-        ],
-        0,
-    )
-    window = window.loc[cells.index.values]
-    window = pd.concat([cells[keep_cols], window], 1)
-    windows[k] = window
-
-    # Fill in based on above
-    k_centroids = {}
-
-    # producing what to plot
-    windows2 = windows[k]
-    windows2[cluster_col] = cells[cluster_col]
-
-    if elbow != True:
-        km = MiniBatchKMeans(n_clusters=n_neighborhoods, random_state=0)
-
-        labels = km.fit_predict(windows2[sum_cols].values)
-        k_centroids[k] = km.cluster_centers_
-        cells[neighborhood_name] = labels
-
-    else:
-        km = MiniBatchKMeans(random_state=0)
-
-        X = windows2[sum_cols].values
-
-        labels = km.fit_predict(X)
-        k_centroids[k] = km.cluster_centers_
-        cells[neighborhood_name] = labels
-
-        visualizer = KElbowVisualizer(
-            km, k=(n_neighborhoods), timings=False, metric=metric
-        )
-        visualizer.fit(X)  # Fit the data to the visualizer
-        visualizer.show()  # Finalize and render the figure
-
-    return (cells, k_centroids)
-
-
 ############
 """
 The function tl_cell_types_de performs differential enrichment analysis for various cell subsets between different neighborhoods using linear regression. 
@@ -1397,7 +1276,7 @@ def tl_clustering_ad(
         return adata_tmp
 
 
-def tl_neighborhood_analysis_ad(
+def neighborhood_analysis_ad(
     adata,
     unique_region,
     cluster_col,
@@ -1516,7 +1395,7 @@ def tl_neighborhood_analysis_ad(
     return adata
 
 
-def tl_CNmap_ad(
+def cn_map_ad(
     adata,
     cn_col,
     unique_region,
@@ -2106,7 +1985,7 @@ def tl_filter_interactions(distance_pvals,
     return dist_table, distance_pvals_sig_sub
 
 
-def tl_identify_interactions_ad(adata,
+def identify_interactions_ad(adata,
                                 id, 
                                 x_pos, 
                                 y_pos, 

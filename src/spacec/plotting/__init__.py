@@ -6,7 +6,7 @@ from ._general import \
     coordinates_on_image,\
     stacked_bar_plot_ad,\
     create_pie_charts_ad,\
-    CN_exp_heatmap_ad,\
+    cn_exp_heatmap_ad,\
     catplot_ad,\
     cn_map,\
     dumbbell,\
@@ -23,7 +23,7 @@ __all__ = [
     "catplot_ad",
     "stacked_bar_plot_ad",
     "create_pie_charts_ad",
-    "CN_exp_heatmap_ad",
+    "cn_exp_heatmap_ad",
     "catplot_ad",
     "cn_map",
     "dumbbell",

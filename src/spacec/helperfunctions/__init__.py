@@ -1,5 +1,5 @@
-from ._general import hf_make_anndata
+from ._general import make_anndata
 
 __all__ = [
-    "hf_make_anndata",
+    "make_anndata",
 ]

@@ -7,11 +7,14 @@
         - [ ] fix TODOs with Yuqi
     - [ ] modularize: pl (plot?), tl (tools), hp (helper), pp (preprocessing)
         - [x] initial modularization
-        - [ ] **Yuqi:** what is the difference between tools and helpers?
-            - [ ] helpers are "minor" function ... potentially arbitrary 
+        - [x] **Yuqi:** what is the difference between tools and helpers?
+            - helpers are "minor" function ... potentially arbitrary 
             - [ ] for now: any helper that is not used standalone move to tools
-        - [ ] **Yuqi:** segmentation stuff should be moved to different files?
-        - [ ] **Yuqi:** some stuff plots even though it is not called `pl`!
+        - [x] **Yuqi:** segmentation stuff should be moved to different files?
+            - modularization is appreciated :)
+        - [x] **Yuqi:** some stuff plots even though it is not called `pl`!
+            - optimally plotting code should not be in tool function
+            - or split into helpers/tools and plots
     - [ ] docs
         - [x] move docs to markdown
         - [ ] tutorial notebooks

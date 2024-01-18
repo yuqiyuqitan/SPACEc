@@ -3344,7 +3344,7 @@ def create_pie_charts_ad(
         plt.show()
 
 
-def CN_exp_heatmap_ad(
+def cn_exp_heatmap_ad(
         adata, 
         cluster_col, 
         cn_col, 

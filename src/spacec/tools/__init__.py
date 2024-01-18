@@ -3,9 +3,9 @@ from ._segmentation import \
 
 from ._general import \
     tl_clustering,\
-    tl_neighborhood_analysis_ad,\
-    tl_CNmap_ad,\
-    tl_identify_interactions_ad,\
+    neighborhood_analysis_ad,\
+    cn_map_ad,\
+    identify_interactions_ad,\
     tl_filter_interactions,\
     tl_patch_proximity_analysis,\
     tl_ml_train,\
@@ -17,9 +17,9 @@ __all__ = [
     
     # general
     "tl_clustering",
-    "tl_neighborhood_analysis_ad",
-    "tl_CNmap_ad",
-    "tl_identify_interactions_ad",
+    "neighborhood_analysis_ad",
+    "cn_map_ad",
+    "identify_interactions_ad",
     "tl_filter_interactions",
     "tl_patch_proximity_analysis",
     "tl_ml_train",\

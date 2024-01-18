@@ -103,7 +103,7 @@ def test_2_preprocessing():
 
         # inspect which markers work, and drop the ones that did not work from the clustering step
         # make an anndata to be compatible with the downstream clustering step
-        adata = sp.hf.hf_make_anndata(
+        adata = sp.hf.make_anndata(
             df_nn = df_nn,
             col_sum = col_num_last_marker, # this is the column index that has the last protein feature # the rest will go into obs
             nonFuncAb_list = [] # Remove the antibodies that are not working
