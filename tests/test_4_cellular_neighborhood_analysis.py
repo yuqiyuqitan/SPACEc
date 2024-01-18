@@ -52,7 +52,7 @@ def test_4_cellular_neighborhood_analysis():
         }
 
         # plot CN to see what cell types are enriched per CN so that we can annotate them better
-        sp.pl.pl_CN_exp_heatmap_ad(
+        sp.pl.CN_exp_heatmap_ad(
             adata, 
             cluster_col = "celltype_fine",
             cn_col = "CN_k20_n6",
@@ -65,7 +65,7 @@ def test_4_cellular_neighborhood_analysis():
 
         # %%
         # plot the CN in the spatial coordinates, using the same color palette
-        sp.pl.pl_catplot_ad(
+        sp.pl.catplot_ad(
             adata, 
             color = "CN_k20_n6", 
             unique_region = "unique_region",
@@ -99,7 +99,7 @@ def test_4_cellular_neighborhood_analysis():
             for key, value in cn_palette.items()}
 
         # replotting with CN annotation
-        sp.pl.pl_CN_exp_heatmap_ad(
+        sp.pl.CN_exp_heatmap_ad(
             adata, 
             cluster_col = "celltype", 
             cn_col = "CN_k20_n6_annot",
@@ -138,7 +138,7 @@ def test_4_cellular_neighborhood_analysis():
 
         # %%
         # Compute for the frequency of the CNs and paly around with the threshold
-        sp.pl.pl_CNmap(
+        sp.pl.cn_map(
             cnmap_dict = cnmap_dict_tonsil,
             adata = adata_tonsil,
             cn_col = "CN_k20_n6",
@@ -164,7 +164,7 @@ def test_4_cellular_neighborhood_analysis():
             per_keep_thres = 0.85,) # threshold for percentage of cells in CN
 
         # %%
-        sp.pl.pl_CNmap(
+        sp.pl.cn_map(
             cnmap_dict = cnmap_dict_tonsillitis,
             adata = adata_tonsillitis,
             cn_col = "CN_k20_n6",

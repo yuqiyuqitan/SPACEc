@@ -20,7 +20,7 @@ def test_cell_segmentation():
         print("Segmentation CH")
         import spacec as sp
 
-        sp.pl.pl_segmentation_ch(
+        sp.pl.segmentation_ch(
             # image for segmentation
             file_name = data_path / 'raw/tonsil/1/reg010_X01_Y01_Z01.tif',
             # all channels used for staining

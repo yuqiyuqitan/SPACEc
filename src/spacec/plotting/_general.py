@@ -2548,7 +2548,7 @@ def pl_comb_num_freq(data_list, plot_order=None, pal_tis=None, figsize=(5, 5)):
 ##########
 # this function helps to determine what threshold to use for remove noises
 # default cut off is top 1%
-def pl_zcount_thres(
+def zcount_thres(
     dfz, col_num, cut_off=0.01, count_bin=50, zsum_bin=50, figsize=(10, 5)
 ):
     dfz_copy = dfz
@@ -2694,7 +2694,7 @@ import pandas as pd
 import seaborn as sns
 
 
-def pl_catplot_ad(
+def catplot_ad(
     adata,
     color,
     unique_region,
@@ -2876,7 +2876,7 @@ def pl_generate_CN_comb_map(
         plt.show()
 
 
-def pl_stacked_bar_plot_ad(
+def stacked_bar_plot_ad(
     adata,
     color,
     grouping,
@@ -3246,7 +3246,7 @@ def pl_swarm_box_ad(
     return melt_per_plot
 
 
-def pl_create_pie_charts_ad(
+def create_pie_charts_ad(
     adata,
     color,
     grouping,
@@ -3344,7 +3344,7 @@ def pl_create_pie_charts_ad(
         plt.show()
 
 
-def pl_CN_exp_heatmap_ad(
+def CN_exp_heatmap_ad(
         adata, 
         cluster_col, 
         cn_col, 
@@ -3501,7 +3501,7 @@ def pl_plot_correlation_matrix(cmat):
     plt.show()
 
 
-def pl_dumbbell(data, figsize=(10,10), colors = ['#DB444B', '#006BA2']):
+def dumbbell(data, figsize=(10,10), colors = ['#DB444B', '#006BA2']):
     fig, ax = plt.subplots(figsize=figsize, facecolor = "white")
     #plot each country one at a time
 
@@ -3539,7 +3539,7 @@ def pl_dumbbell(data, figsize=(10,10), colors = ['#DB444B', '#006BA2']):
 
 
 
-def pl_CNmap(adata,
+def cn_map(adata,
     cnmap_dict,
     cn_col,
     palette = None,
@@ -3631,7 +3631,7 @@ def pl_CNmap(adata,
         plt.show()
 
 
-def pl_coordinates_on_image(df, 
+def coordinates_on_image(df, 
                             overlay_data, 
                             color= None, 
                             x ='x', y = 'y',
@@ -3687,7 +3687,7 @@ def pl_coordinates_on_image(df,
         plt.show()
 
 
-def pl_count_patch_proximity_res(adata, 
+def count_patch_proximity_res(adata, 
                            x, 
                            hue,
                            palette="Set3",

@@ -9,7 +9,7 @@ from deepcell.utils.plot_utils import make_outline_overlay
 from .._shared.segmentation import combine_channels, format_CODEX
 
 # plot membrane channel selectd segmentation
-def pl_segmentation_ch(
+def segmentation_ch(
         file_name, # image for segmentation
         channel_file, # all channels used for staining
         output_dir, #

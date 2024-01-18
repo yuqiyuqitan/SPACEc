@@ -220,7 +220,7 @@ def test_3_clustering():
 
         # ## 3.5 Single-cell visualzation
 
-        sp.pl.pl_catplot_ad(
+        sp.pl.catplot_ad(
             adata, 
             color = "celltype_fine", # specify group column name here (e.g. celltype_fine)
             unique_region = "condition", # specify unique_regions here

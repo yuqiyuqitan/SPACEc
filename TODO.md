@@ -4,10 +4,12 @@
     - [ ] tests
         - [x] setup tests
         - [ ] write all tests
-            - [ ] **Yuqi:** missing qptiff file for test 0
+        - [ ] fix TODOs with Yuqi
     - [ ] modularize: pl (plot?), tl (tools), hp (helper), pp (preprocessing)
         - [x] initial modularization
         - [ ] **Yuqi:** what is the difference between tools and helpers?
+            - [ ] helpers are "minor" function ... potentially arbitrary 
+            - [ ] for now: any helper that is not used standalone move to tools
         - [ ] **Yuqi:** segmentation stuff should be moved to different files?
         - [ ] **Yuqi:** some stuff plots even though it is not called `pl`!
     - [ ] docs
@@ -17,3 +19,5 @@
         - [ ] based on what data?
     - [ ] optional
         - [ ] make files smaller; they are way too long (modularize)
+    - [ ] **Yuqi**
+        - [ ] send qpdiff (optimally downsized)

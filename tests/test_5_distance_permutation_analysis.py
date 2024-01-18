@@ -53,7 +53,7 @@ def test_5_distance_permutation_analysis():
         dist_data_filt.head()
 
         # %%
-        sp.pl.pl_dumbbell(
+        sp.pl.dumbbell(
             data = dist_table_filt, figsize=(10,10), colors = ['#DB444B', '#006BA2'])
 
 

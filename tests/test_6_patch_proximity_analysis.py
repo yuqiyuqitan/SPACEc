@@ -35,7 +35,7 @@ def test_6_patch_proximity_analysis():
 
     # %%
     # plot the result to see the cell types enriched around the edge of the patches
-    sp.pl.pl_count_patch_proximity_res(
+    sp.pl.count_patch_proximity_res(
         adata, 
         x="celltype_fine", 
         hue="condition", 

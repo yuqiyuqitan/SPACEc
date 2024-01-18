@@ -77,7 +77,7 @@ def test_2_preprocessing():
 
         # This function helps to figure out what the cut-off should be
         # This is to remove top 1 % of all cells that are highly expressive for all antibodies
-        sp.pl.pl_zcount_thres(
+        sp.pl.zcount_thres(
             dfz = dfz, 
             col_num = col_num_last_marker, # last antibody index
             cut_off=0.01, #top 1% of cells
@@ -118,7 +118,7 @@ def test_2_preprocessing():
         with open(overlay_path / 'overlay_tonsil1.pickle', 'rb') as f:
             overlay_data1 = pickle.load(f)
 
-        sp.pl.pl_coordinates_on_image(
+        sp.pl.coordinates_on_image(
             df = df_nn.loc[df_nn['unique_region'] == 'reg010',:], 
             overlay_data = overlay_data1, color='area',  
             scale=False, # whether to scale to 1 or not
