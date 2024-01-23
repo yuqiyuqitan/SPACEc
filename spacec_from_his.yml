@@ -1,0 +1,23 @@
+name: sap_new2
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python==3.8.0
+  - scipy
+  - statsmodels
+  - matplotlib
+  - pandas
+  - tensorly
+  - numpy
+  - scikit-learn
+  - glob2
+  - networkx
+  - yellowbrick
+  - joblib
+  - seaborn
+  - tifffile
+  - tensorflow
+  - scanpy
+  - scikit-image
+prefix: /Users/yuqitan/opt/anaconda3/envs/sap_new2
