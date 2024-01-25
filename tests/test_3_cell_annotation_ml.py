@@ -49,12 +49,12 @@ def test_3_cell_annotation_ml():
         import numpy as np
         np.isnan(adata_train.X).sum()
 
-        svc = sp.tl.tl_ml_train(
+        svc = sp.tl.ml_train(
             adata_train=adata_train,
             label='celltype',
             nan_policy_y='omit')
 
-        sp.tl.tl_ml_predict(adata_val = adata_val,
+        sp.tl.ml_predict(adata_val = adata_val,
                     svc = svc,
                     save_name = "svm_pred")
 

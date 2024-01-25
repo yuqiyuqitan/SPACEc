@@ -21,7 +21,7 @@ def test_6_patch_proximity_analysis():
 
     # %%
     # this region result is also saved to adata.uns
-    region_results = sp.tl.tl_patch_proximity_analysis(
+    region_results = sp.tl.patch_proximity_analysis(
         adata, 
         region_column = "unique_region", 
         patch_column = "CN_k20_n6_annot", 

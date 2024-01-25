@@ -29,7 +29,7 @@ def test_2_preprocessing():
         # Read and concatenate the csv files (outputs from the cell segmentation algorithms). 
 
         #read in segmentation csv files
-        df_seg = sp.pp.pp_read_segdf(
+        df_seg = sp.pp.read_segdf(
             segfile_list = [
                 data_path / "processed/cellseg/reg010_X01_Y01_Z01_compensated.csv", 
                 data_path / "processed/cellseg/reg001_X01_Y01_Z01_compensated.csv"
@@ -48,7 +48,7 @@ def test_2_preprocessing():
 
         # If necessary filter the dataframe to remove too small objects or cells without a nucleus. 
 
-        df_filt = sp.pp.pp_filter_data(
+        df_filt = sp.pp.filter_data(
             df_seg, 
             nuc_thres=1,
             size_thres=one_percent_area,
@@ -61,7 +61,7 @@ def test_2_preprocessing():
         # Normalize data with one of the four available methods (zscore as default)
 
         # This is to normalize the data 
-        dfz = sp.pp.pp_format(
+        dfz = sp.pp.format(
             data=df_filt, 
             list_out=['cell_id', 'tile_num', 'z', 'x_tile', 'y_tile'], 
             # in case of other segmentation methods: ['eccentricity', 'perimeter', 'convex_area', 'axis_major_length', 'axis_minor_length', "first_index", "filename", "label"]
@@ -85,7 +85,7 @@ def test_2_preprocessing():
 
         # This step removes the remaining noisy cells from the analysis
 
-        df_nn, cc = sp.pp.pp_remove_noise(
+        df_nn, cc = sp.pp.remove_noise(
             df=dfz, 
             col_num=col_num_last_marker, # this is the column index that has the last protein feature
             z_count_thres=51, # number obtained from the function above

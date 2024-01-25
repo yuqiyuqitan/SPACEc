@@ -46,7 +46,7 @@ def test_3_clustering():
             'MCT', 'CD138', 'GranzymeB', 'IDO-1', 'CD45', 'CollagenIV', 'Arginase-1']
 
         # clustering
-        adata = sp.tl.tl_clustering(
+        adata = sp.tl.clustering(
             adata, 
             clustering='leiden', # can choose between leiden and louvian
             n_neighbors=10,

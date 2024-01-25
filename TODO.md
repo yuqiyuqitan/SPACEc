@@ -15,6 +15,7 @@
         - [x] **Yuqi:** some stuff plots even though it is not called `pl`!
             - optimally plotting code should not be in tool function
             - or split into helpers/tools and plots
+    - [ ] fix environment conflicts
     - [ ] docs
         - [x] move docs to markdown
         - [ ] tutorial notebooks
@@ -23,4 +24,5 @@
     - [ ] optional
         - [ ] make files smaller; they are way too long (modularize)
     - [ ] **Yuqi**
-        - [ ] send qpdiff (optimally downsized)
+        - [x] send qpdiff (optimally downsized)
+        - [ ] tissue map

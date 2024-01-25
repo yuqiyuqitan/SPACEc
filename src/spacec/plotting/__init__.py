@@ -12,6 +12,9 @@ from ._general import \
     dumbbell,\
     count_patch_proximity_res,\
     zcount_thres
+    
+from ._qptiff_converter import \
+    tissue_lables
 
 __all__ = [
     # segmentation
@@ -28,5 +31,6 @@ __all__ = [
     "cn_map",
     "dumbbell",
     "count_patch_proximity_res",
-    "zcount_thres"
+    "zcount_thres",
+    "tissue_lables"
 ]

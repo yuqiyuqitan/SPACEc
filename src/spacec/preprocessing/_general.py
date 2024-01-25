@@ -12,7 +12,7 @@ from scipy.stats import norm, zscore
 
 
 # read the data frame output from the segmentation functions
-def pp_read_segdf(
+def read_segdf(
         segfile_list,
         seg_method, 
         region_list=None, #optional information #please make sure the length of each list matches
@@ -45,7 +45,7 @@ def pp_read_segdf(
     return df
 
 
-def pp_filter_data(df, 
+def filter_data(df, 
                    nuc_thres=1,
                    size_thres=1,
                    nuc_marker="DAPI",
@@ -142,7 +142,7 @@ def pp_filter_data(df,
     return df_nuc
 
 
-def pp_format(data, list_out, list_keep, method="zscore", ArcSin_cofactor=150):
+def format(data, list_out, list_keep, method="zscore", ArcSin_cofactor=150):
     # original function:
     # #Drop column list
     # list1 = [col for col in data.columns if 'blank' in col]
@@ -327,7 +327,7 @@ def pp_xycorr(data, y_rows, x_columns, X_pix, Y_pix):
 
 
 # Get rid of noisy cells from dataset
-def pp_remove_noise(df, col_num, z_sum_thres, z_count_thres):
+def remove_noise(df, col_num, z_sum_thres, z_count_thres):
     df_z_1_copy = df.copy()
     df_z_1_copy["Count"] = df_z_1_copy.iloc[:, : col_num + 1].ge(0).sum(axis=1)
     df_z_1_copy["z_sum"] = df_z_1_copy.iloc[:, : col_num + 1].sum(axis=1)

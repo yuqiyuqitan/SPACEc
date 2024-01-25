@@ -593,7 +593,7 @@ def tl_get_distances(df, cell_list, cell_type_col):
 ###############
 # clustering
 
-def tl_clustering(
+def clustering(
         adata, 
         clustering = 'leiden', 
         marker_list = None, 
@@ -1198,7 +1198,7 @@ def tl_test_clustering_resolutions(
     """
     for res in tqdm(resolutions, desc="Testing resolutions"):
         if "leiden" in clustering:
-            tl_clustering(
+            clustering(
                 adata,
                 clustering="leiden",
                 n_neighbors=n_neighbors,
@@ -1206,7 +1206,7 @@ def tl_test_clustering_resolutions(
                 reclustering=True,
             )
         else:
-            tl_clustering(
+            clustering(
                 adata,
                 clustering="louvain",
                 n_neighbors=n_neighbors,
@@ -1937,7 +1937,7 @@ def tl_identify_interactions(triangulation_distances, iterative_triangulation_di
     return distance_pvals
 
 
-def tl_filter_interactions(distance_pvals,
+def filter_interactions(distance_pvals,
                          pvalue = 0.05,
                          logfold_group_abs = 0.1
                          ):
@@ -2234,7 +2234,7 @@ def identify_points_in_proximity(
     return result
 
 # This function answers the what is in proximity of this group. 
-def tl_patch_proximity_analysis(
+def patch_proximity_analysis(
         adata, 
         region_column, 
         patch_column,
@@ -2305,7 +2305,7 @@ def tl_patch_proximity_analysis(
     return final_results
 
 
-def tl_ml_train(adata_train, 
+def ml_train(adata_train, 
                 label, 
                 test_size =0.33,
                 random_state = 0,
@@ -2346,7 +2346,7 @@ def tl_ml_train(adata_train,
 
     return svc
 
-def tl_ml_predict(adata_val,
+def ml_predict(adata_val,
                   svc,
                  save_name = "svm_pred",
                  return_prob_mat = False):
