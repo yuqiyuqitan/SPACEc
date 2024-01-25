@@ -21,7 +21,13 @@ conda install graphviz
 Install `SPACEc`
 ```bash
 pip install spacec
-``````
+```
+
+Run tests
+```bash
+pip install pytest pytest-cov
+pytest
+```
 
 ```bash
 # conda create -n sap python==3.8.0

@@ -1886,9 +1886,10 @@ def tl_iterate_tri_distances(
 
         return per_celltype_summary
 
-    # Parallel processing for each region and iteration
-    # TODO: remove nans valid here?
+    # TODO: remove nans valid here a good idea (attempt to fix windows unpickle issue)?
     unique_regions = [r for r in unique_regions if r != np.nan]
+
+    # Parallel processing for each region and iteration
     results = Parallel(n_jobs=num_cores)(
         delayed(process_iteration)(region_name, iteration)
         for region_name in unique_regions
