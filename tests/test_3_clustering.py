@@ -278,7 +278,7 @@ def test_3_clustering():
         )
 
         # cell type percentage tab and visualization [much few]
-        ct_perc_tab, _ = sc.pl.pl_stacked_bar_plot_ad(
+        ct_perc_tab, _ = sp.pl.stacked_bar_plot(
             adata=adata,  # adata object to use
             color="celltype_fine",  # column containing the categories that are used to fill the bar plot
             grouping="condition",  # column containing a grouping variable (usually a condition or cell group)
@@ -293,7 +293,7 @@ def test_3_clustering():
             norm=False,  # if True, then whatever plotted will be scaled to sum of 1
         )
 
-        sc.pl.pl_create_pie_charts_ad(
+        sp.pl.create_pie_charts(
             adata,
             color="celltype_fine",
             grouping="condition",

@@ -9,13 +9,19 @@ from ._general import (
     stacked_bar_plot,
     zcount_thres,
 )
-from ._qptiff_converter import tissue_lables
-from ._segmentation import segmentation_ch, show_masks
+from ._qptiff_converter import (
+    tissue_lables
+)
+from ._segmentation import (
+    segmentation_ch, 
+    show_masks
+)
 
 __all__ = [
     # segmentation
     "segmentation_ch",
     "show_masks",
+
     # general
     "coordinates_on_image",
     "catplot",
@@ -27,5 +33,7 @@ __all__ = [
     "dumbbell",
     "count_patch_proximity_res",
     "zcount_thres",
+
+    # qptiff converter
     "tissue_lables",
 ]
