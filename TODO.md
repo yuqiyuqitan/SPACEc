@@ -8,7 +8,7 @@
     - [ ] modularize: pl (plot?), tl (tools), hp (helper), pp (preprocessing)
         - [x] initial modularization
         - [x] **Yuqi:** what is the difference between tools and helpers?
-            - helpers are "minor" function ... potentially arbitrary 
+            - helpers are "minor" function ... potentially arbitrary
             - [ ] for now: any helper that is not used standalone move to tools
         - [x] **Yuqi:** segmentation stuff should be moved to different files?
             - modularization is appreciated :)

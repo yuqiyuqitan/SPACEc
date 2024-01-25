@@ -1,7 +1,7 @@
 ARG BASE_IMAGE=ubuntu:22.04
 FROM ${BASE_IMAGE}
 
-# install packages 
+# install packages
 RUN apt-get -y update --allow-releaseinfo-change\
     && apt-get -y autoremove \
     && apt-get clean \
@@ -9,7 +9,7 @@ RUN apt-get -y update --allow-releaseinfo-change\
     fonts-liberation \
     locales \
     wget curl \
-    unzip \    
+    unzip \
     # - bzip2 is necessary to extract the micromamba executable.
     bzip2 \
     # - pandoc is used to convert notebooks to html files

@@ -1,8 +1,9 @@
 # load required packages
 import glob
 import os
-from itertools import product
 import sys
+from itertools import product
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -13,70 +14,63 @@ from scipy.stats import norm, zscore
 
 # read the data frame output from the segmentation functions
 def read_segdf(
-        segfile_list,
-        seg_method, 
-        region_list=None, #optional information #please make sure the length of each list matches
-        meta_list=None #optional information
-    ):
+    segfile_list,
+    seg_method,
+    region_list=None,  # optional information #please make sure the length of each list matches
+    meta_list=None,  # optional information
+):
     if region_list is not None:
         if len(region_list) != len(segfile_list):
             sys.exit("length of each list does not match!")
     elif meta_list is not None:
         if len(meta_list) != len(segfile_list):
             sys.exit("length of each list does not match!")
-    
-    df = pd.DataFrame()
-    #concat old dataframes
-    for i in range(len(segfile_list)):
-        tmp = pd.read_csv(segfile_list[i], index_col = 0)
-        tmp['region_num'] = str(i)
-        if region_list is not None:
-            tmp['unique_region'] = str(region_list[i])
-        if meta_list is not None:
-             tmp['condition'] = str(meta_list[i])
-        df = pd.concat([df, tmp], axis = 0)
 
-    if(seg_method == 'cellseg'):
-        #See resultant dataframe
-        df.columns = df.columns.str.split(':').str[-1].tolist()
-        df = df.reset_index().rename(columns={'index':'first_index'})
-        df.columns = df.columns.str.split(':').str[-1].tolist()
-        df.rename(columns={'size': 'area'}, inplace=True)
+    df = pd.DataFrame()
+    # concat old dataframes
+    for i in range(len(segfile_list)):
+        tmp = pd.read_csv(segfile_list[i], index_col=0)
+        tmp["region_num"] = str(i)
+        if region_list is not None:
+            tmp["unique_region"] = str(region_list[i])
+        if meta_list is not None:
+            tmp["condition"] = str(meta_list[i])
+        df = pd.concat([df, tmp], axis=0)
+
+    if seg_method == "cellseg":
+        # See resultant dataframe
+        df.columns = df.columns.str.split(":").str[-1].tolist()
+        df = df.reset_index().rename(columns={"index": "first_index"})
+        df.columns = df.columns.str.split(":").str[-1].tolist()
+        df.rename(columns={"size": "area"}, inplace=True)
     return df
 
 
-def filter_data(df, 
-                   nuc_thres=1,
-                   size_thres=1,
-                   nuc_marker="DAPI",
-                   cell_size = "area",
-                   region_column = "region_num",
-                   color_by = None,
-                   palette = "Paired",
-                   alpha=0.8, size=0.4, # dot style
-                   log_scale=False):
-    
+def filter_data(
+    df,
+    nuc_thres=1,
+    size_thres=1,
+    nuc_marker="DAPI",
+    cell_size="area",
+    region_column="region_num",
+    color_by=None,
+    palette="Paired",
+    alpha=0.8,
+    size=0.4,  # dot style
+    log_scale=False,
+):
     if color_by == None:
         color_by = region_column
-    
-    df_nuc = df[
-        (df[nuc_marker] > nuc_thres) * df[cell_size] > size_thres
-    ]
+
+    df_nuc = df[(df[nuc_marker] > nuc_thres) * df[cell_size] > size_thres]
     per_keep = len(df_nuc) / len(df)
-    
-    
-    
-    
+
     # Create a figure with two subplots
     fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(15, 5))
 
     # Boxplot
-    sns.boxplot(data=df.loc[:, [cell_size, nuc_marker]],
-                orient='h',
-                ax=ax1)
+    sns.boxplot(data=df.loc[:, [cell_size, nuc_marker]], orient="h", ax=ax1)
     ax1.set_title("Cell size and nuclear marker intensity")
-    
-    
 
     # Plot 1
     sns.scatterplot(
@@ -86,7 +80,7 @@ def filter_data(df,
         palette=palette,
         alpha=alpha,
         ax=ax2,
-        legend=False
+        legend=False,
     )
 
     if log_scale == True:
@@ -105,7 +99,7 @@ def filter_data(df,
         hue=df_nuc[color_by],
         palette=palette,
         alpha=alpha,
-        ax=ax3
+        ax=ax3,
     )
 
     if log_scale == True:
@@ -121,24 +115,23 @@ def filter_data(df,
     # show plot
     plt.tight_layout()
     plt.show()
-    
+
     # print the percentage of cells that are kept
     print("Percentage of cells kept: ", per_keep * 100, "%")
-    #print(f"Number of cells removed per region:\n{df.groupby(region_column).size() - df_nuc.groupby(region_column).size()}")
-    
+    # print(f"Number of cells removed per region:\n{df.groupby(region_column).size() - df_nuc.groupby(region_column).size()}")
+
     # print five point statistics for cell size and nuclear marker intensity before filtering
-    #print("BEFORE FILTERING:")
+    # print("BEFORE FILTERING:")
 
-    #print("Five point statistics for cell size and nuclear marker intensity:")
-    #print(df.loc[:, [cell_size, nuc_marker]].describe())
+    # print("Five point statistics for cell size and nuclear marker intensity:")
+    # print(df.loc[:, [cell_size, nuc_marker]].describe())
 
-    
     # print five point statistics for cell size and nuclear marker intensity after filtering
-    #print("AFTER FILTERING:")
+    # print("AFTER FILTERING:")
 
-    #print("Five point statistics for cell size and nuclear marker intensity:")
-    #print(df_nuc.loc[:, [cell_size, nuc_marker]].describe())
-    
+    # print("Five point statistics for cell size and nuclear marker intensity:")
+    # print(df_nuc.loc[:, [cell_size, nuc_marker]].describe())
+
     return df_nuc
 
 
@@ -337,8 +330,10 @@ def remove_noise(df, col_num, z_sum_thres, z_count_thres):
     df_want = df_z_1_copy[
         ~((df_z_1_copy["z_sum"] > z_sum_thres) | (df_z_1_copy["Count"] > z_count_thres))
     ]
-    percent_removed = np.round(1 - (df_want.shape[0]/ df_z_1_copy.shape[0]), decimals = 3)
-    print(str(percent_removed*100) + "% cells are removed.")
+    percent_removed = np.round(
+        1 - (df_want.shape[0] / df_z_1_copy.shape[0]), decimals=3
+    )
+    print(str(percent_removed * 100) + "% cells are removed.")
     df_want.drop(columns=["Count", "z_sum"], inplace=True)
     df_want.reset_index(inplace=True, drop=True)
     return df_want, cc
@@ -379,4 +374,3 @@ def pp_remove_segmentation_artifacts(
         df_copy = df_copy[df_copy[nuc_marker_column] > nuc_thres]
 
     return df_copy
-

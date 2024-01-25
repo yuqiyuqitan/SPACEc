@@ -1,9 +1,12 @@
 # load required packages
 import time
+
+import concave_hull
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 import pandas as pd
+import scipy.stats as st
 import skimage
 import skimage.color
 import skimage.exposure
@@ -12,24 +15,20 @@ import skimage.io as io
 import skimage.morphology
 import skimage.transform
 import statsmodels.api as sm
+from concave_hull import concave_hull_indexes
+from joblib import Parallel, delayed
 from scipy import stats
+from scipy.spatial import Delaunay
 from scipy.spatial.distance import cdist
 from scipy.stats import pearsonr, spearmanr
-from sklearn.cluster import MiniBatchKMeans
+from sklearn.cluster import HDBSCAN, MiniBatchKMeans
 from sklearn.cross_decomposition import CCA
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import classification_report, f1_score
+from sklearn.model_selection import train_test_split
+from sklearn.svm import SVC
 from tqdm import tqdm
 from yellowbrick.cluster import KElbowVisualizer
-from joblib import Parallel, delayed
-import numpy as np
-from scipy.spatial import Delaunay
-import scipy.stats as st
-import concave_hull
-from concave_hull import concave_hull_indexes
-from sklearn.cluster import HDBSCAN
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.svm import SVC
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report, f1_score
 
 from ..helperfunctions._general import *
 
@@ -38,8 +37,8 @@ from ..helperfunctions._general import *
 
 
 """
-tl_Shan_div calculates Shannon Diversity for each subgroup in a given dataset, and then performs an ANOVA test to compare the Shannon Diversity between different groups. 
-The function takes in arguments such as data, subgroup list, grouping column, category column, replicate column, and a boolean for normalization. 
+tl_Shan_div calculates Shannon Diversity for each subgroup in a given dataset, and then performs an ANOVA test to compare the Shannon Diversity between different groups.
+The function takes in arguments such as data, subgroup list, grouping column, category column, replicate column, and a boolean for normalization.
 The function returns the Shannon Diversity values, ANOVA test results, and the results dataframe.
 """
 
@@ -81,9 +80,9 @@ def tl_Shan_div(data, sub_l, group_com, per_categ, rep, sub_column, normalize=Tr
 
 ############
 """
-The function tl_cell_types_de performs differential enrichment analysis for various cell subsets between different neighborhoods using linear regression. 
-It takes in several inputs such as cell type frequencies, neighborhood numbers, and patient information. 
-The function first normalizes overall cell type frequencies and then neighborhood-specific cell type frequencies. Next, a linear regression model is fitted to find the coefficients and p-values for the group coefficient. 
+The function tl_cell_types_de performs differential enrichment analysis for various cell subsets between different neighborhoods using linear regression.
+It takes in several inputs such as cell type frequencies, neighborhood numbers, and patient information.
+The function first normalizes overall cell type frequencies and then neighborhood-specific cell type frequencies. Next, a linear regression model is fitted to find the coefficients and p-values for the group coefficient.
 Finally, the function returns a dataframe with the coefficients and p-values for each cell subset. The p-values can be corrected for multiple testing after the function has been executed.
 """
 
@@ -247,11 +246,11 @@ def tl_community_analysis_2(
 #################
 
 """
-This Python function performs CCA analysis (Canonical Correlation Analysis) using the input parameters cca, n_perms, nsctf, cns, subsets, and group. The function first initializes an empty dictionary stats_group1. 
+This Python function performs CCA analysis (Canonical Correlation Analysis) using the input parameters cca, n_perms, nsctf, cns, subsets, and group. The function first initializes an empty dictionary stats_group1.
 It then iterates through all pairs of indices cn_i and cn_j in cns, and if cn_i is less than cn_j, it concatenates the corresponding data frames in nsctf and drops any rows with missing values.
 
-If the resulting concatenated data frame has more than two rows, the function fits the CCA model to the data, computing the canonical correlation achieving components with respect to observed data, as well as permuted data. 
-It then computes and saves the Pearson correlation coefficient between the first components of the canonical correlation achieving vectors for the observed data and the permuted data. 
+If the resulting concatenated data frame has more than two rows, the function fits the CCA model to the data, computing the canonical correlation achieving components with respect to observed data, as well as permuted data.
+It then computes and saves the Pearson correlation coefficient between the first components of the canonical correlation achieving vectors for the observed data and the permuted data.
 The function returns a dictionary stats_group1 containing the Pearson correlation coefficient values for each pair of cell type indices.
 """
 
@@ -308,7 +307,7 @@ def tl_Perform_CCA(cca, n_perms, nsctf, cns, subsets):
 
 #######
 """
-This function takes in a DataFrame df and creates a tensor T1 with dimensions (len(group),len(cns),len(cts)) where group is a list of patient IDs, cns is a list of neighborhood IDs, and cts is a list of cell type IDs. 
+This function takes in a DataFrame df and creates a tensor T1 with dimensions (len(group),len(cns),len(cts)) where group is a list of patient IDs, cns is a list of neighborhood IDs, and cts is a list of cell type IDs.
 For each sample, neighborhood, and cell type, the corresponding count is stored in T1. The function then normalizes T1 so that each slice represents a joint distribution. Finally, it returns the normalized tensor dat1.
 """
 
@@ -593,64 +592,69 @@ def tl_get_distances(df, cell_list, cell_type_col):
 ###############
 # clustering
 
+
 def clustering(
-        adata, 
-        clustering = 'leiden', 
-        marker_list = None, 
-        resolution=1, 
-        n_neighbors = 10, 
-        reclustering = False, 
-        key_added=None,
-        **cluster_kwargs):
-    
-    if clustering not in ['leiden','louvain']:
+    adata,
+    clustering="leiden",
+    marker_list=None,
+    resolution=1,
+    n_neighbors=10,
+    reclustering=False,
+    key_added=None,
+    **cluster_kwargs,
+):
+    if clustering not in ["leiden", "louvain"]:
         print("Invalid clustering options. Please select from leiden or louvain!")
         exit()
 
     if key_added is None:
-        key_added = clustering + '_' + str(resolution)
+        key_added = clustering + "_" + str(resolution)
 
-    #input a list of markers for clustering
-    #reconstruct the anndata
+    # input a list of markers for clustering
+    # reconstruct the anndata
     if marker_list is not None:
-        if len(list(set(marker_list) - set(adata.var_names)))>0:
+        if len(list(set(marker_list) - set(adata.var_names))) > 0:
             print("Marker list not all in adata var_names! Using intersection instead!")
             marker_list = list(set(marker_list) & set(adata.var_names))
-            print("New marker_list: " + ' '.join(marker_list))
+            print("New marker_list: " + " ".join(marker_list))
         adata_tmp = adata
-        adata = adata[:,marker_list]
-    #Compute the neighborhood relations of single cells the range 2 to 100 and usually 10
+        adata = adata[:, marker_list]
+    # Compute the neighborhood relations of single cells the range 2 to 100 and usually 10
     if reclustering:
         print("Clustering")
-        if clustering == 'leiden':
+        if clustering == "leiden":
             sc.tl.leiden(
-                adata, resolution = resolution, key_added = key_added, **cluster_kwargs)
+                adata, resolution=resolution, key_added=key_added, **cluster_kwargs
+            )
         else:
             sc.tl.louvain(
-                adata, resolution = resolution, key_added = key_added, **cluster_kwargs)        
+                adata, resolution=resolution, key_added=key_added, **cluster_kwargs
+            )
     else:
         print("Computing neighbors and UMAP")
         sc.pp.neighbors(adata, n_neighbors=n_neighbors)
-        #UMAP computation
+        # UMAP computation
         sc.tl.umap(adata)
         print("Clustering")
-        #Perform leiden clustering - improved version of louvain clustering
-        if clustering == 'leiden':
+        # Perform leiden clustering - improved version of louvain clustering
+        if clustering == "leiden":
             sc.tl.leiden(
-                adata, resolution = resolution, key_added = key_added, **cluster_kwargs)
+                adata, resolution=resolution, key_added=key_added, **cluster_kwargs
+            )
         else:
             sc.tl.louvain(
-                adata, resolution = resolution, key_added = key_added, **cluster_kwargs)
-    
+                adata, resolution=resolution, key_added=key_added, **cluster_kwargs
+            )
+
     if marker_list is None:
         return adata
     else:
         adata_tmp.obs[key_added] = adata.obs[key_added].values
-        #append other data
+        # append other data
         adata_tmp.obsm = adata.obsm
         adata_tmp.obsp = adata.obsp
         adata_tmp.uns = adata.uns
-        return adata_tmp  
+        return adata_tmp
 
 
 ###############
@@ -1399,31 +1403,35 @@ def cn_map(
     adata,
     cn_col,
     unique_region,
-    palette = None,
+    palette=None,
     k=75,
     X="x",
     Y="y",
     threshold=0.85,
     per_keep_thres=0.85,
-    sub_list = None,
-    sub_col = None,
-    rand_seed = 1
+    sub_list=None,
+    sub_col=None,
+    rand_seed=1,
 ):
-    ks=[k]
+    ks = [k]
     cells_df = pd.DataFrame(adata.obs)
-    cells_df = cells_df[[X, Y,unique_region, cn_col]]
+    cells_df = cells_df[[X, Y, unique_region, cn_col]]
     cells_df.reset_index(inplace=True)
-    sum_cols=cells_df[cn_col].unique()
+    sum_cols = cells_df[cn_col].unique()
     keep_cols = cells_df.columns
 
-    cn_colors = hf_generate_random_colors(len(adata.obs[cn_col].unique()), rand_seed = rand_seed)
+    cn_colors = hf_generate_random_colors(
+        len(adata.obs[cn_col].unique()), rand_seed=rand_seed
+    )
 
     if palette is None:
-        if cn_col + '_colors' not in adata.uns.keys():
+        if cn_col + "_colors" not in adata.uns.keys():
             palette = dict(zip(np.sort(adata.obs[cn_col].unique()), cn_colors))
             adata.uns[cn_col + "_colors"] = cn_colors
         else:
-            palette = dict(zip(np.sort(adata.obs[cn_col].unique()), adata.uns[cn_col + '_colors']))   
+            palette = dict(
+                zip(np.sort(adata.obs[cn_col].unique()), adata.uns[cn_col + "_colors"])
+            )
 
     Neigh = Neighborhoods(
         cells_df,
@@ -1448,7 +1456,8 @@ def cn_map(
         w, l, k, threshold=threshold, per_keep_thres=per_keep_thres  # color palette
     )
     g, tops, e0, e1 = tl_build_graph_CN_comb_map(simp_freqs)
-    return {'g':g, 'tops':tops, 'e0':e0, 'e1':e1, 'simp_freqs':simp_freqs}
+    return {"g": g, "tops": tops, "e0": e0, "e1": e1, "simp_freqs": simp_freqs}
+
 
 def tl_format_for_squidpy(adata, x_col, y_col):
     # Extract the count data from your original AnnData object
@@ -1626,7 +1635,13 @@ def tl_corr_cell_ad(
     """
     data = adata.obs
     cmat, cc = tl_corr_cell(
-        data, per_categ, grouping_col=grouping_col, rep=rep, sub_column=sub_column, normed=normed, sub_list2=sub_list2
+        data,
+        per_categ,
+        grouping_col=grouping_col,
+        rep=rep,
+        sub_column=sub_column,
+        normed=normed,
+        sub_list2=sub_list2,
     )
 
     return cmat, cc
@@ -1635,18 +1650,20 @@ def tl_corr_cell_ad(
 ####
 
 import os
-import pandas as pd
-from joblib import Parallel, delayed
+
 import numpy as np
-from scipy.spatial import Delaunay
+import pandas as pd
 import scipy.stats as st
+from joblib import Parallel, delayed
+from scipy.spatial import Delaunay
+
 
 def calculate_triangulation_distances(df_input, id, x_pos, y_pos, cell_type, region):
     # Perform Delaunay triangulation
     points = df_input[[x_pos, y_pos]].values
     tri = Delaunay(points)
     indices = tri.simplices
-    
+
     # Get interactions going both directions
     edges = set()
     for simplex in indices:
@@ -1654,80 +1671,146 @@ def calculate_triangulation_distances(df_input, id, x_pos, y_pos, cell_type, reg
             for j in range(i + 1, 3):
                 edges.add(tuple(sorted([simplex[i], simplex[j]])))
     edges = np.array(list(edges))
-    
+
     # Create dataframe from edges
-    rdelaun_result = pd.DataFrame(edges, columns=['ind1', 'ind2'])
-    rdelaun_result[['x1', 'y1']] = df_input.iloc[rdelaun_result['ind1']][[x_pos, y_pos]].values
-    rdelaun_result[['x2', 'y2']] = df_input.iloc[rdelaun_result['ind2']][[x_pos, y_pos]].values
-    
+    rdelaun_result = pd.DataFrame(edges, columns=["ind1", "ind2"])
+    rdelaun_result[["x1", "y1"]] = df_input.iloc[rdelaun_result["ind1"]][
+        [x_pos, y_pos]
+    ].values
+    rdelaun_result[["x2", "y2"]] = df_input.iloc[rdelaun_result["ind2"]][
+        [x_pos, y_pos]
+    ].values
+
     # Annotate results with cell type and region information
-    df_input['XYcellID'] = df_input[x_pos].astype(str) + "_" + df_input[y_pos].astype(str)
-    rdelaun_result['cell1ID'] = rdelaun_result['x1'].astype(str) + "_" + rdelaun_result['y1'].astype(str)
-    rdelaun_result['cell2ID'] = rdelaun_result['x2'].astype(str) + "_" + rdelaun_result['y2'].astype(str)
-    
-    annotated_result = pd.merge(rdelaun_result, df_input, left_on='cell1ID', right_on='XYcellID')
-    annotated_result = annotated_result.rename(columns={cell_type: 'celltype1', id: 'celltype1_index'})
-    annotated_result = annotated_result.drop(columns=[x_pos, y_pos, region, 'XYcellID'])
-    
-    annotated_result = pd.merge(annotated_result, df_input, left_on='cell2ID', right_on='XYcellID', suffixes=('.x', '.y'))
-    annotated_result = annotated_result.rename(columns={cell_type: 'celltype2', id: 'celltype2_index'})
-    annotated_result = annotated_result.drop(columns=[x_pos, y_pos, 'XYcellID'])
-    
+    df_input["XYcellID"] = (
+        df_input[x_pos].astype(str) + "_" + df_input[y_pos].astype(str)
+    )
+    rdelaun_result["cell1ID"] = (
+        rdelaun_result["x1"].astype(str) + "_" + rdelaun_result["y1"].astype(str)
+    )
+    rdelaun_result["cell2ID"] = (
+        rdelaun_result["x2"].astype(str) + "_" + rdelaun_result["y2"].astype(str)
+    )
+
+    annotated_result = pd.merge(
+        rdelaun_result, df_input, left_on="cell1ID", right_on="XYcellID"
+    )
+    annotated_result = annotated_result.rename(
+        columns={cell_type: "celltype1", id: "celltype1_index"}
+    )
+    annotated_result = annotated_result.drop(columns=[x_pos, y_pos, region, "XYcellID"])
+
+    annotated_result = pd.merge(
+        annotated_result,
+        df_input,
+        left_on="cell2ID",
+        right_on="XYcellID",
+        suffixes=(".x", ".y"),
+    )
+    annotated_result = annotated_result.rename(
+        columns={cell_type: "celltype2", id: "celltype2_index"}
+    )
+    annotated_result = annotated_result.drop(columns=[x_pos, y_pos, "XYcellID"])
+
     # Calculate distance
-    annotated_result['distance'] = np.sqrt((annotated_result['x2'] - annotated_result['x1']) ** 2 +
-                                           (annotated_result['y2'] - annotated_result['y1']) ** 2)
-    
+    annotated_result["distance"] = np.sqrt(
+        (annotated_result["x2"] - annotated_result["x1"]) ** 2
+        + (annotated_result["y2"] - annotated_result["y1"]) ** 2
+    )
+
     # Reorder columns
-    annotated_result = annotated_result[[region, 'celltype1_index', 'celltype1', 'x1', 'y1', 'celltype2_index', 'celltype2', 'x2', 'y2', 'distance']]
-    annotated_result.columns = [region, 'celltype1_index', 'celltype1', 'celltype1_X', 'celltype1_Y',
-                                'celltype2_index', 'celltype2', 'celltype2_X', 'celltype2_Y', 'distance']
-    
+    annotated_result = annotated_result[
+        [
+            region,
+            "celltype1_index",
+            "celltype1",
+            "x1",
+            "y1",
+            "celltype2_index",
+            "celltype2",
+            "x2",
+            "y2",
+            "distance",
+        ]
+    ]
+    annotated_result.columns = [
+        region,
+        "celltype1_index",
+        "celltype1",
+        "celltype1_X",
+        "celltype1_Y",
+        "celltype2_index",
+        "celltype2",
+        "celltype2_X",
+        "celltype2_Y",
+        "distance",
+    ]
+
     return annotated_result
 
 
 # Define the process_region function at the top level
 def process_region(df, unique_region, id, x_pos, y_pos, cell_type, region):
     subset = df[df[region] == unique_region].copy()
-    subset['uniqueID'] = subset[id].astype(str) + "-" + subset[x_pos].astype(str) + "-" + subset[y_pos].astype(str)
-    subset['XYcellID'] = subset[x_pos].astype(str) + "_" + subset[y_pos].astype(str)
-    result = calculate_triangulation_distances(df_input=subset, id=id, x_pos=x_pos, y_pos=y_pos,
-                                               cell_type=cell_type, region=region)
+    subset["uniqueID"] = (
+        subset[id].astype(str)
+        + "-"
+        + subset[x_pos].astype(str)
+        + "-"
+        + subset[y_pos].astype(str)
+    )
+    subset["XYcellID"] = subset[x_pos].astype(str) + "_" + subset[y_pos].astype(str)
+    result = calculate_triangulation_distances(
+        df_input=subset,
+        id=id,
+        x_pos=x_pos,
+        y_pos=y_pos,
+        cell_type=cell_type,
+        region=region,
+    )
     return result
 
-def get_triangulation_distances(df_input, id,x_pos, y_pos, cell_type, region,
-                                num_cores=None, correct_dtype = True):
-    
+
+def get_triangulation_distances(
+    df_input, id, x_pos, y_pos, cell_type, region, num_cores=None, correct_dtype=True
+):
     if correct_dtype == True:
         # change columns to pandas string
         df_input[cell_type] = df_input[cell_type].astype(str)
         df_input[region] = df_input[region].astype(str)
-    
+
     # Check if x_pos and y_pos are integers, and if not, convert them
     if not issubclass(df_input[x_pos].dtype.type, np.integer):
         print("This function expects integer values for xy coordinates.")
-        print(x_pos + " and " + y_pos + " will be changed to integer. Please check the generated output!")
+        print(
+            x_pos
+            + " and "
+            + y_pos
+            + " will be changed to integer. Please check the generated output!"
+        )
         df_input[x_pos] = df_input[x_pos].astype(int).values
         df_input[y_pos] = df_input[y_pos].astype(int).values
-    
+
     # Get unique regions
     unique_regions = df_input[region].unique()
-    
+
     # Select only necessary columns
-    df_input = df_input.loc[:,[id, x_pos, y_pos, cell_type, region]]
-    
+    df_input = df_input.loc[:, [id, x_pos, y_pos, cell_type, region]]
+
     # Set up parallelization
     if num_cores is None:
         num_cores = os.cpu_count() // 2  # default to using half of available cores
-    
+
     # Parallel processing using joblib
-    results = Parallel(n_jobs=num_cores)(delayed(process_region)(
-        df_input, reg, id, x_pos, y_pos, cell_type, region)
-        for reg in unique_regions)
-    
+    results = Parallel(n_jobs=num_cores)(
+        delayed(process_region)(df_input, reg, id, x_pos, y_pos, cell_type, region)
+        for reg in unique_regions
+    )
+
     triangulation_distances = pd.concat(results)
-    
-    
+
     return triangulation_distances
+
 
 def shuffle_annotations(df_input, cell_type, region, permutation):
     # Set the seed for reproducibility
@@ -1740,60 +1823,94 @@ def shuffle_annotations(df_input, cell_type, region, permutation):
     for region_name in df_shuffled[region].unique():
         region_mask = df_shuffled[region] == region_name
         shuffled_values = df_shuffled.loc[region_mask, cell_type].sample(frac=1).values
-        df_shuffled.loc[region_mask, 'random_annotations'] = shuffled_values
+        df_shuffled.loc[region_mask, "random_annotations"] = shuffled_values
 
     return df_shuffled
 
-def tl_iterate_tri_distances(df_input, id, x_pos, y_pos, cell_type, region, num_cores=None, num_iterations=1000):
+
+def tl_iterate_tri_distances(
+    df_input, id, x_pos, y_pos, cell_type, region, num_cores=None, num_iterations=1000
+):
     unique_regions = df_input[region].unique()
     # Use only the necessary columns
     df_input = df_input[[id, x_pos, y_pos, cell_type, region]]
 
     if num_cores is None:
         num_cores = os.cpu_count() // 2  # Default to using half of available cores
-    
+
     # Define a helper function to process each region and iteration
     def process_iteration(region_name, iteration):
         # Filter by region
         subset = df_input[df_input[region] == region_name].copy()
         # Create unique IDs
-        subset.loc[:,'uniqueID'] = subset[id].astype(str) + "-" + subset[x_pos].astype(str) + "-" + subset[y_pos].astype(str)
-        subset.loc[:,'XYcellID'] = subset[x_pos].astype(str) + "_" + subset[y_pos].astype(str)
+        subset.loc[:, "uniqueID"] = (
+            subset[id].astype(str)
+            + "-"
+            + subset[x_pos].astype(str)
+            + "-"
+            + subset[y_pos].astype(str)
+        )
+        subset.loc[:, "XYcellID"] = (
+            subset[x_pos].astype(str) + "_" + subset[y_pos].astype(str)
+        )
 
         # Shuffle annotations
         shuffled = shuffle_annotations(subset, cell_type, region, iteration)
-  
+
         # Get triangulation distances
-        results = get_triangulation_distances(df_input = shuffled, id = id, x_pos = x_pos, y_pos= y_pos, cell_type="random_annotations", region = region, num_cores = num_cores,  correct_dtype = False)
-        
+        results = get_triangulation_distances(
+            df_input=shuffled,
+            id=id,
+            x_pos=x_pos,
+            y_pos=y_pos,
+            cell_type="random_annotations",
+            region=region,
+            num_cores=num_cores,
+            correct_dtype=False,
+        )
+
         # Summarize results
-        per_cell_summary = results.groupby(['celltype1_index', 'celltype1', 'celltype2']).distance.mean().reset_index(name='per_cell_mean_dist')
-        
-        per_celltype_summary = per_cell_summary.groupby(['celltype1', 'celltype2']).per_cell_mean_dist.mean().reset_index(name='mean_dist')
+        per_cell_summary = (
+            results.groupby(["celltype1_index", "celltype1", "celltype2"])
+            .distance.mean()
+            .reset_index(name="per_cell_mean_dist")
+        )
+
+        per_celltype_summary = (
+            per_cell_summary.groupby(["celltype1", "celltype2"])
+            .per_cell_mean_dist.mean()
+            .reset_index(name="mean_dist")
+        )
         per_celltype_summary[region] = region_name
-        per_celltype_summary['iteration'] = iteration
-        
+        per_celltype_summary["iteration"] = iteration
+
         return per_celltype_summary
-    
+
     # Parallel processing for each region and iteration
     results = Parallel(n_jobs=num_cores)(
         delayed(process_iteration)(region_name, iteration)
         for region_name in unique_regions
         for iteration in range(1, num_iterations + 1)
     )
-    
+
     # Combine all results
     iterative_triangulation_distances = pd.concat(results, ignore_index=True)
-    #iterative_triangulation_distances = iterative_triangulation_distances.dropna()
+    # iterative_triangulation_distances = iterative_triangulation_distances.dropna()
     return iterative_triangulation_distances
 
-def tl_iterate_tri_distances_ad(adata, id, x_pos, y_pos, cell_type, 
-                                region, 
-                                num_cores=None, 
-                                num_iterations=1000,
-                                key_name = None, 
-                                correct_dtype = True):
-    
+
+def tl_iterate_tri_distances_ad(
+    adata,
+    id,
+    x_pos,
+    y_pos,
+    cell_type,
+    region,
+    num_cores=None,
+    num_iterations=1000,
+    key_name=None,
+    correct_dtype=True,
+):
     df_input = pd.DataFrame(adata.obs)
     df_input[id] = df_input.index
 
@@ -1801,7 +1918,7 @@ def tl_iterate_tri_distances_ad(adata, id, x_pos, y_pos, cell_type,
         # change columns to pandas string
         df_input[cell_type] = df_input[cell_type].astype(str)
         df_input[region] = df_input[region].astype(str)
-    
+
     # Check if x_pos and y_pos are integers, and if not, convert them
     if not issubclass(df_input[x_pos].dtype.type, np.integer):
         print("This function expects integer values for xy coordinates.")
@@ -1815,63 +1932,95 @@ def tl_iterate_tri_distances_ad(adata, id, x_pos, y_pos, cell_type,
 
     if num_cores is None:
         num_cores = os.cpu_count() // 2  # Default to using half of available cores
-    
+
     # Define a helper function to process each region and iteration
     def process_iteration(region_name, iteration):
         # Filter by region
         subset = df_input.loc[df_input[region] == region_name, :].copy()
-        subset.loc[:,'uniqueID'] = subset[id].astype(str) + "-" + subset[x_pos].astype(str) + "-" + subset[y_pos].astype(str)
-        subset.loc[:,'XYcellID'] = subset[x_pos].astype(str) + "_" + subset[y_pos].astype(str)
-        
+        subset.loc[:, "uniqueID"] = (
+            subset[id].astype(str)
+            + "-"
+            + subset[x_pos].astype(str)
+            + "-"
+            + subset[y_pos].astype(str)
+        )
+        subset.loc[:, "XYcellID"] = (
+            subset[x_pos].astype(str) + "_" + subset[y_pos].astype(str)
+        )
+
         # Shuffle annotations
         shuffled = shuffle_annotations(subset, cell_type, region, iteration)
-  
+
         # Get triangulation distances
-        results = get_triangulation_distances(df_input = shuffled, id = id, x_pos = x_pos, y_pos= y_pos, cell_type="random_annotations", region = region, num_cores = num_cores,  correct_dtype = False)
-        
+        results = get_triangulation_distances(
+            df_input=shuffled,
+            id=id,
+            x_pos=x_pos,
+            y_pos=y_pos,
+            cell_type="random_annotations",
+            region=region,
+            num_cores=num_cores,
+            correct_dtype=False,
+        )
+
         # Summarize results
-        per_cell_summary = results.groupby(['celltype1_index', 'celltype1', 'celltype2']).distance.mean().reset_index(name='per_cell_mean_dist')
-        
-        per_celltype_summary = per_cell_summary.groupby(['celltype1', 'celltype2']).per_cell_mean_dist.mean().reset_index(name='mean_dist')
+        per_cell_summary = (
+            results.groupby(["celltype1_index", "celltype1", "celltype2"])
+            .distance.mean()
+            .reset_index(name="per_cell_mean_dist")
+        )
+
+        per_celltype_summary = (
+            per_cell_summary.groupby(["celltype1", "celltype2"])
+            .per_cell_mean_dist.mean()
+            .reset_index(name="mean_dist")
+        )
         per_celltype_summary[region] = region_name
-        per_celltype_summary['iteration'] = iteration
-        
+        per_celltype_summary["iteration"] = iteration
+
         return per_celltype_summary
-    
+
     # Parallel processing for each region and iteration
     results = Parallel(n_jobs=num_cores)(
         delayed(process_iteration)(region_name, iteration)
         for region_name in unique_regions
         for iteration in range(1, num_iterations + 1)
     )
-    
+
     # Combine all results
     iterative_triangulation_distances = pd.concat(results, ignore_index=True)
 
-    #append result to adata
+    # append result to adata
     if key_name is None:
-        key_name = 'iTriDist_' + str(num_iterations)
+        key_name = "iTriDist_" + str(num_iterations)
     adata.uns[key_name] = iterative_triangulation_distances
     print("Save iterative triangulation distance output to anndata.uns " + key_name)
-    
+
     return iterative_triangulation_distances
 
 
-def add_missing_columns(triangulation_distances, metadata, shared_column='unique_region'):
+def add_missing_columns(
+    triangulation_distances, metadata, shared_column="unique_region"
+):
     # Find the difference in columns
     missing_columns = set(metadata.columns) - set(triangulation_distances.columns)
     # Add missing columns to triangulation_distances with NaN values
     for column in missing_columns:
         triangulation_distances[column] = pd.NA
         # Create a mapping from unique_region to tissue in metadata
-        region_to_tissue = pd.Series(metadata[column].values, index=metadata['unique_region']).to_dict()
+        region_to_tissue = pd.Series(
+            metadata[column].values, index=metadata["unique_region"]
+        ).to_dict()
 
         # Apply this mapping to the triangulation_distances dataframe to create/update the tissue column
-        triangulation_distances[column] = triangulation_distances['unique_region'].map(region_to_tissue)
+        triangulation_distances[column] = triangulation_distances["unique_region"].map(
+            region_to_tissue
+        )
 
         # Handle regions with no corresponding tissue in the metadata by filling in a default value
-        triangulation_distances[column].fillna('Unknown', inplace=True)
+        triangulation_distances[column].fillna("Unknown", inplace=True)
     return triangulation_distances
+
 
 # Calculate p-values and log fold differences
 # def calculate_pvalue(row):
@@ -1880,214 +2029,255 @@ def add_missing_columns(triangulation_distances, metadata, shared_column='unique
 #    except ValueError:  # This handles cases with insufficient data
 #        return np.nan
 
+
 # Calculate p-values and log fold differences
 def calculate_pvalue(row):
     try:
-        return st.mannwhitneyu(row['expected'], row['observed'], alternative='two-sided').pvalue
+        return st.mannwhitneyu(
+            row["expected"], row["observed"], alternative="two-sided"
+        ).pvalue
     except ValueError:  # This handles cases with insufficient data
         return np.nan
-    
-def tl_identify_interactions(triangulation_distances, iterative_triangulation_distances, metadata, min_observed = 10, distance_threshold = 128, comparison = 'tissue'):
-    
+
+
+def tl_identify_interactions(
+    triangulation_distances,
+    iterative_triangulation_distances,
+    metadata,
+    min_observed=10,
+    distance_threshold=128,
+    comparison="tissue",
+):
     # Reformat observed dataset
-    triangulation_distances_long = add_missing_columns(triangulation_distances, metadata, shared_column='unique_region')
+    triangulation_distances_long = add_missing_columns(
+        triangulation_distances, metadata, shared_column="unique_region"
+    )
 
     observed_distances = (
-        triangulation_distances_long
-        .query('distance <= @distance_threshold')
-        .groupby(['celltype1_index', 'celltype1', 'celltype2', comparison, 'unique_region'])
-        .agg(mean_per_cell=('distance', 'mean'))
+        triangulation_distances_long.query("distance <= @distance_threshold")
+        .groupby(
+            ["celltype1_index", "celltype1", "celltype2", comparison, "unique_region"]
+        )
+        .agg(mean_per_cell=("distance", "mean"))
         .reset_index()
-        .groupby(['celltype1', 'celltype2', comparison])
-        .agg(observed=('mean_per_cell', list),
-            observed_mean=('mean_per_cell', 'mean'))
+        .groupby(["celltype1", "celltype2", comparison])
+        .agg(observed=("mean_per_cell", list), observed_mean=("mean_per_cell", "mean"))
         .reset_index()
     )
-    
+
     # Reformat expected dataset
-    iterated_triangulation_distances_long = add_missing_columns(iterative_triangulation_distances, metadata, shared_column='unique_region')
+    iterated_triangulation_distances_long = add_missing_columns(
+        iterative_triangulation_distances, metadata, shared_column="unique_region"
+    )
 
     expected_distances = (
-        iterated_triangulation_distances_long
-        .query('mean_dist <= @distance_threshold')
-        .groupby(['celltype1', 'celltype2', comparison])
-        .agg(expected=('mean_dist', list),
-            expected_mean=('mean_dist', 'mean'))
+        iterated_triangulation_distances_long.query("mean_dist <= @distance_threshold")
+        .groupby(["celltype1", "celltype2", comparison])
+        .agg(expected=("mean_dist", list), expected_mean=("mean_dist", "mean"))
         .reset_index()
     )
-    
-    # Drop comparisons with low numbers of observations
-    observed_distances['keep'] = observed_distances['observed'].apply(lambda x: len(x) > min_observed)
-    observed_distances = observed_distances[observed_distances['keep']]
 
-    expected_distances['keep'] = expected_distances['expected'].apply(lambda x: len(x) > min_observed)
-    expected_distances = expected_distances[expected_distances['keep']]
-    
+    # Drop comparisons with low numbers of observations
+    observed_distances["keep"] = observed_distances["observed"].apply(
+        lambda x: len(x) > min_observed
+    )
+    observed_distances = observed_distances[observed_distances["keep"]]
+
+    expected_distances["keep"] = expected_distances["expected"].apply(
+        lambda x: len(x) > min_observed
+    )
+    expected_distances = expected_distances[expected_distances["keep"]]
+
     # concatenate observed and expected distances
-    distance_pvals = expected_distances.merge(observed_distances, on=['celltype1', 'celltype2', comparison], how='left')
-    
-    distance_pvals = expected_distances.merge(observed_distances, on=['celltype1', 'celltype2', comparison], how='left')
-    distance_pvals['pvalue'] = distance_pvals.apply(calculate_pvalue, axis=1)
-    distance_pvals['logfold_group'] = np.log2(distance_pvals['observed_mean'] / distance_pvals['expected_mean'])
-    distance_pvals['interaction'] = distance_pvals['celltype1'] + " --> " + distance_pvals['celltype2']
-    
-    #drop na from distance_pvals
+    distance_pvals = expected_distances.merge(
+        observed_distances, on=["celltype1", "celltype2", comparison], how="left"
+    )
+
+    distance_pvals = expected_distances.merge(
+        observed_distances, on=["celltype1", "celltype2", comparison], how="left"
+    )
+    distance_pvals["pvalue"] = distance_pvals.apply(calculate_pvalue, axis=1)
+    distance_pvals["logfold_group"] = np.log2(
+        distance_pvals["observed_mean"] / distance_pvals["expected_mean"]
+    )
+    distance_pvals["interaction"] = (
+        distance_pvals["celltype1"] + " --> " + distance_pvals["celltype2"]
+    )
+
+    # drop na from distance_pvals
     # distance_pvals = distance_pvals.dropna()
-    
+
     return distance_pvals
 
 
-def filter_interactions(distance_pvals,
-                         pvalue = 0.05,
-                         logfold_group_abs = 0.1
-                         ):
+def filter_interactions(distance_pvals, pvalue=0.05, logfold_group_abs=0.1):
     # calculate absolute logfold difference
-    distance_pvals['logfold_group_abs'] = distance_pvals['logfold_group'].abs()
-    
+    distance_pvals["logfold_group_abs"] = distance_pvals["logfold_group"].abs()
+
     # Filter significant p-values and other specified conditions
     distance_pvals_sig = distance_pvals[
-        (distance_pvals['pvalue'] < pvalue) &
-        (distance_pvals['celltype1'] != distance_pvals['celltype2']) &
-        (~distance_pvals['observed_mean'].isna()) &
-        (distance_pvals['logfold_group_abs'] > logfold_group_abs) 
+        (distance_pvals["pvalue"] < pvalue)
+        & (distance_pvals["celltype1"] != distance_pvals["celltype2"])
+        & (~distance_pvals["observed_mean"].isna())
+        & (distance_pvals["logfold_group_abs"] > logfold_group_abs)
     ]
 
     # calculate absolute logfold difference
-    distance_pvals['logfold_group_abs'] = distance_pvals['logfold_group'].abs()
-    
+    distance_pvals["logfold_group_abs"] = distance_pvals["logfold_group"].abs()
+
     # Filter significant p-values and other specified conditions
     distance_pvals_sig = distance_pvals[
-        (distance_pvals['pvalue'] < pvalue) &
-        (distance_pvals['celltype1'] != distance_pvals['celltype2']) &
-        (~distance_pvals['observed_mean'].isna())
+        (distance_pvals["pvalue"] < pvalue)
+        & (distance_pvals["celltype1"] != distance_pvals["celltype2"])
+        & (~distance_pvals["observed_mean"].isna())
     ]
 
     # Assuming distance_pvals_interesting2 is a pandas DataFrame with the same structure as the R dataframe.
-    pair_to = distance_pvals_sig['interaction'].unique()
-    
+    pair_to = distance_pvals_sig["interaction"].unique()
+
     # Filtering data
-    data = distance_pvals_sig[~distance_pvals_sig['interaction'].isna()]
-    
+    data = distance_pvals_sig[~distance_pvals_sig["interaction"].isna()]
+
     # Creating pairs
-    data['pairs'] = data['celltype1'] + "_" + data['celltype2']
-    
+    data["pairs"] = data["celltype1"] + "_" + data["celltype2"]
+
     # Subsetting data
-    distance_pvals_sig_sub = data[data['interaction'].isin(pair_to)]
-    distance_pvals_sig_sub_reduced = distance_pvals_sig_sub.loc[:, ['condition', 'logfold_group', 'pairs']].copy()
-    
+    distance_pvals_sig_sub = data[data["interaction"].isin(pair_to)]
+    distance_pvals_sig_sub_reduced = distance_pvals_sig_sub.loc[
+        :, ["condition", "logfold_group", "pairs"]
+    ].copy()
+
     # set pairs as index
-    distance_pvals_sig_sub_reduced = distance_pvals_sig_sub_reduced.set_index('pairs')
-   
+    distance_pvals_sig_sub_reduced = distance_pvals_sig_sub_reduced.set_index("pairs")
+
     # sort logfold_group into two columns by tissue
-    dist_table = distance_pvals_sig_sub_reduced.pivot(columns='condition', values='logfold_group')
-    dist_table.dropna(inplace =True)
-    
+    dist_table = distance_pvals_sig_sub_reduced.pivot(
+        columns="condition", values="logfold_group"
+    )
+    dist_table.dropna(inplace=True)
+
     return dist_table, distance_pvals_sig_sub
 
 
-def identify_interactions(adata,
-                                id, 
-                                x_pos, 
-                                y_pos, 
-                                cell_type, 
-                                region, 
-                                comparison,
-                                iTriDist_keyname = None,
-                                triDist_keyname = None,
-                                min_observed = 10, 
-                                distance_threshold = 128, 
-                                num_cores=None, 
-                                num_iterations=1000,
-                                key_name = None,
-                                correct_dtype = False
-                              ):
-
+def identify_interactions(
+    adata,
+    id,
+    x_pos,
+    y_pos,
+    cell_type,
+    region,
+    comparison,
+    iTriDist_keyname=None,
+    triDist_keyname=None,
+    min_observed=10,
+    distance_threshold=128,
+    num_cores=None,
+    num_iterations=1000,
+    key_name=None,
+    correct_dtype=False,
+):
     df_input = pd.DataFrame(adata.obs)
     df_input[id] = df_input.index
 
     # change columns to pandas string
     df_input[cell_type] = df_input[cell_type].astype(str)
     df_input[region] = df_input[region].astype(str)
-    
+
     print("Computing for observed distances between cell types!")
-    triangulation_distances = get_triangulation_distances(df_input = df_input, 
-                                                          id = id, 
-                                                          x_pos = x_pos, 
-                                                          y_pos = y_pos, 
-                                                          cell_type = cell_type, 
-                                                          region = region, 
-                                                          num_cores=num_cores,
-                                                          correct_dtype = correct_dtype
-                                                          )
+    triangulation_distances = get_triangulation_distances(
+        df_input=df_input,
+        id=id,
+        x_pos=x_pos,
+        y_pos=y_pos,
+        cell_type=cell_type,
+        region=region,
+        num_cores=num_cores,
+        correct_dtype=correct_dtype,
+    )
     if triDist_keyname is None:
         triDist_keyname = "triDist"
-    adata.uns['triDist_keyname'] = triangulation_distances
+    adata.uns["triDist_keyname"] = triangulation_distances
     print("Save triangulation distances output to anndata.uns " + triDist_keyname)
-    
+
     print("Permuting data labels to obtain the randomly distributed distances!")
     print("this step can take awhile")
-    iterative_triangulation_distances = tl_iterate_tri_distances(df_input = df_input, 
-                                                                    id = id, 
-                                                                    x_pos = x_pos, 
-                                                                    y_pos = y_pos, 
-                                                                    cell_type = cell_type, 
-                                                                    region = region, 
-                                                                    num_cores=num_cores,
-                                                                    num_iterations = num_iterations
-                                                                    )
+    iterative_triangulation_distances = tl_iterate_tri_distances(
+        df_input=df_input,
+        id=id,
+        x_pos=x_pos,
+        y_pos=y_pos,
+        cell_type=cell_type,
+        region=region,
+        num_cores=num_cores,
+        num_iterations=num_iterations,
+    )
 
-    #append result to adata
+    # append result to adata
     if triDist_keyname is None:
-        triDist_keyname = 'iTriDist_' + str(num_iterations)
+        triDist_keyname = "iTriDist_" + str(num_iterations)
     adata.uns[triDist_keyname] = iterative_triangulation_distances
-    print("Save iterative triangulation distance output to anndata.uns " + triDist_keyname)
-    
-    metadata = df_input.loc[:, ["unique_region",  "condition"]].copy()
+    print(
+        "Save iterative triangulation distance output to anndata.uns " + triDist_keyname
+    )
+
+    metadata = df_input.loc[:, ["unique_region", "condition"]].copy()
     # Reformat observed dataset
-    triangulation_distances_long = add_missing_columns(triangulation_distances, metadata, shared_column=region)
+    triangulation_distances_long = add_missing_columns(
+        triangulation_distances, metadata, shared_column=region
+    )
 
     observed_distances = (
-        triangulation_distances_long
-        .query('distance <= @distance_threshold')
-        .groupby(['celltype1_index', 'celltype1', 'celltype2', comparison, region])
-        .agg(mean_per_cell=('distance', 'mean'))
+        triangulation_distances_long.query("distance <= @distance_threshold")
+        .groupby(["celltype1_index", "celltype1", "celltype2", comparison, region])
+        .agg(mean_per_cell=("distance", "mean"))
         .reset_index()
-        .groupby(['celltype1', 'celltype2', comparison])
-        .agg(observed=('mean_per_cell', list),
-            observed_mean=('mean_per_cell', 'mean'))
+        .groupby(["celltype1", "celltype2", comparison])
+        .agg(observed=("mean_per_cell", list), observed_mean=("mean_per_cell", "mean"))
         .reset_index()
     )
-    
+
     # Reformat expected dataset
-    iterated_triangulation_distances_long = add_missing_columns(iterative_triangulation_distances, metadata, shared_column=region)
+    iterated_triangulation_distances_long = add_missing_columns(
+        iterative_triangulation_distances, metadata, shared_column=region
+    )
 
     expected_distances = (
-        iterated_triangulation_distances_long
-        .query('mean_dist <= @distance_threshold')
-        .groupby(['celltype1', 'celltype2', comparison])
-        .agg(expected=('mean_dist', list),
-            expected_mean=('mean_dist', 'mean'))
+        iterated_triangulation_distances_long.query("mean_dist <= @distance_threshold")
+        .groupby(["celltype1", "celltype2", comparison])
+        .agg(expected=("mean_dist", list), expected_mean=("mean_dist", "mean"))
         .reset_index()
     )
-    
-    # Drop comparisons with low numbers of observations
-    observed_distances['keep'] = observed_distances['observed'].apply(lambda x: len(x) > min_observed)
-    observed_distances = observed_distances[observed_distances['keep']]
 
-    expected_distances['keep'] = expected_distances['expected'].apply(lambda x: len(x) > min_observed)
-    expected_distances = expected_distances[expected_distances['keep']]
-    
+    # Drop comparisons with low numbers of observations
+    observed_distances["keep"] = observed_distances["observed"].apply(
+        lambda x: len(x) > min_observed
+    )
+    observed_distances = observed_distances[observed_distances["keep"]]
+
+    expected_distances["keep"] = expected_distances["expected"].apply(
+        lambda x: len(x) > min_observed
+    )
+    expected_distances = expected_distances[expected_distances["keep"]]
+
     # concatenate observed and expected distances
-    distance_pvals = expected_distances.merge(observed_distances, on=['celltype1', 'celltype2', comparison], how='left')
-    
-    distance_pvals = expected_distances.merge(observed_distances, on=['celltype1', 'celltype2', comparison], how='left')
-    distance_pvals['pvalue'] = distance_pvals.apply(calculate_pvalue, axis=1)
-    distance_pvals['logfold_group'] = np.log2(distance_pvals['observed_mean'] / distance_pvals['expected_mean'])
-    distance_pvals['interaction'] = distance_pvals['celltype1'] + " --> " + distance_pvals['celltype2']
-    
-    #drop na from distance_pvals
+    distance_pvals = expected_distances.merge(
+        observed_distances, on=["celltype1", "celltype2", comparison], how="left"
+    )
+
+    distance_pvals = expected_distances.merge(
+        observed_distances, on=["celltype1", "celltype2", comparison], how="left"
+    )
+    distance_pvals["pvalue"] = distance_pvals.apply(calculate_pvalue, axis=1)
+    distance_pvals["logfold_group"] = np.log2(
+        distance_pvals["observed_mean"] / distance_pvals["expected_mean"]
+    )
+    distance_pvals["interaction"] = (
+        distance_pvals["celltype1"] + " --> " + distance_pvals["celltype2"]
+    )
+
+    # drop na from distance_pvals
     # distance_pvals = distance_pvals.dropna()
-    
+
     return distance_pvals
 
 
@@ -2096,22 +2286,30 @@ def identify_interactions(adata,
 def apply_dbscan_clustering(df, min_samples=10):
     """
     Apply DBSCAN clustering to a dataframe and update the cluster labels in the original dataframe.
-    
+
     Args:
     df (pandas.DataFrame): The dataframe to be clustered.
     eps (float): The maximum distance between two samples for them to be considered as in the same neighborhood.
     min_samples (int): The number of samples in a neighborhood for a point to be considered as a core point.
-    
+
     Returns:
     None
     """
     # Initialize a new column for cluster labels
-    df['cluster'] = -1
+    df["cluster"] = -1
 
     # Apply DBSCAN clustering
-    hdbscan = HDBSCAN(min_samples=min_samples, min_cluster_size=5, cluster_selection_epsilon=0.0, max_cluster_size=None, \
-    metric='euclidean', alpha=1.0, cluster_selection_method='eom', allow_single_cluster=False)
-    labels = hdbscan.fit_predict(df[['x', 'y']])
+    hdbscan = HDBSCAN(
+        min_samples=min_samples,
+        min_cluster_size=5,
+        cluster_selection_epsilon=0.0,
+        max_cluster_size=None,
+        metric="euclidean",
+        alpha=1.0,
+        cluster_selection_method="eom",
+        allow_single_cluster=False,
+    )
+    labels = hdbscan.fit_predict(df[["x", "y"]])
 
     # Number of clusters in labels, ignoring noise if present.
     n_clusters_ = len(set(labels)) - (1 if -1 in labels else 0)
@@ -2121,10 +2319,18 @@ def apply_dbscan_clustering(df, min_samples=10):
     print("Estimated number of noise points: %d" % n_noise_)
 
     # Update the cluster labels in the original dataframe
-    df.loc[df.index, 'cluster'] = labels
-    
+    df.loc[df.index, "cluster"] = labels
+
+
 # plot points and identify points in radius of selected points
-def plot_selected_neighbors_with_shapes(full_df, selected_df, target_df, radius, plot=True, identification_column='community'):
+def plot_selected_neighbors_with_shapes(
+    full_df,
+    selected_df,
+    target_df,
+    radius,
+    plot=True,
+    identification_column="community",
+):
     # Get unique clusters from the full DataFrame
     unique_clusters = full_df[identification_column].unique()
 
@@ -2134,7 +2340,9 @@ def plot_selected_neighbors_with_shapes(full_df, selected_df, target_df, radius,
     # Loop through selected points
     for _, row in selected_df.iterrows():
         # Calculate distances from each point in the target DataFrame to the selected point
-        distances = np.linalg.norm(target_df[['x', 'y']].values - np.array([row['x'], row['y']]), axis=1)
+        distances = np.linalg.norm(
+            target_df[["x", "y"]].values - np.array([row["x"], row["y"]]), axis=1
+        )
 
         # Identify points within the circle and from a different cluster
         in_circle = distances <= radius
@@ -2144,35 +2352,62 @@ def plot_selected_neighbors_with_shapes(full_df, selected_df, target_df, radius,
         # Append the result to the list
         all_in_circle_diff_cluster.append(in_circle_diff_cluster)
 
-                # Plot the points with a different shape if plot is True
+        # Plot the points with a different shape if plot is True
         if plot:
             plt.scatter(
-                in_circle_diff_cluster['x'], in_circle_diff_cluster['y'],
-                facecolors='none', edgecolors="red", marker='*', s=100, zorder=5, label='Cell within proximity'
+                in_circle_diff_cluster["x"],
+                in_circle_diff_cluster["y"],
+                facecolors="none",
+                edgecolors="red",
+                marker="*",
+                s=100,
+                zorder=5,
+                label="Cell within proximity",
             )
 
-
     # Concatenate the list of DataFrames into a single result DataFrame
-    all_in_circle_diff_cluster = pd.concat(all_in_circle_diff_cluster, ignore_index=True)
+    all_in_circle_diff_cluster = pd.concat(
+        all_in_circle_diff_cluster, ignore_index=True
+    )
 
     # Plot selected points in yellow and draw circles around them if plot is True
     if plot:
-        plt.scatter(selected_df['x'], selected_df['y'], color='yellow', label='Selected Points', s=100, edgecolor='black', zorder=6)
+        plt.scatter(
+            selected_df["x"],
+            selected_df["y"],
+            color="yellow",
+            label="Selected Points",
+            s=100,
+            edgecolor="black",
+            zorder=6,
+        )
         for _, row in selected_df.iterrows():
-            circle = plt.Circle((row['x'], row['y']), radius, color='red', fill=False, linestyle='--', alpha=0.5)
+            circle = plt.Circle(
+                (row["x"], row["y"]),
+                radius,
+                color="red",
+                fill=False,
+                linestyle="--",
+                alpha=0.5,
+            )
             plt.gca().add_patch(circle)
 
         # Set plot labels and title
-        plt.xlabel('X')
-        plt.ylabel('Y')
-        plt.title(f'Points with Radius {radius} for Selected Points')
+        plt.xlabel("X")
+        plt.ylabel("Y")
+        plt.title(f"Points with Radius {radius} for Selected Points")
         plt.grid(True)
-        plt.axis('equal')
+        plt.axis("equal")
 
         # Place the legend outside the plot
         handles, labels = plt.gca().get_legend_handles_labels()
         by_label = dict(zip(labels, handles))
-        plt.legend(by_label.values(), by_label.keys(), loc='center left', bbox_to_anchor=(1, 0.5))
+        plt.legend(
+            by_label.values(),
+            by_label.keys(),
+            loc="center left",
+            bbox_to_anchor=(1, 0.5),
+        )
         plt.tight_layout()
         plt.show()
 
@@ -2181,19 +2416,26 @@ def plot_selected_neighbors_with_shapes(full_df, selected_df, target_df, radius,
 
     return all_in_circle_diff_cluster
 
+
 # generate a dataframe with the points in proximity to the selected points
 ## points are selected based on the coordinates of a 2D concave hull
 ### set edge_neighbours to 3 to select the 3 nearest points to the hull or 1 to disable functionality
 def identify_points_in_proximity(
-        df, full_df, identification_column, cluster_column="cluster",
-        x_column='x', y_column='y', radius=200, edge_neighbours=3, 
-        plot=True, concave_hull_length_threshold=50):
-
+    df,
+    full_df,
+    identification_column,
+    cluster_column="cluster",
+    x_column="x",
+    y_column="y",
+    radius=200,
+    edge_neighbours=3,
+    plot=True,
+    concave_hull_length_threshold=50,
+):
     result_list = []
 
     # Loop through clusters in the DataFrame
     for cluster in set(df[cluster_column]) - {-1}:
-
         # Filter DataFrame for the current cluster
         subset = df.loc[df[cluster_column] == cluster]
         points = subset[[x_column, y_column]].values
@@ -2205,22 +2447,28 @@ def identify_points_in_proximity(
         )
 
         # Get hull points from the DataFrame
-        hull_points = pd.DataFrame(points[idxes], columns=['x', 'y'])
+        hull_points = pd.DataFrame(points[idxes], columns=["x", "y"])
 
         # Find nearest neighbors of hull points in the original DataFrame
-        nbrs = NearestNeighbors(n_neighbors=edge_neighbours).fit(df[[x_column, y_column]])
-        distances, indices = nbrs.kneighbors(hull_points[["x", 'y']])
+        nbrs = NearestNeighbors(n_neighbors=edge_neighbours).fit(
+            df[[x_column, y_column]]
+        )
+        distances, indices = nbrs.kneighbors(hull_points[["x", "y"]])
 
         hull_nearest_neighbors = df.iloc[indices.flatten()]
 
         # Plot selected neighbors and get the DataFrame with different clusters in the circle
         prox_points = plot_selected_neighbors_with_shapes(
-            full_df=full_df, \
-            selected_df=hull_nearest_neighbors, target_df=full_df, \
-            radius=radius, plot=plot, identification_column=identification_column)
+            full_df=full_df,
+            selected_df=hull_nearest_neighbors,
+            target_df=full_df,
+            radius=radius,
+            plot=plot,
+            identification_column=identification_column,
+        )
 
         # Add a 'patch_id' column to identify the cluster
-        prox_points['patch_id'] = cluster
+        prox_points["patch_id"] = cluster
 
         # Append the result to the list
         result_list.append(prox_points)
@@ -2229,127 +2477,151 @@ def identify_points_in_proximity(
     if len(result_list) > 0:
         result = pd.concat(result_list)
     else:
-        result = pd.DataFrame(columns=['x', 'y', 'patch_id', identification_column])
+        result = pd.DataFrame(columns=["x", "y", "patch_id", identification_column])
 
     return result
 
-# This function answers the what is in proximity of this group. 
-def patch_proximity_analysis(
-        adata, 
-        region_column, 
-        patch_column,
-        group, 
-        min_samples=80, 
-        x_column='x', 
-        y_column='y', 
-        radius = 128,
-        edge_neighbours = 3, 
-        plot = True,
-        savefig = False,
-        output_dir = "./",
-        output_fname = "",
-        key_name = 'ppa_result'
-    ):
 
+# This function answers the what is in proximity of this group.
+def patch_proximity_analysis(
+    adata,
+    region_column,
+    patch_column,
+    group,
+    min_samples=80,
+    x_column="x",
+    y_column="y",
+    radius=128,
+    edge_neighbours=3,
+    plot=True,
+    savefig=False,
+    output_dir="./",
+    output_fname="",
+    key_name="ppa_result",
+):
     df = adata.obs
-    
-    for col in df.select_dtypes(['category']).columns:
+
+    for col in df.select_dtypes(["category"]).columns:
         df[col] = df[col].astype(str)
-    
+
     # list to store results for each region
     region_results = []
-    
+
     for region in df[region_column].unique():
         df_region = df[df[region_column] == region].copy()
-        
+
         df_community = df_region[df_region[patch_column] == group].copy()
-            
+
         apply_dbscan_clustering(df_community, min_samples=min_samples)
 
-        # plot patches 
+        # plot patches
         if plot:
-            df_filtered = df_community[df_community['cluster'] != -1]
+            df_filtered = df_community[df_community["cluster"] != -1]
             fig, ax = plt.subplots(figsize=(10, 10))
-            ax.scatter(df_filtered['x'], df_filtered['y'], c=df_filtered['cluster'], cmap='tab20', alpha=0.5)
+            ax.scatter(
+                df_filtered["x"],
+                df_filtered["y"],
+                c=df_filtered["cluster"],
+                cmap="tab20",
+                alpha=0.5,
+            )
             ax.set_title(f"DBSCAN Clusters for {region}_{group}")
             ax.set_xlabel(x_column)
             ax.set_ylabel(y_column)
             ax.grid(True)
-            ax.axis('equal')
+            ax.axis("equal")
             if savefig:
-                fig.savefig(output_dir + output_fname +"_patch_proximity.pdf", bbox_inches="tight")
+                fig.savefig(
+                    output_dir + output_fname + "_patch_proximity.pdf",
+                    bbox_inches="tight",
+                )
             else:
                 plt.show()
-            
+
         results = identify_points_in_proximity(
-            df = df_community, full_df= df_region, cluster_column = "cluster", 
-            identification_column = patch_column, x_column=x_column, y_column=y_column, 
-            radius = radius, edge_neighbours = edge_neighbours, plot = plot)
-            
+            df=df_community,
+            full_df=df_region,
+            cluster_column="cluster",
+            identification_column=patch_column,
+            x_column=x_column,
+            y_column=y_column,
+            radius=radius,
+            edge_neighbours=edge_neighbours,
+            plot=plot,
+        )
+
         print(f"Finished {region}_{group}")
-            
+
         # append to region_results
         region_results.append(results)
-        
+
     # Concatenate all results into a single DataFrame
     final_results = pd.concat(region_results)
-    
+
     # generate new column named unique_patch_ID that combines the region, group and patch ID
-    final_results["unique_patch_ID"] = final_results[region_column] \
-        + "_" + final_results[patch_column] \
-        + "_" + "patch_no_" \
+    final_results["unique_patch_ID"] = (
+        final_results[region_column]
+        + "_"
+        + final_results[patch_column]
+        + "_"
+        + "patch_no_"
         + final_results["patch_id"].astype(str)
-    
+    )
+
     adata.uns[key_name] = final_results
 
     return final_results
 
 
-def ml_train(adata_train, 
-                label, 
-                test_size =0.33,
-                random_state = 0,
-                model = 'svm',
-                nan_policy_y='raise',
-                showfig = True):
+def ml_train(
+    adata_train,
+    label,
+    test_size=0.33,
+    random_state=0,
+    model="svm",
+    nan_policy_y="raise",
+    showfig=True,
+):
     X = pd.DataFrame(adata_train.X)
     y = adata_train.obs[label].values
 
-    if nan_policy_y == 'omit':
+    if nan_policy_y == "omit":
         y_msk = ~y.isna()
         X = X[y_msk]
         y = y[y_msk]
-    elif nan_policy_y == 'raise':
+    elif nan_policy_y == "raise":
         pass
     else:
         raise ValueError("nan_policy_y must be either 'omit' or 'raise'")
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y,  test_size=test_size, random_state=random_state)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=test_size, random_state=random_state
+    )
 
     print(y.unique().sort_values())
 
     print("Training now!")
-    svc = SVC(kernel = 'linear',probability=True)
+    svc = SVC(kernel="linear", probability=True)
     svc.fit(X_train, y_train)
     pred = []
     y_prob = svc.predict_proba(X_test)
     y_prob = pd.DataFrame(y_prob)
     y_prob.columns = svc.classes_
-    
+
     svm_label = y_prob.idxmax(axis=1, skipna=True)
     target_names = svc.classes_
     print("Evaluating now!")
-    svm_eval = classification_report(y_true = y_test, y_pred = svm_label, target_names=target_names,output_dict=True)
+    svm_eval = classification_report(
+        y_true=y_test, y_pred=svm_label, target_names=target_names, output_dict=True
+    )
     if showfig:
         sns.heatmap(pd.DataFrame(svm_eval).iloc[:-1, :].T, annot=True)
         plt.show()
 
     return svc
 
-def ml_predict(adata_val,
-                  svc,
-                 save_name = "svm_pred",
-                 return_prob_mat = False):
+
+def ml_predict(adata_val, svc, save_name="svm_pred", return_prob_mat=False):
     print("Classifying!")
     X_val = pd.DataFrame(adata_val.X)
     y_prob_val = svc.predict_proba(X_val)
@@ -2364,4 +2636,3 @@ def ml_predict(adata_val,
         y_prob_val.columns = svc.classes_
         svm_label_val = y_prob_val.idxmax(axis=1, skipna=True)
         return svm_label_val
-    

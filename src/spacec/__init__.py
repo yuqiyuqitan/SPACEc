@@ -16,10 +16,10 @@ finally:
     del version, PackageNotFoundError
 
 
-from . import preprocessing as pp
-from . import tools as tl
 from . import helperfunctions as hf
 from . import plotting as pl
+from . import preprocessing as pp
+from . import tools as tl
 
 __all__ = [
     "__version__",

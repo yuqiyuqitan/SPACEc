@@ -3,31 +3,33 @@ import numpy as np
 
 # combine multiple channels in one image and add as new image to image_dict with the name segmentation_channel
 def combine_channels(image_dict, channel_list, new_channel_name):
-    
     # Create empty image
-    new_image = np.zeros((image_dict[channel_list[0]].shape[0], image_dict[channel_list[0]].shape[1]))
-    
+    new_image = np.zeros(
+        (image_dict[channel_list[0]].shape[0], image_dict[channel_list[0]].shape[1])
+    )
+
     # Add channels to image as maximum projection
     for channel in channel_list:
         new_image = np.maximum(new_image, image_dict[channel])
-    
+
     # generate greyscale image
     new_image = np.uint8(new_image)
-    
+
     # Add image to image_dict
     image_dict[new_channel_name] = new_image
-    
+
     return image_dict
 
 
-def format_CODEX(image, 
-                 channel_names = None, 
-                 number_cycles = None, 
-                 images_per_cycle = None, 
-                 #show_plots=False, 
-                 stack=True, 
-                 technology = "CODEX"):
-    
+def format_CODEX(
+    image,
+    channel_names=None,
+    number_cycles=None,
+    images_per_cycle=None,
+    # show_plots=False,
+    stack=True,
+    technology="CODEX",
+):
     if technology == "CODEX":
         total_images = number_cycles * images_per_cycle
         image_list = [None] * total_images  # pre-allocated list
@@ -47,7 +49,7 @@ def format_CODEX(image,
 
                 image_dict[c] = image2
 
-                #if show_plots:
+                # if show_plots:
                 #    plt.figure(figsize=(2, 2))
                 #    plt.imshow(image2, interpolation='nearest', cmap='magma')
                 #    plt.axis('off')
@@ -55,17 +57,17 @@ def format_CODEX(image,
                 #    cbar.ax.tick_params(labelsize=3)
                 #    plt.title(c)
                 #    plt.show()
-                
+
         if stack:
             stacked_image = np.stack(image_list)
             return image_dict, stacked_image
         else:
             return image_dict
-                
+
     if technology == "Phenocycler":
         image_dict = {}
         index = 0
-        
+
         for i in range(len(channel_names)):
             image2 = image[i, :, :]
             image_dict[channel_names[i]] = image2

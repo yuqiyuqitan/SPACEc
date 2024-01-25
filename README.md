@@ -17,8 +17,8 @@ pip install leidenalg concave-hull==0.0.6
 	a.	Mesmer
 	b.	CellPose
 	c.	CellSeg [Under Development]
-### II.	Data prepcoessing 
-	a.  First filtering based on size and DAPI 	
+### II.	Data prepcoessing
+	a.  First filtering based on size and DAPI
 	b.	Normalization
 	c.	Second filtering based on noisy signals
 	d.	Data type conversion (df --> anndata)
@@ -28,11 +28,9 @@ pip install leidenalg concave-hull==0.0.6
 	c.	Cell type statistics and visualization
 ### IV.	Downstream spatial analysis
 	a.	Cellular neighborhood analysis
-	b.	Tissue schematic analysis 
+	b.	Tissue schematic analysis
 	c.	Distance permutation analysis
 	d.	Neighbor permutation analysis [UD]
 	e.	Patch proximity analysis
 	e.	Shannon diversity function
 	f.	(optional) Mario or MaxFuse integration[UD]
-
-

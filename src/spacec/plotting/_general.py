@@ -1,13 +1,14 @@
 # load required packages
 import os as os
 import pathlib
-import skimage
+
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 import pandas as pd
 import scipy as sp
 import seaborn as sns
+import skimage
 import tensorly as tl
 from scipy import stats
 from statsmodels.stats.multicomp import pairwise_tukeyhsd
@@ -1206,14 +1207,14 @@ def pl_community_analysis_2(
 
 ###############
 """
-This function visualizes the results of Canonical Correlation Analysis (CCA) using a graph. 
+This function visualizes the results of Canonical Correlation Analysis (CCA) using a graph.
 The function takes in several parameters including the CCA results, the save path for the resulting plot, whether or not to save the plot, a p-value threshold, a name for the plot file, and a color palette to use for the nodes.
 
-The function first creates an empty Petersen graph and then iterates over each pair of cell types in the CCA results. 
-For each pair, it calculates the observed correlation and the correlation for a set of permuted samples. 
+The function first creates an empty Petersen graph and then iterates over each pair of cell types in the CCA results.
+For each pair, it calculates the observed correlation and the correlation for a set of permuted samples.
 If the p-value for the observed correlation is less than the specified threshold, it adds an edge to the graph between the two cell types, weighted by the p-value.
 
-The function then uses the graphviz_layout function to position the nodes in the graph and assigns a color to each node based on the specified color palette. 
+The function then uses the graphviz_layout function to position the nodes in the graph and assigns a color to each node based on the specified color palette.
 It then iterates over each edge in the graph and sets its alpha and linewidth based on the weight of the edge. Finally, it saves the resulting plot to the specified save path if save_fig is True.
 
 Overall, this function provides a way to visually represent the relationships between cell types in the CCA results, allowing for a better understanding of the underlying patterns and correlations in the data.
@@ -1360,12 +1361,12 @@ def pl_plot_modules_heatmap(
 #######
 
 """
-This is a Python function that generates a graphical representation of modules discovered in a dataset using non-negative matrix factorization (NMF). 
-The function takes as input a dataset ('dat'), lists of tissue types ('cts') and copy number segments ('cns'), and parameters specifying the number of tissue and copy number modules to identify ('num_tissue_modules' and 'num_cn_modules', respectively). 
+This is a Python function that generates a graphical representation of modules discovered in a dataset using non-negative matrix factorization (NMF).
+The function takes as input a dataset ('dat'), lists of tissue types ('cts') and copy number segments ('cns'), and parameters specifying the number of tissue and copy number modules to identify ('num_tissue_modules' and 'num_cn_modules', respectively).
 The function then performs NMF on the input dataset and plots a separate graph for each tissue module.
 
-In each graph, the function displays the copy number segments and tissue types as scatter points, with the color of each point representing the degree to which that segment or type belongs to the corresponding module. 
-The function also draws rectangles and lines to visually separate the different modules and indicate the strength of the relationships between copy number segments and tissue types within each module. 
+In each graph, the function displays the copy number segments and tissue types as scatter points, with the color of each point representing the degree to which that segment or type belongs to the corresponding module.
+The function also draws rectangles and lines to visually separate the different modules and indicate the strength of the relationships between copy number segments and tissue types within each module.
 The resulting plots can be saved to a specified file path and name using the 'save_path' and 'save_name' arguments.
 """
 
@@ -1920,7 +1921,7 @@ def pl_cor_plot(
 """
 mp: A pandas dataframe from which a subset of columns will be selected and plotted.
 sub_list: A list of column names from the dataframe mp that will be selected and plotted.
-save_name (optional): A string that specifies the file name for saving the plot. 
+save_name (optional): A string that specifies the file name for saving the plot.
 If save_name is not provided, the plot will not be saved.
 """
 
@@ -2704,17 +2705,17 @@ def catplot(
     invert_y=False,
     size=6,
     alpha=1,
-    palette=None, #default is None which means the color comes from the anndata object
+    palette=None,  # default is None which means the color comes from the anndata object
     savefig=False,
     output_dir="./",
-    output_fname = "",
+    output_fname="",
     figsize=5,
     style="white",
     axis="on",
     scatter_kws={},
     n_columns=4,
     legend_padding=0.2,
-    rand_seed = 1
+    rand_seed=1,
 ):
     """
     Plots cells in tissue section color coded by either cell type or node allocation.
@@ -2733,18 +2734,18 @@ def catplot(
     if invert_y:
         y_orig = df[Y].values.copy()
         df[Y] *= -1
-    
+
     if palette is None:
-        if color + '_colors' not in adata.uns.keys():
+        if color + "_colors" not in adata.uns.keys():
             ct_colors = hf_generate_random_colors(
-                len(adata.obs[color].unique()), 
-                rand_seed = rand_seed)
+                len(adata.obs[color].unique()), rand_seed=rand_seed
+            )
             palette = dict(zip(np.sort(adata.obs[color].unique()), ct_colors))
             adata.uns[color + "_colors"] = ct_colors
         else:
-            palette = dict(zip(
-                np.sort(adata.obs[color].unique()), 
-                adata.uns[color + '_colors']))   
+            palette = dict(
+                zip(np.sort(adata.obs[color].unique()), adata.uns[color + "_colors"])
+            )
 
     style = {"axes.facecolor": style}
     sns.set_style(style)
@@ -2792,10 +2793,11 @@ def catplot(
     # fig.tight_layout(pad = 0.5)
 
     if savefig:
-        fig.savefig(output_dir + output_fname +"_spatial_plot.pdf", bbox_inches="tight")
+        fig.savefig(
+            output_dir + output_fname + "_spatial_plot.pdf", bbox_inches="tight"
+        )
     # else:
     #    return fig
-
 
 
 def pl_generate_CN_comb_map(
@@ -2883,8 +2885,8 @@ def stacked_bar_plot(
     cell_list,
     output_dir,
     norm=True,
-    savefig=False, # new
-    output_fname = "", # new
+    savefig=False,  # new
+    output_fname="",  # new
     col_order=None,
     sub_col=None,
     name_cat="celltype",
@@ -2892,7 +2894,7 @@ def stacked_bar_plot(
     plot_order=None,
     palette=None,
     remove_leg=False,
-    rand_seed = 1
+    rand_seed=1,
 ):
     """
     Plot a stacked bar plot based on the given data.
@@ -2949,21 +2951,23 @@ def stacked_bar_plot(
     else:
         if sub_col is None:
             test1 = data.copy()
-            sub_cell_list = list(
-                data.loc[data[color].isin(cell_list)][color].unique()
-            )
+            sub_cell_list = list(data.loc[data[color].isin(cell_list)][color].unique())
         else:
             test1 = data.copy()
             sub_cell_list = list(
                 data.loc[data[sub_col].isin(cell_list)][color].unique()
             )
     if palette is None:
-        if color + '_colors' not in adata.uns.keys():
-            ct_colors = hf_generate_random_colors(len(adata.obs[color].unique()), rand_seed = rand_seed)
+        if color + "_colors" not in adata.uns.keys():
+            ct_colors = hf_generate_random_colors(
+                len(adata.obs[color].unique()), rand_seed=rand_seed
+            )
             palette = dict(zip(np.sort(adata.obs[color].unique()), ct_colors))
             adata.uns[color + "_colors"] = ct_colors
         else:
-            palette = dict(zip(np.sort(adata.obs[color].unique()), adata.uns[color + '_colors']))   
+            palette = dict(
+                zip(np.sort(adata.obs[color].unique()), adata.uns[color + "_colors"])
+            )
 
     test1[color] = test1[color].astype("category")
     test_freq = test1.groupby(grouping).apply(
@@ -2978,7 +2982,7 @@ def stacked_bar_plot(
     melt_test = pd.melt(
         test_freq, id_vars=[grouping]
     )  # , value_vars=test_freq.columns)
-    #melt_test.rename(columns={per_cat: name_cat, "value": "percent"}, inplace=True)
+    # melt_test.rename(columns={per_cat: name_cat, "value": "percent"}, inplace=True)
     melt_test.rename(columns={"value": "percent"}, inplace=True)
 
     if norm == True:
@@ -3014,14 +3018,14 @@ def stacked_bar_plot(
 
     # Get color dictionary
     ax1 = melt_test_piv.plot.bar(
-            alpha=0.8,
-            linewidth=1,
-            color=[palette.get(x) for x in melt_test_piv.columns],
-            figsize=fig_sizing,
-            rot=90,
-            stacked=True,
-            edgecolor="black",
-        )
+        alpha=0.8,
+        linewidth=1,
+        color=[palette.get(x) for x in melt_test_piv.columns],
+        figsize=fig_sizing,
+        rot=90,
+        stacked=True,
+        edgecolor="black",
+    )
 
     for line in ax1.lines:
         line.set_color("black")
@@ -3254,10 +3258,9 @@ def create_pie_charts(
     show_percentages=True,
     palette=None,
     savefig=False,
-    output_fname = "",
-    output_dir = './',
-    rand_seed = 1
-
+    output_fname="",
+    output_dir="./",
+    rand_seed=1,
 ):
     """
     Create pie charts for each group based on a grouping column, showing the percentage of total rows based on a
@@ -3294,12 +3297,16 @@ def create_pie_charts(
 
     # Create a color dictionary if not provided
     if palette is None:
-        if color + '_colors' not in adata.uns.keys():
-            ct_colors = hf_generate_random_colors(len(adata.obs[color].unique()), rand_seed = rand_seed)
+        if color + "_colors" not in adata.uns.keys():
+            ct_colors = hf_generate_random_colors(
+                len(adata.obs[color].unique()), rand_seed=rand_seed
+            )
             palette = dict(zip(np.sort(adata.obs[color].unique()), ct_colors))
             adata.uns[color + "_colors"] = ct_colors
         else:
-            palette = dict(zip(np.sort(adata.obs[color].unique()), adata.uns[color + '_colors']))   
+            palette = dict(
+                zip(np.sort(adata.obs[color].unique()), adata.uns[color + "_colors"])
+            )
 
     # Iterate over each group and create a pie chart
     for i, (group, group_df) in enumerate(grouped_data):
@@ -3340,43 +3347,45 @@ def create_pie_charts(
             bbox_inches="tight",
         )
     else:
-        #Show the plot
+        # Show the plot
         plt.show()
 
 
 def cn_exp_heatmap(
-        adata, 
-        cluster_col, 
-        cn_col, 
-        palette=None, 
-        figsize = (18,12),
-        savefig=False,
-        output_fname = "",
-        output_dir = './',
-        row_clus = True,
-        col_clus = True,
-        rand_seed = 1
-    ):
-    
+    adata,
+    cluster_col,
+    cn_col,
+    palette=None,
+    figsize=(18, 12),
+    savefig=False,
+    output_fname="",
+    output_dir="./",
+    row_clus=True,
+    col_clus=True,
+    rand_seed=1,
+):
     data = adata.obs
     output_dir = pathlib.Path(output_dir)
-   
+
     if palette is None:
-        if cn_col + '_colors' not in adata.uns.keys():
-            # Create a color dictionary if not provided 
-            cn_colors = hf_generate_random_colors(len(adata.obs[cn_col].unique()), rand_seed = rand_seed)
+        if cn_col + "_colors" not in adata.uns.keys():
+            # Create a color dictionary if not provided
+            cn_colors = hf_generate_random_colors(
+                len(adata.obs[cn_col].unique()), rand_seed=rand_seed
+            )
             palette = dict(zip(np.sort(adata.obs[cn_col].unique()), cn_colors))
             adata.uns[cn_col + "_colors"] = cn_colors
         else:
-            palette = dict(zip(np.sort(adata.obs[cn_col].unique()), adata.uns[cn_col + '_colors']))   
+            palette = dict(
+                zip(np.sort(adata.obs[cn_col].unique()), adata.uns[cn_col + "_colors"])
+            )
 
-    neigh_data = pd.DataFrame({
-    cn_col:list(palette.keys()),
-    'color':list(palette.values())
-    })
-    neigh_data.set_index(keys=cn_col,inplace=True)
-    
-    df3 = pd.concat([data,pd.get_dummies(data[cluster_col])],axis=1)
+    neigh_data = pd.DataFrame(
+        {cn_col: list(palette.keys()), "color": list(palette.values())}
+    )
+    neigh_data.set_index(keys=cn_col, inplace=True)
+
+    df3 = pd.concat([data, pd.get_dummies(data[cluster_col])], axis=1)
     sum_cols2 = df3[cluster_col].unique()
     values2 = df3[sum_cols2].values
     cell_list = sum_cols2.copy()
@@ -3385,31 +3394,38 @@ def cn_exp_heatmap(
 
     subset = df3[cell_list]
     niche_sub = subset.groupby(cn_col).sum()
-    niche_df = niche_sub.apply(lambda x: x/x.sum() * 10, axis=1)
+    niche_df = niche_sub.apply(lambda x: x / x.sum() * 10, axis=1)
     neigh_clusters = niche_df.to_numpy()
 
- 
-    tissue_avgs = values2.mean(axis = 0)
-    
-        
-    fc_2 = np.log2(((neigh_clusters+tissue_avgs)/(neigh_clusters+tissue_avgs).sum(axis = 1, keepdims = True))/tissue_avgs)
-    fc_2 = pd.DataFrame(fc_2,columns = sum_cols2)
+    tissue_avgs = values2.mean(axis=0)
+
+    fc_2 = np.log2(
+        (
+            (neigh_clusters + tissue_avgs)
+            / (neigh_clusters + tissue_avgs).sum(axis=1, keepdims=True)
+        )
+        / tissue_avgs
+    )
+    fc_2 = pd.DataFrame(fc_2, columns=sum_cols2)
     fc_2.set_index(niche_df.index, inplace=True)
-    s=sns.clustermap(
-        fc_2, vmin =-3,vmax = 3,cmap = 'bwr', figsize=figsize, row_colors=[neigh_data.reindex(fc_2.index)['color']],\
-        cbar_pos=(0.03,0.06,0.03,0.1),
+    s = sns.clustermap(
+        fc_2,
+        vmin=-3,
+        vmax=3,
+        cmap="bwr",
+        figsize=figsize,
+        row_colors=[neigh_data.reindex(fc_2.index)["color"]],
+        cbar_pos=(0.03, 0.06, 0.03, 0.1),
     )
 
     s.ax_row_dendrogram.set_visible(row_clus)
     s.ax_col_dendrogram.set_visible(col_clus)
     s.ax_heatmap.set_ylabel("", labelpad=25)
-    s.ax_heatmap.tick_params(axis='y', pad=42)
+    s.ax_heatmap.tick_params(axis="y", pad=42)
     s.ax_heatmap.yaxis.set_ticks_position("right")
-    
+
     if savefig:
-        s.figure.savefig(
-            output_dir / (output_fname + "_cn_heatmap.pdf")
-        )
+        s.figure.savefig(output_dir / (output_fname + "_cn_heatmap.pdf"))
 
 
 def pl_area_nuc_cutoff(
@@ -3462,7 +3478,9 @@ def pl_plot_scatter_correlation(data, x, y, xlabel=None, ylabel=None, save_path=
     plt.yticks(fontsize=14)
 
     if save_path:
-        plt.savefig(save_path + "_corrplot.pdf", transparent=True, dpi=600, bbox_inches="tight")
+        plt.savefig(
+            save_path + "_corrplot.pdf", transparent=True, dpi=600, bbox_inches="tight"
+        )
     plt.show()
 
 
@@ -3483,11 +3501,14 @@ def pl_plot_scatter_correlation_ad(
     plt.yticks(fontsize=14)
 
     if save_path:
-        plt.savefig(save_path + "_corrplot.pdf", transparent=True, dpi=600, bbox_inches="tight")
+        plt.savefig(
+            save_path + "_corrplot.pdf", transparent=True, dpi=600, bbox_inches="tight"
+        )
     plt.show()
 
 
 ########
+
 
 def pl_plot_correlation_matrix(cmat):
     # plot correlation matrix as heatmap
@@ -3501,72 +3522,97 @@ def pl_plot_correlation_matrix(cmat):
     plt.show()
 
 
-def dumbbell(data, figsize=(10,10), colors = ['#DB444B', '#006BA2']):
-    fig, ax = plt.subplots(figsize=figsize, facecolor = "white")
-    #plot each country one at a time
+def dumbbell(data, figsize=(10, 10), colors=["#DB444B", "#006BA2"]):
+    fig, ax = plt.subplots(figsize=figsize, facecolor="white")
+    # plot each country one at a time
 
-    # Create grid 
+    # Create grid
     # Zorder tells it which layer to put it on. We are setting this to 1 and our data to 2 so the grid is behind the data.
-    ax.grid(which="major", axis='both', color='#758D99', alpha=0.6, zorder=1)
+    ax.grid(which="major", axis="both", color="#758D99", alpha=0.6, zorder=1)
 
     # Remove splines. Can be done one at a time or can slice with a list.
-    ax.spines[['top','right','bottom']].set_visible(False)
+    ax.spines[["top", "right", "bottom"]].set_visible(False)
 
     # Plot data
     comp_cat = data.columns
-    
+
     # Plot horizontal lines first
-    ax.hlines(y=data.index, xmin=data[comp_cat[0]], xmax=data[comp_cat[1]], color='#758D99', zorder=2, linewidth=2, label='_nolegend_', alpha=.8)
+    ax.hlines(
+        y=data.index,
+        xmin=data[comp_cat[0]],
+        xmax=data[comp_cat[1]],
+        color="#758D99",
+        zorder=2,
+        linewidth=2,
+        label="_nolegend_",
+        alpha=0.8,
+    )
     # Plot bubbles next
-    ax.scatter(data[comp_cat[0]], data.index, label='2014', s=60, color=colors[0], zorder=3)
-    ax.scatter(data[comp_cat[1]], data.index, label='2018', s=60, color=colors[1], zorder=3)
+    ax.scatter(
+        data[comp_cat[0]], data.index, label="2014", s=60, color=colors[0], zorder=3
+    )
+    ax.scatter(
+        data[comp_cat[1]], data.index, label="2018", s=60, color=colors[1], zorder=3
+    )
 
     # Set xlim
-    #ax.set_xlim(-3, 3)
+    # ax.set_xlim(-3, 3)
 
     # Reformat x-axis tick labels
 
-    ax.xaxis.set_tick_params(labeltop=True,      # Put x-axis labels on top
-                            labelbottom=False,  # Set no x-axis labels on bottom
-                            bottom=False,       # Set no ticks on bottom
-                            labelsize=11,       # Set tick label size
-                            pad=-1)             # Lower tick labels a bit
+    ax.xaxis.set_tick_params(
+        labeltop=True,  # Put x-axis labels on top
+        labelbottom=False,  # Set no x-axis labels on bottom
+        bottom=False,  # Set no ticks on bottom
+        labelsize=11,  # Set tick label size
+        pad=-1,
+    )  # Lower tick labels a bit
 
-    ax.axvline(x=0, color='k', linestyle='--')
+    ax.axvline(x=0, color="k", linestyle="--")
 
     # Set Legend
-    ax.legend(data.columns, loc=(0,1.076), ncol=2, frameon=False, handletextpad=-.1, handleheight=1) 
+    ax.legend(
+        data.columns,
+        loc=(0, 1.076),
+        ncol=2,
+        frameon=False,
+        handletextpad=-0.1,
+        handleheight=1,
+    )
 
 
-
-def cn_map(adata,
+def cn_map(
+    adata,
     cnmap_dict,
     cn_col,
-    palette = None,
+    palette=None,
     figsize=(40, 20),
     savefig=False,
-    output_fname = "",
+    output_fname="",
     output_dir="./",
-    rand_seed = 1
+    rand_seed=1,
 ):
-    
-    graph = cnmap_dict['g']
-    tops = cnmap_dict['tops']
-    e0 = cnmap_dict['e0']
-    e1 = cnmap_dict['e1']
-    simp_freqs = cnmap_dict['simp_freqs']
+    graph = cnmap_dict["g"]
+    tops = cnmap_dict["tops"]
+    e0 = cnmap_dict["e0"]
+    e1 = cnmap_dict["e1"]
+    simp_freqs = cnmap_dict["simp_freqs"]
     draw = graph
     pos = nx.drawing.nx_pydot.graphviz_layout(draw, prog="dot")
     height = 8
 
     # generate color
-    cn_colors = hf_generate_random_colors(len(adata.obs[cn_col].unique()), rand_seed = rand_seed)
+    cn_colors = hf_generate_random_colors(
+        len(adata.obs[cn_col].unique()), rand_seed=rand_seed
+    )
     if palette is None:
-        if cn_col + '_colors' not in adata.uns.keys():
+        if cn_col + "_colors" not in adata.uns.keys():
             palette = dict(zip(np.sort(adata.obs[cn_col].unique()), cn_colors))
             adata.uns[cn_col + "_colors"] = cn_colors
         else:
-            palette = dict(zip(np.sort(adata.obs[cn_col].unique()), adata.uns[cn_col + '_colors']))  
+            palette = dict(
+                zip(np.sort(adata.obs[cn_col].unique()), adata.uns[cn_col + "_colors"])
+            )
 
     plt.figure(figsize=figsize)
     for n in draw.nodes():
@@ -3631,85 +3677,95 @@ def cn_map(adata,
         plt.show()
 
 
-def coordinates_on_image(df, 
-                            overlay_data, 
-                            color= None, 
-                            x ='x', y = 'y',
-                            fig_width=20, fig_height=20, dot_size = 10, 
-                            convert_to_grey=True, 
-                            scale=False,
-                            cmap='inferno',
-                            savefig = False,
-                            output_dir = "./",
-                            output_fname = ""):
+def coordinates_on_image(
+    df,
+    overlay_data,
+    color=None,
+    x="x",
+    y="y",
+    fig_width=20,
+    fig_height=20,
+    dot_size=10,
+    convert_to_grey=True,
+    scale=False,
+    cmap="inferno",
+    savefig=False,
+    output_dir="./",
+    output_fname="",
+):
     # Create a new figure with increased size
     plt.figure(figsize=(fig_width, fig_height))
-    
+
     if convert_to_grey:
         # Convert the image to grayscale
         overlay_data = skimage.color.rgb2gray(overlay_data)
-        plt.imshow(overlay_data, cmap='gray')
-    
+        plt.imshow(overlay_data, cmap="gray")
+
     else:
         plt.imshow(overlay_data)
-    
+
     image_width, image_height = overlay_data.shape[1], overlay_data.shape[0]
-    
-    
+
     # Plot the coordinates on top of the image
     # colorscale by area
-    
+
     if color != None:
-        
         if scale:
             # minmax scale the variable
-            df[color] = (df[color] - df[color].min())/(df[color].max() - df[color].min())
+            df[color] = (df[color] - df[color].min()) / (
+                df[color].max() - df[color].min()
+            )
             # change dot size based on variable
-            plt.scatter(df[x], df[y], s=df[color]*30, c=df[color], cmap=cmap)
+            plt.scatter(df[x], df[y], s=df[color] * 30, c=df[color], cmap=cmap)
         else:
-            plt.scatter(df[x], df[y], c=df[color], s=dot_size, cmap=cmap)   
-            
+            plt.scatter(df[x], df[y], c=df[color], s=dot_size, cmap=cmap)
+
     else:
-        plt.scatter(df[x], df['y'], s=dot_size)
-    
+        plt.scatter(df[x], df["y"], s=dot_size)
+
     # add colorbar
     plt.colorbar()
-    
-    
+
     # set axis limits
     plt.xlim(0, image_width)
     plt.ylim(image_height, 0)
 
     # Show the plot
     if savefig:
-        plt.savefig(output_dir + output_fname +"_seg_masks_overlay.pdf", bbox_inches="tight")
+        plt.savefig(
+            output_dir + output_fname + "_seg_masks_overlay.pdf", bbox_inches="tight"
+        )
     else:
         plt.show()
 
 
-def count_patch_proximity_res(adata, 
-                           x, 
-                           hue,
-                           palette="Set3",
-                           order = True,
-                           key_name = 'ppa_result',
-                           savefig = False,
-                           output_dir = "./",
-                           output_fname = ""
-                          ):
-    
+def count_patch_proximity_res(
+    adata,
+    x,
+    hue,
+    palette="Set3",
+    order=True,
+    key_name="ppa_result",
+    savefig=False,
+    output_dir="./",
+    output_fname="",
+):
     region_results = adata.uns[key_name]
-    ax = sns.countplot(x=x, 
-                   hue=hue, 
-                   data=region_results, 
-                   palette=palette, 
-                   order=region_results[x].value_counts().index)
-    
+    ax = sns.countplot(
+        x=x,
+        hue=hue,
+        data=region_results,
+        palette=palette,
+        order=region_results[x].value_counts().index,
+    )
+
     tick_positions = range(len(region_results[x].value_counts()))
     tick_labels = region_results[x].value_counts().index
     ax.set_xticks(tick_positions)
     ax.set_xticklabels(tick_labels, rotation=90)
     if savefig:
-        plt.savefig(output_dir + output_fname +"_count_ppa_result.pdf", bbox_inches="tight")
+        plt.savefig(
+            output_dir + output_fname + "_count_ppa_result.pdf", bbox_inches="tight"
+        )
     else:
         plt.show()

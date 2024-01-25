@@ -1,20 +1,21 @@
 # load required packages
 import os
+import random
 import time
 from functools import reduce
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import scanpy as sc
+import scipy as sp
 import seaborn as sns
 import tifffile as tiff
 from scipy.spatial.distance import cdist
 from scipy.stats import pearsonr
-import scipy as sp
 from sklearn.cross_decomposition import CCA
 from sklearn.neighbors import NearestNeighbors
 from tqdm import tqdm
-import random
 
 # sns.set_style("ticks")
 
@@ -22,8 +23,8 @@ import random
 ############################################################
 
 
-def hf_generate_random_colors(n, rand_seed = 0):
-    #from random import randint
+def hf_generate_random_colors(n, rand_seed=0):
+    # from random import randint
     random.seed(rand_seed)
     color = []
     for i in range(n):
@@ -230,14 +231,14 @@ def hf_get_pathcells(query_database, query_dict_list):
 # annotated
 """
 def hf_get_pathcells(query_database: Union[Dict, List[Dict]], query_dict_list: List[Dict]) -> Union[Dict, List[Dict]]:
-    
+
     #Return set of cells that match query_dict path.
-    
+
     out: List[Dict] = []   # initialize an empty list to store results
-    
+
     if type(query_dict_list) == dict:    # if query_dict_list is a dictionary, convert it into a list
         query_dict_list = [query_dict_list]
-        
+
     for query_dict in query_dict_list:    # loop through each dictionary in query_dict_list
         qd = query_database   # initialize a reference to query_database
         for k,v in query_dict.items():   # loop through each key-value pair in the current dictionary
@@ -245,7 +246,7 @@ def hf_get_pathcells(query_database: Union[Dict, List[Dict]], query_dict_list: L
                 v = [v]
             qd = qd[qd[k].isin(v)]   # filter the rows of qd based on the key-value pair
         out+=[qd]   # append the resulting qd to the out list
-        
+
     if len(query_database)==1:    # if query_database contains only one row, return the first item in out
         return out[0]
     return out    # otherwise, return the entire out list
@@ -1029,4 +1030,3 @@ def hf_annotate_cor_plot(x, y, **kws):
     r, p = sp.stats.pearsonr(data[x], data[y])
     ax = plt.gca()
     ax.text(0.5, 0.8, f"r={r:.2f}, p={p:.2g}", transform=ax.transAxes, fontsize=14)
-
