@@ -31,7 +31,7 @@ def test_4_cellular_neighborhood_analysis():
 
         # compute for CNs
         # tune k and n_neighborhoods to obtain the best result
-        adata = sp.tl.neighborhood_analysis_ad(
+        adata = sp.tl.neighborhood_analysis(
             adata,
             unique_region = "unique_region", 
             cluster_col = "celltype_fine", 
@@ -52,7 +52,7 @@ def test_4_cellular_neighborhood_analysis():
         }
 
         # plot CN to see what cell types are enriched per CN so that we can annotate them better
-        sp.pl.cn_exp_heatmap_ad(
+        sp.pl.cn_exp_heatmap(
             adata, 
             cluster_col = "celltype_fine",
             cn_col = "CN_k20_n6",
@@ -65,7 +65,7 @@ def test_4_cellular_neighborhood_analysis():
 
         # %%
         # plot the CN in the spatial coordinates, using the same color palette
-        sp.pl.catplot_ad(
+        sp.pl.catplot(
             adata, 
             color = "CN_k20_n6", 
             unique_region = "unique_region",
@@ -99,7 +99,7 @@ def test_4_cellular_neighborhood_analysis():
             for key, value in cn_palette.items()}
 
         # replotting with CN annotation
-        sp.pl.cn_exp_heatmap_ad(
+        sp.pl.cn_exp_heatmap(
             adata, 
             cluster_col = "celltype", 
             cn_col = "CN_k20_n6_annot",
@@ -126,7 +126,7 @@ def test_4_cellular_neighborhood_analysis():
         # #### tonsil
 
         # %%
-        cnmap_dict_tonsil = sp.tl.cn_map_ad(
+        cnmap_dict_tonsil = sp.tl.cn_map(
             adata = adata_tonsil, # adata object
             cn_col = "CN_k20_n6",# column with CNs
             palette = None, # color dictionary
@@ -153,7 +153,7 @@ def test_4_cellular_neighborhood_analysis():
         # ### tonsillitis
 
         # %%
-        cnmap_dict_tonsillitis = sp.tl.cn_map_ad(
+        cnmap_dict_tonsillitis = sp.tl.cn_map(
             adata = adata_tonsillitis, # adata object
             cn_col = "CN_k20_n6",# column with CNs
             palette = None, # color dictionary

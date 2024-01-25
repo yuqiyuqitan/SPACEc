@@ -21,7 +21,7 @@ from .._shared.segmentation import combine_channels, format_CODEX
 
 
 # perform cell segmentation
-def tl_cell_segmentation(
+def cell_segmentation(
         file_name, 
         channel_file,
         output_dir,

@@ -1276,7 +1276,7 @@ def tl_clustering_ad(
         return adata_tmp
 
 
-def neighborhood_analysis_ad(
+def neighborhood_analysis(
     adata,
     unique_region,
     cluster_col,
@@ -1395,7 +1395,7 @@ def neighborhood_analysis_ad(
     return adata
 
 
-def cn_map_ad(
+def cn_map(
     adata,
     cn_col,
     unique_region,
@@ -1985,7 +1985,7 @@ def filter_interactions(distance_pvals,
     return dist_table, distance_pvals_sig_sub
 
 
-def identify_interactions_ad(adata,
+def identify_interactions(adata,
                                 id, 
                                 x_pos, 
                                 y_pos, 

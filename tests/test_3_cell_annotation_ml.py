@@ -88,7 +88,7 @@ def test_3_cell_annotation_ml():
 
         # ## 3.5 Single-cell visualzation
 
-        sp.pl.catplot_ad(adata_val, color = "svm_pred", # specify group column name here (e.g. celltype_fine)
+        sp.pl.catplot(adata_val, color = "svm_pred", # specify group column name here (e.g. celltype_fine)
                     unique_region = "condition", # specify unique_regions here
                     X='x', Y='y', # specify x and y columns here
                     n_columns=1, # adjust the number of columns for plotting here (how many plots do you want in one row?)
@@ -99,7 +99,7 @@ def test_3_cell_annotation_ml():
                     )
 
         # cell type percentage tab and visualization [much few]
-        ct_perc_tab, _ = sp.pl.stacked_bar_plot_ad(adata = adata_val, # adata object to use 
+        ct_perc_tab, _ = sp.pl.stacked_bar_plot(adata = adata_val, # adata object to use 
                             color = 'svm_pred', # column containing the categories that are used to fill the bar plot
                             grouping = 'condition', # column containing a grouping variable (usually a condition or cell group) 
                             cell_list = ['GCB', 'Treg'],  # list of cell types to plot, you can also see the entire cell types adata.obs['celltype_fine'].unique()
@@ -110,7 +110,7 @@ def test_3_cell_annotation_ml():
                             norm = False # if True, then whatever plotted will be scaled to sum of 1
                             ) 
 
-        sp.pl.create_pie_charts_ad(adata_val,
+        sp.pl.create_pie_charts(adata_val,
                                 color = "svm_pred", 
                                 grouping = "condition", 
                                 show_percentages=False,

@@ -1,11 +1,11 @@
 from ._segmentation import \
-    tl_cell_segmentation
+    cell_segmentation
 
 from ._general import \
     clustering,\
-    neighborhood_analysis_ad,\
-    cn_map_ad,\
-    identify_interactions_ad,\
+    neighborhood_analysis,\
+    cn_map,\
+    identify_interactions,\
     filter_interactions,\
     patch_proximity_analysis,\
     ml_train,\
@@ -17,13 +17,13 @@ from ._qptiff_converter import \
 
 __all__ = [
     # segmentation
-    "tl_cell_segmentation",
+    "cell_segmentation",
     
     # general
     "clustering",
-    "neighborhood_analysis_ad",
-    "cn_map_ad",
-    "identify_interactions_ad",
+    "neighborhood_analysis",
+    "cn_map",
+    "identify_interactions",
     "filter_interactions",
     "patch_proximity_analysis",
     "ml_train",\

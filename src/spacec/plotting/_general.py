@@ -2694,7 +2694,7 @@ import pandas as pd
 import seaborn as sns
 
 
-def catplot_ad(
+def catplot(
     adata,
     color,
     unique_region,
@@ -2876,7 +2876,7 @@ def pl_generate_CN_comb_map(
         plt.show()
 
 
-def stacked_bar_plot_ad(
+def stacked_bar_plot(
     adata,
     color,
     grouping,
@@ -3246,7 +3246,7 @@ def pl_swarm_box_ad(
     return melt_per_plot
 
 
-def create_pie_charts_ad(
+def create_pie_charts(
     adata,
     color,
     grouping,
@@ -3344,7 +3344,7 @@ def create_pie_charts_ad(
         plt.show()
 
 
-def cn_exp_heatmap_ad(
+def cn_exp_heatmap(
         adata, 
         cluster_col, 
         cn_col, 

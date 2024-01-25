@@ -4,10 +4,10 @@ from ._segmentation import \
 
 from ._general import \
     coordinates_on_image,\
-    stacked_bar_plot_ad,\
-    create_pie_charts_ad,\
-    cn_exp_heatmap_ad,\
-    catplot_ad,\
+    stacked_bar_plot,\
+    create_pie_charts,\
+    cn_exp_heatmap,\
+    catplot,\
     cn_map,\
     dumbbell,\
     count_patch_proximity_res,\
@@ -23,11 +23,11 @@ __all__ = [
     
     # general
     "coordinates_on_image",
-    "catplot_ad",
-    "stacked_bar_plot_ad",
-    "create_pie_charts_ad",
-    "cn_exp_heatmap_ad",
-    "catplot_ad",
+    "catplot",
+    "stacked_bar_plot",
+    "create_pie_charts",
+    "cn_exp_heatmap",
+    "catplot",
     "cn_map",
     "dumbbell",
     "count_patch_proximity_res",

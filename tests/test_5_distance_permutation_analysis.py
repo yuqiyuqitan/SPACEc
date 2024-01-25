@@ -27,7 +27,7 @@ def test_5_distance_permutation_analysis():
         # ## 5.1 Identify potential interactions
 
         # %%
-        distance_pvals = sp.tl.identify_interactions_ad(
+        distance_pvals = sp.tl.identify_interactions(
             adata = adata, 
             id = "index", 
             x_pos = "x", 
