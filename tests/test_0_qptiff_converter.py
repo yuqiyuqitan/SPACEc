@@ -9,6 +9,7 @@ def test_cell_segmentation():
 
     matplotlib.use("Agg")
 
+    print("TEST_DIR:", TEST_DIR)
     data_path = TEST_DIR / "data"
 
     with TemporaryDirectory() as output_dir:

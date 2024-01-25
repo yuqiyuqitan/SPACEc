@@ -61,6 +61,7 @@ jobs:
       matrix:
         python:
         - "3.8"  # oldest Python supported by PSF
+        - "3.9"
         - "3.10"  # newest Python that is stable
         platform:
         - ubuntu-latest
@@ -73,6 +74,8 @@ jobs:
         id: setup-python
         with:
           python-version: ${{ matrix.python }}
+      # - name: Setup Graphviz
+      #   uses: ts-graphviz/setup-graphviz@v1
       - name: Retrieve pre-built distribution files
         uses: actions/download-artifact@v3
         with: {name: python-distribution-files, path: dist/}

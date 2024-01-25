@@ -1,14 +1,36 @@
 # SPatial Analysis for CodEX data (SPACEc)
 
 ## Installation notes
-```bash
-conda create -n sap python==3.8.0
-pip install deepcell cellpose
 
-conda install glob2 matplotlib numpy pandas scanpy seaborn scipy networkx tensorly statsmodels scikit-learn yellowbrick joblib tifffile tensorflow
-conda install anaconda::graphviz
-conda install -c conda-forge scikit-image
-pip install leidenalg concave-hull==0.0.6
+**Note**: Due to some dependencies, we currently only support Python up to `3.10`.
+
+We generally recommend to use a `conda` environment. It makes installing requirements like `graphviz` a lot easier.
+
+Install `conda` repository.
+
+```bash
+conda create -n sap python==3.10
+```
+
+Install `graphviz`.
+
+```bash
+conda install graphviz
+```
+
+Install `SPACEc`
+```bash
+pip install spacec
+``````
+
+```bash
+# conda create -n sap python==3.8.0
+# pip install deepcell cellpose
+
+# conda install glob2 matplotlib numpy pandas scanpy seaborn scipy networkx tensorly statsmodels scikit-learn yellowbrick joblib tifffile tensorflow
+# conda install anaconda::graphviz
+# conda install -c conda-forge scikit-image
+# pip install leidenalg concave-hull==0.0.6
 ```
 
 ## General outline of SPACEc analysis
