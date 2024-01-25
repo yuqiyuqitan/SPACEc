@@ -3,8 +3,9 @@
 - [ ] Milestone 1
     - [ ] tests
         - [x] setup tests
-        - [ ] write all tests
-        - [ ] fix TODOs with Yuqi
+        - [x] write all tests
+        - [x] fix TODOs with Yuqi
+        - [ ] add tissuemap test
     - [ ] modularize: pl (plot?), tl (tools), hp (helper), pp (preprocessing)
         - [x] initial modularization
         - [x] **Yuqi:** what is the difference between tools and helpers?
@@ -27,8 +28,11 @@
         - [x] send qpdiff (optimally downsized)
         - [ ] tissue map
 
-- [ ] Features implementations
+- [ ] MAYBE MANAGE THIS IN GITHUB ISSUES?
+- [ ] Features implementationssomehow
         - [ ] Cellseg implementation @Yuqi (Linux version??)
         - [ ] GPU-enabled clustering @Tim
-        - [ ] Fix the filtering step so that if one condition's p-value is below the threshold @Yuqi 
-        - [ ] Fix the plotting function so that it indicates which p-value are not below the selected threshold @Yuqi   
+        - [ ] Fix the filtering step so that if one condition's p-value is
+                below the threshold @Yuqi
+        - [ ] Fix the plotting function so that it indicates which p-value
+                are not below the selected threshold @Yuqi
