@@ -2116,6 +2116,9 @@ def tl_identify_interactions(
 def filter_interactions(distance_pvals, pvalue=0.05, logfold_group_abs=0.1):
     # calculate absolute logfold difference
     distance_pvals["logfold_group_abs"] = distance_pvals["logfold_group"].abs()
+    
+    # Creating pairs
+    distance_pvals['pairs'] = distance_pvals['celltype1'] + "_" + distance_pvals['celltype2']
 
     # Filter significant p-values and other specified conditions
     distance_pvals_sig = distance_pvals[
@@ -2136,16 +2139,14 @@ def filter_interactions(distance_pvals, pvalue=0.05, logfold_group_abs=0.1):
     ]
 
     # Assuming distance_pvals_interesting2 is a pandas DataFrame with the same structure as the R dataframe.
-    pair_to = distance_pvals_sig["interaction"].unique()
+    #pair_to = distance_pvals_sig["interaction"].unique()
+    pairs = distance_pvals_sig['pairs'].unique()
 
     # Filtering data
     data = distance_pvals_sig[~distance_pvals_sig["interaction"].isna()]
 
-    # Creating pairs
-    data["pairs"] = data["celltype1"] + "_" + data["celltype2"]
-
     # Subsetting data
-    distance_pvals_sig_sub = data[data["interaction"].isin(pair_to)]
+    distance_pvals_sig_sub = data[data['pairs'].isin(pairs)]
     distance_pvals_sig_sub_reduced = distance_pvals_sig_sub.loc[
         :, ["condition", "logfold_group", "pairs"]
     ].copy()
