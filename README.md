@@ -6,24 +6,22 @@
 
 We generally recommend to use a `conda` environment. It makes installing requirements like `graphviz` a lot easier.
 
-Install `conda` repository.
+Install.
 
 ```bash
-conda create -n sap python==3.10
-```
+# setup `conda` repository
+conda create -n spacec python==3.10
+conda activate spacec
 
-Install `graphviz`.
-
-```bash
+# install `graphviz`.
 conda install graphviz
-```
 
-Install `SPACEc`
-```bash
+# install `SPACEc`
 pip install spacec
 ```
 
-Run tests
+Run tests.
+
 ```bash
 pip install pytest pytest-cov
 pytest
