@@ -26,3 +26,9 @@
     - [ ] **Yuqi**
         - [x] send qpdiff (optimally downsized)
         - [ ] tissue map
+
+- [ ] Features implementations
+        - [ ] Cellseg implementation @Yuqi (Linux version??)
+        - [ ] GPU-enabled clustering @Tim
+        - [ ] Fix the filtering step so that if one condition's p-value is below the threshold @Yuqi 
+        - [ ] Fix the plotting function so that it indicates which p-value are not below the selected threshold @Yuqi   
