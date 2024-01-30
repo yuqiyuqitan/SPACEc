@@ -20,6 +20,9 @@ Add a short description here!
 :maxdepth: 2
 
 Overview <readme>
+
+tutorials/0_qptiff_converter
+
 Contributions & Help <contributing>
 License <license>
 Authors <authors>

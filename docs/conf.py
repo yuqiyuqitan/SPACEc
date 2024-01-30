@@ -73,6 +73,8 @@ extensions = [
     "sphinx.ext.mathjax",
     "sphinx.ext.napoleon",
     "sphinx_rtd_theme",
+    'sphinx_copybutton',
+    "myst_nb"
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -93,8 +95,9 @@ myst_enable_extensions = [
     "replacements",
     "smartquotes",
     "substitution",
-    "tasklist",
+    "tasklist"
 ]
+jupyter_execute_notebooks = "off"
 
 # The suffix of source filenames.
 source_suffix = [".rst", ".md"]
@@ -107,7 +110,8 @@ master_doc = "index"
 
 # General information about the project.
 project = "SPACEc"
-copyright = "2024, yuqiyuqitan"
+copyright = "2024, Yuqi Tan, Tim Kempchen, Martin Becker"
+author = "Yuqi Tan, Tim Kempchen, Martin Becker"
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -303,3 +307,18 @@ intersphinx_mapping = {
 }
 
 print(f"loading configurations for {project} {version} ...", file=sys.stderr)
+
+# copy notebooks to docs
+
+notebooks_dir = os.path.join(__location__, "../notebooks")
+notebooks = os.listdir(notebooks_dir)
+notebooks = [notebook for notebook in notebooks if notebook.endswith(".ipynb")]
+notebooks = [os.path.join(notebooks_dir, notebook) for notebook in notebooks]
+
+notebooks_dir = os.path.join(__location__, "tutorials")
+if not os.path.exists(notebooks_dir):
+    os.mkdir(notebooks_dir)
+
+for notebook in notebooks:
+    shutil.copy(notebook, notebooks_dir)
+print("done!", file=sys.stderr)

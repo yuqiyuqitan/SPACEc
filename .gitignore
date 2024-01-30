@@ -3,6 +3,7 @@ _out
 notebooks/models
 tests/models
 models
+docs/tutorials
 
 .DS_Store
 # Byte-compiled / optimized / DLL files
