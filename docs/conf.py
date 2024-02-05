@@ -74,7 +74,6 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx_rtd_theme",
     'sphinx_copybutton',
-    "myst_nb"
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -82,7 +81,8 @@ templates_path = ["_templates"]
 
 
 # Enable markdown
-extensions.append("myst_parser")
+# extensions.append("myst_parser")
+extensions.append("myst_nb")
 
 # Configure MyST-Parser
 myst_enable_extensions = [
@@ -182,8 +182,8 @@ html_theme = "sphinx_rtd_theme"
 # further.  For a list of options available for each theme, see the
 # documentation.
 html_theme_options = {
-    "sidebar_width": "300px",
-    "page_width": "1200px"
+    # "sidebar_width": "300px",
+    # "page_width": "1200px"
 }
 
 # Add any paths that contain custom themes here, relative to this directory.
@@ -309,7 +309,7 @@ intersphinx_mapping = {
 print(f"loading configurations for {project} {version} ...", file=sys.stderr)
 
 # copy notebooks to docs
-
+print("copying notebooks to docs ...", file=sys.stderr)
 notebooks_dir = os.path.join(__location__, "../notebooks")
 notebooks = os.listdir(notebooks_dir)
 notebooks = [notebook for notebook in notebooks if notebook.endswith(".ipynb")]
