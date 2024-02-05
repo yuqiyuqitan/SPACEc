@@ -1,5 +1,7 @@
 # load required packages
+import os
 import time
+
 import concave_hull
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -28,14 +30,11 @@ from sklearn.model_selection import train_test_split
 from sklearn.svm import SVC
 from tqdm import tqdm
 from yellowbrick.cluster import KElbowVisualizer
-import os
-
 
 from ..helperfunctions._general import *
 
 # Tools
 ############################################################
-
 
 
 ############
@@ -109,7 +108,6 @@ def tl_cell_types_de(
     # this is where you should correct pvalues for multiple testing
 
     return dat, pvals
-
 
 
 #########
@@ -1226,7 +1224,6 @@ def tl_format_for_squidpy(adata, x_col, y_col):
     return new_adata
 
 
-
 def tl_corr_cell_ad(
     adata, per_categ, grouping_col, rep, sub_column, normed=True, sub_list2=None
 ):
@@ -1269,7 +1266,6 @@ def tl_corr_cell_ad(
     )
 
     return cmat, cc
-
 
 
 def calculate_triangulation_distances(df_input, id, x_pos, y_pos, cell_type, region):
@@ -1730,9 +1726,11 @@ def tl_identify_interactions(
 def filter_interactions(distance_pvals, pvalue=0.05, logfold_group_abs=0.1):
     # calculate absolute logfold difference
     distance_pvals["logfold_group_abs"] = distance_pvals["logfold_group"].abs()
-    
+
     # Creating pairs
-    distance_pvals['pairs'] = distance_pvals['celltype1'] + "_" + distance_pvals['celltype2']
+    distance_pvals["pairs"] = (
+        distance_pvals["celltype1"] + "_" + distance_pvals["celltype2"]
+    )
 
     # Filter significant p-values and other specified conditions
     distance_pvals_sig = distance_pvals[
@@ -1753,14 +1751,14 @@ def filter_interactions(distance_pvals, pvalue=0.05, logfold_group_abs=0.1):
     ]
 
     # Assuming distance_pvals_interesting2 is a pandas DataFrame with the same structure as the R dataframe.
-    #pair_to = distance_pvals_sig["interaction"].unique()
-    pairs = distance_pvals_sig['pairs'].unique()
+    # pair_to = distance_pvals_sig["interaction"].unique()
+    pairs = distance_pvals_sig["pairs"].unique()
 
     # Filtering data
     data = distance_pvals_sig[~distance_pvals_sig["interaction"].isna()]
 
     # Subsetting data
-    distance_pvals_sig_sub = data[data['pairs'].isin(pairs)]
+    distance_pvals_sig_sub = data[data["pairs"].isin(pairs)]
     distance_pvals_sig_sub_reduced = distance_pvals_sig_sub.loc[
         :, ["condition", "logfold_group", "pairs"]
     ].copy()
