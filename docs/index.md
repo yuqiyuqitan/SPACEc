@@ -17,9 +17,13 @@ Add a short description here!
 ## Contents
 
 ```{toctree}
-:maxdepth: 2
+:maxdepth: 3
+:hidden:
 
 Overview <readme>
+
+Tutorials <tutorials>
+
 Contributions & Help <contributing>
 License <license>
 Authors <authors>

@@ -73,6 +73,7 @@ extensions = [
     "sphinx.ext.mathjax",
     "sphinx.ext.napoleon",
     "sphinx_rtd_theme",
+    'sphinx_copybutton',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -80,7 +81,8 @@ templates_path = ["_templates"]
 
 
 # Enable markdown
-extensions.append("myst_parser")
+# extensions.append("myst_parser")
+extensions.append("myst_nb")
 
 # Configure MyST-Parser
 myst_enable_extensions = [
@@ -93,8 +95,9 @@ myst_enable_extensions = [
     "replacements",
     "smartquotes",
     "substitution",
-    "tasklist",
+    "tasklist"
 ]
+jupyter_execute_notebooks = "off"
 
 # The suffix of source filenames.
 source_suffix = [".rst", ".md"]
@@ -107,7 +110,8 @@ master_doc = "index"
 
 # General information about the project.
 project = "SPACEc"
-copyright = "2024, yuqiyuqitan"
+copyright = "2024, Yuqi Tan, Tim Kempchen, Martin Becker"
+author = "Yuqi Tan, Tim Kempchen, Martin Becker"
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -178,8 +182,8 @@ html_theme = "sphinx_rtd_theme"
 # further.  For a list of options available for each theme, see the
 # documentation.
 html_theme_options = {
-    "sidebar_width": "300px",
-    "page_width": "1200px"
+    # "sidebar_width": "300px",
+    # "page_width": "1200px"
 }
 
 # Add any paths that contain custom themes here, relative to this directory.
@@ -194,7 +198,7 @@ html_theme_options = {
 
 # The name of an image file (relative to this directory) to place at the top
 # of the sidebar.
-# html_logo = ""
+html_logo = "SPACEc.png"
 
 # The name of an image file (within the static path) to use as favicon of the
 # docs.  This file should be a Windows icon file (.ico) being 16x16 or 32x32
@@ -303,3 +307,18 @@ intersphinx_mapping = {
 }
 
 print(f"loading configurations for {project} {version} ...", file=sys.stderr)
+
+# copy notebooks to docs
+print("copying notebooks to docs ...", file=sys.stderr)
+notebooks_dir = os.path.join(__location__, "../notebooks")
+notebooks = os.listdir(notebooks_dir)
+notebooks = [notebook for notebook in notebooks if notebook.endswith(".ipynb")]
+notebooks = [os.path.join(notebooks_dir, notebook) for notebook in notebooks]
+
+notebooks_dir = os.path.join(__location__, "tutorials")
+if not os.path.exists(notebooks_dir):
+    os.mkdir(notebooks_dir)
+
+for notebook in notebooks:
+    shutil.copy(notebook, notebooks_dir)
+print("done!", file=sys.stderr)
