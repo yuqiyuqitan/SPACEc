@@ -39,7 +39,7 @@ pytest
 
 ## General outline of SPACEc analysis
 
-![SPACEc](https://github.com/yuqiyuqitan/SAP/tree/master/docs/overview.png)
+![SPACEc](https://github.com/yuqiyuqitan/SAP/tree/master/docs/overview.png?raw=true)
 
 
 ### Tissue extraction
