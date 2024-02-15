@@ -17,11 +17,11 @@ Add a short description here!
 ## Contents
 
 ```{toctree}
-:maxdepth: 2
+:maxdepth: 3
 
 Overview <readme>
 
-tutorials/0_qptiff_converter
+Tutorials <tutorials>
 
 Contributions & Help <contributing>
 License <license>
