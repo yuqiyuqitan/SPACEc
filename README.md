@@ -16,8 +16,14 @@ conda activate spacec
 # install `graphviz`.
 conda install graphviz
 
-# install `SPACEc`
+# install `SPACEc` from pypi
 pip install spacec
+
+# install `SPACEc` from cloned repo
+#pip install -e .
+
+# on Apple M1/M2
+#conda install tensorflow=2.10.0 
 ```
 
 Run tests.
@@ -26,6 +32,7 @@ Run tests.
 pip install pytest pytest-cov
 pytest
 ```
+
 
 ```bash
 # conda create -n sap python==3.8.0
@@ -39,24 +46,43 @@ pytest
 
 ## General outline of SPACEc analysis
 
-### I.	Cell segmentation & visualization
-	a.	Mesmer
-	b.	CellPose
-	c.	CellSeg [Under Development]
-### II.	Data prepcoessing
-	a.  First filtering based on size and DAPI
-	b.	Normalization
-	c.	Second filtering based on noisy signals
-	d.	Data type conversion (df --> anndata)
-### III.	Clustering & cell type annotation
-	a.	Clustering [GPU implementation UD]
-	b.	ML annotation [e.g. STELLAR, UD]
-	c.	Cell type statistics and visualization
-### IV.	Downstream spatial analysis
-	a.	Cellular neighborhood analysis
-	b.	Tissue schematic analysis
-	c.	Distance permutation analysis
-	d.	Neighbor permutation analysis [UD]
-	e.	Patch proximity analysis
-	e.	Shannon diversity function
-	f.	(optional) Mario or MaxFuse integration[UD]
+![SPACEc](https://github.com/yuqiyuqitan/SAP/tree/master/docs/overview.png?raw=true)
+
+
+### Tissue extraction
+	Step 1: Set up the environment
+	Step 2: Downscale the whole tissue image
+	Step 3: Rename tissue number (optional)
+	Step 4: Extract individual labeled tissues into separate tiff stack
+
+### Cell segmentation & visualization
+	Step 5: Visualize segmentation channel (optional)
+	Step 6: Run cell segmentation
+	Step 7: Visually inspect segmentation results
+
+### Data preprocessing & normalization
+	Step 8: Load the segmented results
+	Step 9: Initial filtering of artifacts/debris by DAPI intensity and cell size
+	Step 10: Normalize data
+	Step 11: Second filtering for noisy cell
+
+### Cell type annotation
+	Step 12: Cell type annotation via clustering
+	Step 13: Visualize & annotate clustering results
+	Step 14: Visualize clustering results in the original tissue coordinates
+	Step 15: Compute basic statistics of the cell type composition
+	Step 16: Loading in training data
+	Step 17: Train the SVM model
+	Step 18: Predict cell type labels using the trained model
+
+### Interactive data inspection and exploration
+	Step 19: Initialize interactive data inspection session via TissUUmaps
+	Step 20: Additional data exploration via TissUUmaps (optional)
+
+### Spatial analysis
+	Step 21: Compute cellular neighborhoods
+	Step 22: Visualize & annotate the cellular neighborhoods analysis results
+	Step 23: Generate spatial context maps
+	Step 24: Compute the cellular neighborhood interface via barycentric coordinate system
+	Step 25: Compute patch proximity analysis
+	Step 26: Compute for distance permutation analysis
