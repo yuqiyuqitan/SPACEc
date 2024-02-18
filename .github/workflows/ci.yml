@@ -99,18 +99,18 @@ jobs:
       #     flag-name: ${{ matrix.platform }} - py${{ matrix.python }}
       #     parallel: true
 
-  finalize:
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - name: Finalize coverage report
-        uses: coverallsapp/github-action@master
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          parallel-finished: true
+  # finalize:
+  #   needs: test
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Finalize coverage report
+  #       uses: coverallsapp/github-action@master
+  #       with:
+  #         github-token: ${{ secrets.GITHUB_TOKEN }}
+  #         parallel-finished: true
 
   publish:
-    needs: finalize
+    needs: test
     if: ${{ github.event_name == 'push' && contains(github.ref, 'refs/tags/') }}
     runs-on: ubuntu-latest
     permissions:
