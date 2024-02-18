@@ -257,6 +257,16 @@ Please also see the [Overview] for the most up to date instruction son how to se
    the PR as a draft first and mark it as ready for review after the feedbacks
    from the continuous integration (CI) system or any required fixes.
 
+   Pull requests automatically trigger tests via Github Actions.
+   We can only merge a pull request if all tests succeed.
+
+```{tip}
+Every now and then Github Actions has a hick up and tests fail due to random reasons.
+For example saying `THESE PACKAGES DO NOT MATCH THE HASHES FROM THE REQUIREMENTS FILE.`
+You can make a small change and commit to update your pull request
+and trigger a re-run of the tests.
+```
+
 ### Troubleshooting
 
 The following tips can be used when facing problems to build or test the
