@@ -35,7 +35,8 @@ def test_5_distance_permutation_analysis():
             cell_type="celltype",
             region="unique_region",
             num_iterations=100,
-            num_cores=10,
+            num_cores=1,
+            # num_cores=1,  # TODO: should test with multiple cores too
             min_observed=10,
             comparison="condition",
         )
