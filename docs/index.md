@@ -18,7 +18,6 @@ Add a short description here!
 
 ```{toctree}
 :maxdepth: 3
-:hidden:
 
 Overview <readme>
 

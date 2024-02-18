@@ -67,6 +67,11 @@ jobs:
         - ubuntu-latest
         - macos-latest
         - windows-latest
+        # exclude:
+        #   - platform: windows-latest
+        #     python: '3.8'
+        #   - platform: windows-latest
+        #     python: '3.9'
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
@@ -75,7 +80,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: Setup Graphviz
-        uses: ts-graphviz/setup-graphviz@v1
+        uses: tlylt/install-graphviz@v1
       - name: Retrieve pre-built distribution files
         uses: actions/download-artifact@v4
         with: {name: python-distribution-files, path: dist/}
@@ -94,18 +99,18 @@ jobs:
       #     flag-name: ${{ matrix.platform }} - py${{ matrix.python }}
       #     parallel: true
 
-  finalize:
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - name: Finalize coverage report
-        uses: coverallsapp/github-action@master
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          parallel-finished: true
+  # finalize:
+  #   needs: test
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Finalize coverage report
+  #       uses: coverallsapp/github-action@master
+  #       with:
+  #         github-token: ${{ secrets.GITHUB_TOKEN }}
+  #         parallel-finished: true
 
   publish:
-    needs: finalize
+    needs: test
     if: ${{ github.event_name == 'push' && contains(github.ref, 'refs/tags/') }}
     runs-on: ubuntu-latest
     permissions:
