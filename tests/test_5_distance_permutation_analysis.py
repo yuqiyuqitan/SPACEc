@@ -36,7 +36,9 @@ def test_5_distance_permutation_analysis():
             region="unique_region",
             num_iterations=100,
             num_cores=1,
-            # num_cores=1,  # TODO: should test with multiple cores too
+            # TODO: Windows runner on Github Actions hat trouble with multi-core.
+            #       We should test with multiple cores, too.
+            # num_cores=10,
             min_observed=10,
             comparison="condition",
         )
