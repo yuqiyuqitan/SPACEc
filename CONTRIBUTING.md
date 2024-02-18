@@ -40,7 +40,7 @@ The updated docstrings will automatically be integrated into our [Read the Docs]
 
 ### Tutorials
 
-Tutorial notebooks are imported from `notebooks`. 
+Tutorial notebooks are imported from `notebooks`.
 Please always start a notebook with a main header, e.g., `# EXAMPLE HEADER`.
 
 ### Read the Docs
@@ -51,7 +51,7 @@ This means that the docs are kept in the same repository as the project code, an
 > We are using Markdown with the [MyST] extension for our documentations.
 
 ```{tip}
-See [MyST] on how to get started writing documentation files, 
+See [MyST] on how to get started writing documentation files,
 and install an editor extensions (e.g., [MyST-Markdown for VS Code]) for easier editing.
 It can also make sense to have a look at the [Sphinx] documentation for more advanced editing.
 ```
@@ -79,8 +79,8 @@ tox -e docs
 ```
 
 ```{tip}
-If you are running within a `conda` environment 
-first install `tox` with `conda install tox`. 
+If you are running within a `conda` environment
+first install `tox` with `conda install tox`.
 ```
 
 and use Python's built-in web server for a preview in your web browser
@@ -105,8 +105,8 @@ This often provides additional considerations and avoids unnecessary work.
 - [MyST] documentation using [Sphinx]
 ```
 
-```{note} **Tutorials:** 
-Tutorial notebooks are imported from `notebooks`. 
+```{note} **Tutorials:**
+Tutorial notebooks are imported from `notebooks`.
 Please always start a notebook with a main header, e.g., `# EXAMPLE HEADER`.
 ```
 
@@ -141,7 +141,7 @@ python3 -m http.server --directory 'docs/_build/html'
 
 Before you start coding, we recommend creating an isolated [virtual environment]
 to avoid any problems with your installed Python packages.
-We strongly recommend using some `conda`-style environment mangement  system, 
+We strongly recommend using some `conda`-style environment mangement  system,
 e.g., [Miniconda]:
 
 ```bash
@@ -236,7 +236,7 @@ Please also see the [Overview] for the most up to date instruction son how to se
    tox
    ```
 
-   (after having installed [tox] with 
+   (after having installed [tox] with
    `conda install tox`, `pip install tox` or `pipx`).
 
    You can also use [tox] to run several other pre-configured tasks in the
@@ -316,7 +316,7 @@ on [PyPI], the following steps can be used to release a new version for
 3. Push the new tag to the upstream [repository],
    e.g., `git push upstream v1.2.3`
 4. This will automatically start a Github Action to deploy the new version to [PyPI]
-   and update the documentation on [Read the Docs]. 
+   and update the documentation on [Read the Docs].
 
 <!-- Clean up the dist and build folders with tox -e clean (or rm -rf dist build) to avoid confusion with old builds and Sphinx docs.
 

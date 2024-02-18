@@ -23,7 +23,7 @@ pip install spacec
 #pip install -e .
 
 # on Apple M1/M2
-#conda install tensorflow=2.10.0 
+#conda install tensorflow=2.10.0
 ```
 
 Run tests.
