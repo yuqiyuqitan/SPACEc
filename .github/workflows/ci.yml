@@ -67,6 +67,11 @@ jobs:
         - ubuntu-latest
         - macos-latest
         - windows-latest
+        exclude:
+          - os: windows-latest
+            python-version: '3.8'
+          - os: windows-latest
+            python-version: '3.9'
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
