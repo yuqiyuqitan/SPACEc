@@ -39,6 +39,54 @@ def cell_segmentation(
     save_mask_as_png=False,  # cellpose
     model_path="./models",
 ):
+    """
+    Perform cell segmentation on an image.
+
+    Parameters
+    ----------
+    file_name : str
+        The path to the image file.
+    channel_file : str
+        The path to the file containing the channel names.
+    output_dir : str
+        The directory where the output will be saved.
+    output_fname : str, optional
+        The name of the output file. Default is an empty string.
+    seg_method : str
+        The segmentation method to use. Options are 'mesmer' and 'cellpose'. Default is 'mesmer'.
+    nuclei_channel : str
+        The name of the nuclei channel. Default is 'DAPI'.
+    technology : str
+        The technology used to generate the image. Options are 'CODEX' and 'Phenocycler'. Default is 'Phenocycler'.
+    membrane_channel_list : list of str, optional
+        The names of the membrane channels.
+    size_cutoff : int, optional
+        The size cutoff for segmentation. Default is 0.
+    compartment : str, optional
+        The compartment to segment. Options are 'whole-cell' and 'nuclei'. Default is 'whole-cell'. This only applies to Mesmer.
+    plot_predictions : bool, optional
+        Whether to plot the segmentation results. Default is True.
+    model : str, optional
+        The model to use for segmentation. Default is 'tissuenet'. This only applies to Cellpose.
+    use_gpu : bool, optional
+        Whether to use GPU for segmentation. Default is True. This only applies to Cellpose.
+    cytoplasm_channel_list : list of str, optional
+        The names of the cytoplasm channels.
+    pretrained_model : bool, optional
+        Whether to use a pretrained model for segmentation. Default is True. This only applies to Cellpose. Set to false to supply the model path as model parameter.
+    diameter : int, optional
+        The diameter of the cells. Default is None - if set to None the diameter is automatically defined. This only applies to Cellpose.
+    save_mask_as_png : bool, optional
+        Whether to save the segmentation mask as a PNG file. Default is False.
+    model_path : str, optional
+        The path to the model. Default is './models'. 
+
+    Returns
+    -------
+    dict
+        A dictionary containing the original image ('img'), the segmentation masks ('masks'), and the image dictionary ('image_dict').
+
+    """
     print("Create image channels!")
     # Load the image
     img = skimage.io.imread(file_name)
@@ -125,6 +173,28 @@ def cell_segmentation(
 def extract_features(
     image_dict, segmentation_masks, channels_to_quantify, output_file, size_cutoff=0
 ):
+    """
+    Extract features from the given image dictionary and segmentation masks.
+
+    Parameters
+    ----------
+    image_dict : dict
+        Dictionary containing image data. Keys are channel names, values are 2D numpy arrays.
+    segmentation_masks : ndarray
+        2D numpy array containing segmentation masks.
+    channels_to_quantify : list
+        List of channel names to quantify.
+    output_file : str
+        Path to the output CSV file.
+    size_cutoff : int, optional
+        Minimum size of nucleus to consider. Nuclei smaller than this are ignored. Default is 0.
+
+    Returns
+    -------
+    None
+        The function doesn't return anything but writes the extracted features to a CSV file.
+
+    """
     segmentation_masks = segmentation_masks.squeeze()
 
     # Count pixels for each nucleus
@@ -198,6 +268,46 @@ def cellpose_segmentation(
     diameter=None,
     save_mask_as_png=False,
 ):
+    """
+    Perform cell segmentation using CellPose.
+
+    Parameters
+    ----------
+    image_dict : dict
+        Dictionary containing image data. Keys are channel names, values are 2D numpy arrays.
+    output_dir : str
+        Directory where the output will be saved.
+    membrane_channel : str, optional
+        Name of the membrane channel. Default is None.
+    cytoplasm_channel : str, optional
+        Name of the cytoplasm channel. Default is None.
+    nucleus_channel : str
+        Name of the nucleus channel. Default is None.
+    use_gpu : bool, optional
+        Whether to use GPU for computation. Default is True.
+    model : str, optional
+        Model to use for segmentation. Default is "nuclei".
+    pretrained_model : bool, optional
+        Whether to use a pretrained model. Default is False.
+    diameter : float, optional
+        Diameter of cells. If None, it will be estimated automatically. Default is None. However, it is recommended to provide the diameter for better results.
+    save_mask_as_png : bool, optional
+        Whether to save the mask as a PNG file. Default is False.
+
+    Returns
+    -------
+    masks : ndarray
+        2D numpy array containing segmentation masks.
+    flows : ndarray
+        2D numpy array containing flows.
+    styles : ndarray
+        2D numpy array containing styles.
+    input_image : ndarray
+        2D numpy array containing the input image.
+    rgb_channels : list
+        List of RGB channels used for segmentation.
+
+    """
     # Default values for rgb_channels
     rgb_channels = [0, 0]
     grey_channel = None
@@ -251,6 +361,26 @@ def cellpose_segmentation(
 def RGB_for_segmentation(
     membrane_channel, cytoplasm_channel, nucleus_channel, image_dict
 ):
+    """
+    Prepare an RGB image for segmentation from the given channels.
+
+    Parameters
+    ----------
+    membrane_channel : str
+        Name of the membrane channel.
+    cytoplasm_channel : str
+        Name of the cytoplasm channel.
+    nucleus_channel : str
+        Name of the nucleus channel.
+    image_dict : dict
+        Dictionary containing image data. Keys are channel names, values are 2D numpy arrays.
+
+    Returns
+    -------
+    rgb_image : ndarray or None
+        3D numpy array containing the RGB image for segmentation. If no valid channels are found, returns None.
+
+    """
     # Initialize channels with None
     red_channel, green_channel, blue_channel = None, None, None
 
@@ -301,6 +431,38 @@ def run_cellpose(
     rgb_channels=[0, 0],
     save_mask_as_png=False,
 ):
+    """
+    Run CellPose model on the given image.
+
+    Parameters
+    ----------
+    image : ndarray
+        2D or 3D numpy array containing the image data.
+    output_dir : str
+        Directory where the output will be saved.
+    use_gpu : bool, optional
+        Whether to use GPU for computation. Default is True.
+    model : str, optional
+        Model to use for segmentation. Default is "nuclei".
+    pretrained_model : bool, optional
+        Whether to use a pretrained model. Default is False.
+    diameter : float, optional
+        Diameter of cells. If None, it will be estimated automatically. Default is None.
+    rgb_channels : list, optional
+        List of RGB channels used for segmentation. Default is [0, 0].
+    save_mask_as_png : bool, optional
+        Whether to save the mask as a PNG file. Default is False.
+
+    Returns
+    -------
+    masks : ndarray
+        2D numpy array containing segmentation masks.
+    flows : ndarray
+        2D numpy array containing flows.
+    styles : ndarray
+        2D numpy array containing styles.
+
+    """
     # IF ALL YOUR IMAGES ARE THE SAME TYPE, you can give a list with 2 elements
     # channels = [0,0] # IF YOU HAVE GRAYSCALE
     # channels = [2,3] # IF YOU HAVE G=cytoplasm and B=nucleus
@@ -329,6 +491,20 @@ def run_cellpose(
 
 
 def load_mesmer_model(path):
+    """
+    Load the Mesmer model from the given path. If the model is not found, it is downloaded.
+
+    Parameters
+    ----------
+    path : str
+        Path where the Mesmer model is located or will be downloaded.
+
+    Returns
+    -------
+    mesmer_pretrained_model : tensorflow.python.keras.engine.training.Model
+        The loaded Mesmer model.
+
+    """
     # check if folder Mesmer_model exist
     if not os.path.exists(os.path.join(path, "Mesmer_model")):
         os.makedirs(os.path.join(path, "Mesmer_model"))
@@ -380,6 +556,30 @@ def mesmer_segmentation(
     compartment="whole-cell",  # or 'nuclear'
     model_path="./models",
 ):
+    """
+    Perform segmentation on the given images using the Mesmer model.
+
+    Parameters
+    ----------
+    nuclei_image : ndarray
+        2D numpy array containing the nuclei image data.
+    membrane_image : ndarray
+        2D numpy array containing the membrane image data.
+    image_mpp : float, optional
+        Microns per pixel for the images. Default is 0.5.
+    plot_predictions : bool, optional
+        Whether to plot the predictions. Default is True.
+    compartment : str, optional
+        Compartment to segment. Can be 'whole-cell' or 'nuclear'. Default is 'whole-cell'.
+    model_path : str, optional
+        Path where the Mesmer model is located. Default is './models'.
+
+    Returns
+    -------
+    segmented_image : ndarray
+        3D numpy array containing the segmentation results.
+
+    """
     pathlib.Path(model_path).mkdir(parents=True, exist_ok=True)
     mesmer_pretrained_model = load_mesmer_model(model_path)
 
