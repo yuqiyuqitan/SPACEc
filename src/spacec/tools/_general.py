@@ -1902,8 +1902,6 @@ def add_missing_columns(
     return triangulation_distances
 
 
-
-
 # Calculate p-values and log fold differences
 def calculate_pvalue(row):
     """

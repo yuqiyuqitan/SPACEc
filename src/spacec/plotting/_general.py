@@ -3728,7 +3728,7 @@ def cn_map(
     adata : AnnData
         Annotated data matrix.
     cnmap_dict : dict
-        A dictionary containing the graph, tops, e0, e1, and simp_freqs. 
+        A dictionary containing the graph, tops, e0, e1, and simp_freqs.
     cn_col : str
         The column name for the color normalization.
     palette : dict, optional

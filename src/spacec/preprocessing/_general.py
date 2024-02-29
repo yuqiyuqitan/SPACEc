@@ -206,7 +206,7 @@ def format(data, list_out, list_keep, method="zscore", ArcSin_cofactor=150):
     ValueError
         If the specified method is not supported.
     """
-    
+
     list = ["zscore", "double_zscore", "MinMax", "ArcSin"]
 
     if method not in list:

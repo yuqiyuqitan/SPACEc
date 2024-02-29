@@ -79,7 +79,7 @@ def cell_segmentation(
     save_mask_as_png : bool, optional
         Whether to save the segmentation mask as a PNG file. Default is False.
     model_path : str, optional
-        The path to the model. Default is './models'. 
+        The path to the model. Default is './models'.
 
     Returns
     -------
