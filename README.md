@@ -83,5 +83,4 @@ pytest
 	Step 20: Generate spatial context maps
 	Step 21: Create cellular neighborhood interface analysis via barycentric coordinate plot
 	Step 22: Compute for patch proximity analysis
-	Step 23: Calculate cell-cell interaction 
-
+	Step 23: Calculate cell-cell interaction
