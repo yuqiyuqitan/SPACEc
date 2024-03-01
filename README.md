@@ -13,7 +13,7 @@ Install.
 conda create -n spacec python==3.10
 conda activate spacec
 
-# install `graphviz`.
+# install `graphviz`
 conda install graphviz
 
 # install `SPACEc` from pypi
