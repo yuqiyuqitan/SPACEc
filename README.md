@@ -23,7 +23,8 @@ pip install spacec
 #pip install -e .
 
 # on Apple M1/M2
-#conda install tensorflow=2.10.0
+# conda install tensorflow=2.10.0
+# and always import spacec first before importing other packages
 ```
 
 Run tests.
@@ -46,7 +47,7 @@ pytest
 
 ## General outline of SPACEc analysis
 
-![SPACEc](https://github.com/yuqiyuqitan/SAP/tree/master/docs/overview.png?raw=true)
+![SPACEc](https://github.com/yuqiyuqitan/SAP/tree/master/docs/overview.png?raw=true "")
 
 
 ### Tissue extraction
@@ -69,20 +70,18 @@ pytest
 ### Cell type annotation
 	Step 12: Cell type annotation via clustering
 	Step 13: Visualize & annotate clustering results
-	Step 14: Visualize clustering results in the original tissue coordinates
-	Step 15: Compute basic statistics of the cell type composition
-	Step 16: Loading in training data
-	Step 17: Train the SVM model
-	Step 18: Predict cell type labels using the trained model
+	Step 14: Compute basic statistics of the cell type composition
+	Step 15: Cell type annotation via machine-learning classification
 
 ### Interactive data inspection and exploration
-	Step 19: Initialize interactive data inspection session via TissUUmaps
-	Step 20: Additional data exploration via TissUUmaps (optional)
+	Step 16: Prepare data for an interactive session
+	Step 17: Additional interaction data exploration (optional)
 
 ### Spatial analysis
-	Step 21: Compute cellular neighborhoods
-	Step 22: Visualize & annotate the cellular neighborhoods analysis results
-	Step 23: Generate spatial context maps
-	Step 24: Compute the cellular neighborhood interface via barycentric coordinate system
-	Step 25: Compute patch proximity analysis
-	Step 26: Compute for distance permutation analysis
+	Step 18: Compute cellular neighborhoods
+	Step 19: Visualize & annotate the cellular neighborhoods analysis results
+	Step 20: Generate spatial context maps
+	Step 21: Create cellular neighborhood interface analysis via barycentric coordinate plot
+	Step 22: Compute for patch proximity analysis
+	Step 23: Calculate cell-cell interaction 
+
