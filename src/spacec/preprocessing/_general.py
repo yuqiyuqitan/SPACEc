@@ -19,6 +19,30 @@ def read_segdf(
     region_list=None,  # optional information #please make sure the length of each list matches
     meta_list=None,  # optional information
 ):
+    """
+    Read the data frame output from the segmentation functions.
+
+    Parameters
+    ----------
+    segfile_list : list
+        List of segmented csv files to be read.
+    seg_method : str
+        The segmentation method used.
+    region_list : list, optional
+        List of regions, by default None. Please make sure the length of each list matches.
+    meta_list : list, optional
+        List of metadata, by default None. Please make sure the length of each list matches.
+
+    Returns
+    -------
+    df : pandas.DataFrame
+        The concatenated DataFrame from all the segmentation files.
+
+    Raises
+    ------
+    SystemExit
+        If the length of region_list or meta_list does not match with segfile_list.
+    """
     if region_list is not None:
         if len(region_list) != len(segfile_list):
             sys.exit("length of each list does not match!")
@@ -59,6 +83,39 @@ def filter_data(
     size=0.4,  # dot style
     log_scale=False,
 ):
+    """
+    Filter data based on nuclear threshold and size threshold, and visualize the data before and after filtering.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        The DataFrame to be filtered.
+    nuc_thres : int, optional
+        The nuclear threshold, by default 1.
+    size_thres : int, optional
+        The size threshold, by default 1.
+    nuc_marker : str, optional
+        The nuclear marker, by default "DAPI".
+    cell_size : str, optional
+        The cell size, by default "area".
+    region_column : str, optional
+        The region column, by default "region_num".
+    color_by : str, optional
+        The column to color by, by default None.
+    palette : str, optional
+        The color palette, by default "Paired".
+    alpha : float, optional
+        The alpha for the scatter plot, by default 0.8.
+    size : float, optional
+        The size for the scatter plot, by default 0.4.
+    log_scale : bool, optional
+        Whether to use log scale for the scatter plot, by default False.
+
+    Returns
+    -------
+    df_nuc : pandas.DataFrame
+        The filtered DataFrame.
+    """
     if color_by == None:
         color_by = region_column
 
@@ -118,47 +175,38 @@ def filter_data(
 
     # print the percentage of cells that are kept
     print("Percentage of cells kept: ", per_keep * 100, "%")
-    # print(f"Number of cells removed per region:\n{df.groupby(region_column).size() - df_nuc.groupby(region_column).size()}")
-
-    # print five point statistics for cell size and nuclear marker intensity before filtering
-    # print("BEFORE FILTERING:")
-
-    # print("Five point statistics for cell size and nuclear marker intensity:")
-    # print(df.loc[:, [cell_size, nuc_marker]].describe())
-
-    # print five point statistics for cell size and nuclear marker intensity after filtering
-    # print("AFTER FILTERING:")
-
-    # print("Five point statistics for cell size and nuclear marker intensity:")
-    # print(df_nuc.loc[:, [cell_size, nuc_marker]].describe())
 
     return df_nuc
 
 
 def format(data, list_out, list_keep, method="zscore", ArcSin_cofactor=150):
-    # original function:
-    # #Drop column list
-    # list1 = [col for col in data.columns if 'blank' in col]
-    # list_out1 = list1+list_out
+    """
+    This function formats the data based on the specified method. It supports four methods: "zscore", "double_zscore", "MinMax", and "ArcSin".
 
-    # #Drop columns not interested in
-    # dfin = data.drop(list_out1, axis = 1)
+    Parameters
+    ----------
+    data : DataFrame
+        The input data to be formatted.
+    list_out : list
+        The list of columns to be dropped from the data.
+    list_keep : list
+        The list of columns to be kept in the data.
+    method : str, optional
+        The method to be used for normalizing the data. It can be "zscore", "double_zscore", "MinMax", or "ArcSin". By default, it is "zscore".
+    ArcSin_cofactor : int, optional
+        The cofactor to be used in the ArcSin transformation. By default, it is 150.
 
-    # #save columns for later
-    # df_loc = dfin.loc[:,list_keep]
+    Returns
+    -------
+    DataFrame
+        The formatted data.
 
-    # #dataframe for normalization
-    # dfz = dfin.drop(list_keep, axis = 1)
+    Raises
+    ------
+    ValueError
+        If the specified method is not supported.
+    """
 
-    # #zscore of the column markers
-    # dfz1 = pd.DataFrame(zscore(dfz,0),index = dfz.index,columns = [i for i in dfz.columns])
-
-    # #Add back labels for normalization type
-    # dfz_all = pd.concat([dfz1, df_loc], axis=1, join='inner')
-
-    # print("the number of regions = "+str(len(dfz_all.region_num.unique())))
-
-    # return dfz_all
     list = ["zscore", "double_zscore", "MinMax", "ArcSin"]
 
     if method not in list:
@@ -286,7 +334,29 @@ def format(data, list_out, list_keep, method="zscore", ArcSin_cofactor=150):
 
 # Only useful for "classic CODEX" where samples are covered by multiple regions
 # Could also be used for montages of multiple samples (tiles arraged in grid)
-def pp_xycorr(data, y_rows, x_columns, X_pix, Y_pix):
+def xycorr(data, y_rows, x_columns, X_pix, Y_pix):
+    """
+    Corrects the x and y coordinates of the data for "classic CODEX" where samples are covered by multiple regions.
+    This function could also be used for montages of multiple samples (tiles arranged in a grid).
+
+    Parameters
+    ----------
+    data : DataFrame
+        The input data to be corrected.
+    y_rows : int
+        The number of rows in the y direction.
+    x_columns : int
+        The number of columns in the x direction.
+    X_pix : int
+        The number of pixels in the x direction.
+    Y_pix : int
+        The number of pixels in the y direction.
+
+    Returns
+    -------
+    DataFrame
+        The corrected data with added 'Xcorr' and 'Ycorr' columns representing the corrected x and y coordinates respectively.
+    """
     # Make a copy for xy correction
     df_XYcorr = data.copy()
     df_XYcorr["Xcorr"] = 0
@@ -321,6 +391,28 @@ def pp_xycorr(data, y_rows, x_columns, X_pix, Y_pix):
 
 # Get rid of noisy cells from dataset
 def remove_noise(df, col_num, z_sum_thres, z_count_thres):
+    """
+    Removes noisy cells from the dataset based on the given thresholds.
+
+    Parameters
+    ----------
+    df : DataFrame
+        The input data from which noisy cells are to be removed.
+    col_num : int
+        The column number up to which the operation is performed.
+    z_sum_thres : float
+        The threshold for the sum of z-scores. Cells with a sum of z-scores greater than this threshold are considered noisy.
+    z_count_thres : int
+        The threshold for the count of z-scores. Cells with a count of z-scores greater than this threshold are considered noisy.
+
+    Returns
+    -------
+    df_want : DataFrame
+        The cleaned data with noisy cells removed.
+    cc : DataFrame
+        The data of the noisy cells that were removed from the original data.
+
+    """
     df_z_1_copy = df.copy()
     df_z_1_copy["Count"] = df_z_1_copy.iloc[:, : col_num + 1].ge(0).sum(axis=1)
     df_z_1_copy["z_sum"] = df_z_1_copy.iloc[:, : col_num + 1].sum(axis=1)
@@ -337,40 +429,3 @@ def remove_noise(df, col_num, z_sum_thres, z_count_thres):
     df_want.drop(columns=["Count", "z_sum"], inplace=True)
     df_want.reset_index(inplace=True, drop=True)
     return df_want, cc
-
-
-def pp_clust_leid(adata, res=1, Matrix_plot=True):
-    # Compute the neighborhood relations of single cells the range 2 to 100 and usually 10
-    sc.pp.neighbors(adata, n_neighbors=10)
-
-    # Perform leiden clustering - improved version of louvain clustering
-    sc.tl.leiden(adata, resolution=res, key_added="leiden")
-
-    # UMAP computation
-    sc.tl.umap(adata)
-
-    plt.rcParams["legend.markerscale"] = 1
-    sc.pl.umap(adata, color=["leiden"])
-
-    m_list = adata.var.index.to_list()
-
-    # Create matrix plot with mean expression per each cluster
-    if Matrix_plot == True:
-        sc.pl.matrixplot(adata, m_list, "leiden", standard_scale="var")
-
-    return adata, m_list
-
-
-# Function to remove segmentation artifacts
-def pp_remove_segmentation_artifacts(
-    df, size_thres=0, nuc_thres=0, cellsize_column="area", nuc_marker_column="Hoechst1"
-):
-    df_copy = df.copy()
-
-    if size_thres > 0:
-        df_copy = df_copy[df_copy[cellsize_column] > size_thres]
-
-    if nuc_thres > 0:
-        df_copy = df_copy[df_copy[nuc_marker_column] > nuc_thres]
-
-    return df_copy

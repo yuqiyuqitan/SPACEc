@@ -9,7 +9,7 @@ from skimage.measure import regionprops_table
 from .._shared.segmentation import combine_channels, format_CODEX
 
 
-# plot membrane channel selectd segmentation
+# plot membrane channel selected for segmentation
 def segmentation_ch(
     file_name,  # image for segmentation
     channel_file,  # all channels used for staining
@@ -18,6 +18,28 @@ def segmentation_ch(
     nuclei_channel="DAPI",
     technology="Phenocycler",  # CODEX or Phenocycler --> This depends on the machine you are using and the resulting file format (see documentation above)
 ):
+    """
+    Plot the channel selected for segmentation.
+
+    Parameters
+    ----------
+    file_name : str
+        The path to the image file for segmentation.
+    channel_file : str
+        The path to the file containing all channels used for staining.
+    output_dir : str
+        The directory to save the output in.
+    extra_seg_ch_list : list, optional
+        The channels used for membrane segmentation, by default None.
+    nuclei_channel : str, optional
+        The channel used for nuclei, by default "DAPI".
+    technology : str, optional
+        The technology used (either "CODEX" or "Phenocycler"), by default "Phenocycler".
+
+    Returns
+    -------
+    None
+    """
     # Load the image
     img = skimage.io.imread(file_name)
 
@@ -53,6 +75,41 @@ def show_masks(
     idx=0,
     rand_seed=1,
 ):
+    """
+    Visualize the segmentation results of an image.
+
+    Parameters
+    ----------
+    seg_output : dict
+        The output from the segmentation process. It should contain 'image_dict' and 'masks'.
+    nucleus_channel : str
+        The name of the nucleus channel in the image_dict.
+    additional_channels : list of str, optional
+        The names of additional channels to be combined with the nucleus channel for visualization.
+    show_subsample : bool, optional
+        Whether to show a subsample of the image. Default is True.
+    n : int, optional
+        The number of subsamples to show. Default is 2.
+    tilesize : int, optional
+        The size of the tiles for subsampling. Default is 100.
+    idx : int, optional
+        The index for displaying. Default is 0.
+    rand_seed : int, optional
+        The seed for the random number generator. Default is 1.
+
+    Returns
+    -------
+    overlay_data : ndarray
+        The overlay of the segmentation results on the RGB images.
+    rgb_images : ndarray
+        The RGB images.
+
+    Raises
+    ------
+    ValueError
+        If the image size is smaller than the tile size or if there are not enough tiles to display.
+
+    """
     image_dict = seg_output["image_dict"]
     masks = seg_output["masks"]
 

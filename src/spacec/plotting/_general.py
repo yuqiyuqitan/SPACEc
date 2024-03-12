@@ -2552,6 +2552,29 @@ def pl_comb_num_freq(data_list, plot_order=None, pal_tis=None, figsize=(5, 5)):
 def zcount_thres(
     dfz, col_num, cut_off=0.01, count_bin=50, zsum_bin=50, figsize=(10, 5)
 ):
+    """
+    Determines the threshold to use for removing noises. The default cut off is the top 1%.
+
+    Parameters
+    ----------
+    dfz : DataFrame
+        The input data from which the threshold is to be determined.
+    col_num : int
+        The column number up to which the operation is performed.
+    cut_off : float, optional
+        The cut off percentage for the threshold. By default, it is 0.01 (1%).
+    count_bin : int, optional
+        The number of bins for the count histogram. By default, it is 50.
+    zsum_bin : int, optional
+        The number of bins for the z-score sum histogram. By default, it is 50.
+    figsize : tuple, optional
+        The size of the figure to be plotted. By default, it is (10, 5).
+
+    Returns
+    -------
+    None
+        This function doesn't return anything. It plots two histograms for 'Count' and 'Zscore sum' with the cut off line.
+    """
     dfz_copy = dfz
     dfz_copy["Count"] = dfz.iloc[:, : col_num + 1].ge(0).sum(axis=1)
     dfz_copy["z_sum"] = dfz.iloc[:, : col_num + 1].sum(axis=1)
@@ -2719,11 +2742,54 @@ def catplot(
 ):
     """
     Plots cells in tissue section color coded by either cell type or node allocation.
-    adata: anndata containing information
-    size: size of point to plot for each cell.
-    color: color by "Clusterid" or "Node" respectively.
-    unique_region: each region is one independent CODEX image
-    legend: to include legend in plot.
+
+    Parameters
+    ----------
+    adata : AnnData
+        Annotated data matrix.
+    color : str
+        Color by "Clusterid" or "Node" respectively.
+    unique_region : str
+        Each region is one independent CODEX image.
+    subset : str, optional
+        Subset of data to plot. If None, all data is plotted.
+    X : str, optional
+        Column name for x-axis in the DataFrame.
+    Y : str, optional
+        Column name for y-axis in the DataFrame.
+    invert_y : bool, optional
+        If True, invert y-axis.
+    size : int, optional
+        Size of point to plot for each cell.
+    alpha : float, optional
+        Transparency of points.
+    palette : dict, optional
+        Colors to use for different levels of the `hue` variable. Should be something that can be interpreted by `color_palette()`, or a dictionary mapping hue levels to matplotlib colors.
+    savefig : bool, optional
+        If True, save figure.
+    output_dir : str, optional
+        Directory to save figure.
+    output_fname : str, optional
+        Filename to save figure.
+    figsize : int, optional
+        Size of the figure.
+    style : str, optional
+        Style of the plot.
+    axis : str, optional
+        If "off", axis is not displayed.
+    scatter_kws : dict, optional
+        Additional keyword arguments to pass to `scatterplot()`.
+    n_columns : int, optional
+        Number of columns in the figure.
+    legend_padding : float, optional
+        Padding around the legend.
+    rand_seed : int, optional
+        Seed for random number generator.
+
+    Returns
+    -------
+    None
+        This function doesn't return anything. It plots a scatterplot with the specified parameters.
     """
     scatter_kws_ = {"s": size, "alpha": alpha}
     scatter_kws_.update(scatter_kws)
@@ -2796,8 +2862,6 @@ def catplot(
         fig.savefig(
             output_dir + output_fname + "_spatial_plot.pdf", bbox_inches="tight"
         )
-    # else:
-    #    return fig
 
 
 def pl_generate_CN_comb_map(
@@ -3266,16 +3330,32 @@ def create_pie_charts(
     Create pie charts for each group based on a grouping column, showing the percentage of total rows based on a
     count column.
 
-    Parameters:
-        data (pd.DataFrame): The input DataFrame.
-        grouping (str): The column name for grouping the data.
-        color (str): The column name used for counting occurrences.
-        plot_order (list, optional): The order of groups for plotting. Defaults to None.
-        show_percentages (bool, optional): Whether to show the percentage numbers on the pie charts. Defaults to True.
-        palette (dict, optional): A dictionary to manually set colors for neighborhoods. Defaults to None.
+    Parameters
+    ----------
+    adata : pd.DataFrame
+        The input DataFrame.
+    color : str
+        The column name used for counting occurrences.
+    grouping : str
+        The column name for grouping the data.
+    plot_order : list, optional
+        The order of groups for plotting. Defaults to None.
+    show_percentages : bool, optional
+        Whether to show the percentage numbers on the pie charts. Defaults to True.
+    palette : dict, optional
+        A dictionary to manually set colors for neighborhoods. Defaults to None.
+    savefig : bool, optional
+        Whether to save the figure or not. Defaults to False.
+    output_fname : str, optional
+        The output file name. Defaults to "".
+    output_dir : str, optional
+        The output directory. Defaults to "./".
+    rand_seed : int, optional
+        The random seed for color generation. Defaults to 1.
 
-    Returns:
-        None
+    Returns
+    -------
+    None
     """
     data = adata.obs
 
@@ -3364,6 +3444,38 @@ def cn_exp_heatmap(
     col_clus=True,
     rand_seed=1,
 ):
+    """
+    Create a heatmap of expression data, clustered by rows and columns.
+
+    Parameters
+    ----------
+    adata : AnnData
+        Annotated data matrix.
+    cluster_col : str
+        The column name for clustering the data.
+    cn_col : str
+        The column name for the color selection.
+    palette : dict, optional
+        A dictionary to manually set colors for neighborhoods. Defaults to None.
+    figsize : tuple, optional
+        The size of the figure. Defaults to (18, 12).
+    savefig : bool, optional
+        Whether to save the figure or not. Defaults to False.
+    output_fname : str, optional
+        The output file name. Defaults to "".
+    output_dir : str, optional
+        The output directory. Defaults to "./".
+    row_clus : bool, optional
+        Whether to cluster the rows or not. Defaults to True.
+    col_clus : bool, optional
+        Whether to cluster the columns or not. Defaults to True.
+    rand_seed : int, optional
+        The random seed for color generation. Defaults to 1.
+
+    Returns
+    -------
+    None
+    """
     data = adata.obs
     output_dir = pathlib.Path(output_dir)
 
@@ -3523,6 +3635,22 @@ def pl_plot_correlation_matrix(cmat):
 
 
 def dumbbell(data, figsize=(10, 10), colors=["#DB444B", "#006BA2"]):
+    """
+    Create a dumbbell plot.
+
+    Parameters
+    ----------
+    data : pd.DataFrame
+        The input DataFrame. The DataFrame should have two columns representing two different conditions.
+    figsize : tuple, optional
+        The size of the figure. Defaults to (10, 10).
+    colors : list, optional
+        The colors to use for the two conditions. Defaults to ["#DB444B", "#006BA2"].
+
+    Returns
+    -------
+    None
+    """
     fig, ax = plt.subplots(figsize=figsize, facecolor="white")
     # plot each country one at a time
 
@@ -3592,6 +3720,34 @@ def cn_map(
     output_dir="./",
     rand_seed=1,
 ):
+    """
+    Create a CNMap plot.
+
+    Parameters
+    ----------
+    adata : AnnData
+        Annotated data matrix.
+    cnmap_dict : dict
+        A dictionary containing the graph, tops, e0, e1, and simp_freqs.
+    cn_col : str
+        The column name for the color normalization.
+    palette : dict, optional
+        A dictionary to manually set colors for neighborhoods. Defaults to None.
+    figsize : tuple, optional
+        The size of the figure. Defaults to (40, 20).
+    savefig : bool, optional
+        Whether to save the figure or not. Defaults to False.
+    output_fname : str, optional
+        The output file name. Defaults to "".
+    output_dir : str, optional
+        The output directory. Defaults to "./".
+    rand_seed : int, optional
+        The random seed for color generation. Defaults to 1.
+
+    Returns
+    -------
+    None
+    """
     graph = cnmap_dict["g"]
     tops = cnmap_dict["tops"]
     e0 = cnmap_dict["e0"]
@@ -3693,6 +3849,44 @@ def coordinates_on_image(
     output_dir="./",
     output_fname="",
 ):
+    """
+    Plot coordinates on an image.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        The input DataFrame. The DataFrame should have columns 'x' and 'y' representing the coordinates.
+    overlay_data : ndarray
+        The image data to overlay the coordinates on.
+    color : str, optional
+        The column name in df for the color variable. Defaults to None.
+    x : str, optional
+        The column name in df for the x-coordinate. Defaults to "x".
+    y : str, optional
+        The column name in df for the y-coordinate. Defaults to "y".
+    fig_width : int, optional
+        The width of the figure. Defaults to 20.
+    fig_height : int, optional
+        The height of the figure. Defaults to 20.
+    dot_size : int, optional
+        The size of the dots representing the coordinates. Defaults to 10.
+    convert_to_grey : bool, optional
+        Whether to convert the image to grayscale. Defaults to True.
+    scale : bool, optional
+        Whether to scale the color variable. Defaults to False.
+    cmap : str, optional
+        The colormap to use. Defaults to "inferno".
+    savefig : bool, optional
+        Whether to save the figure or not. Defaults to False.
+    output_dir : str, optional
+        The output directory. Defaults to "./".
+    output_fname : str, optional
+        The output file name. Defaults to "".
+
+    Returns
+    -------
+    None
+    """
     # Create a new figure with increased size
     plt.figure(figsize=(fig_width, fig_height))
 
@@ -3750,6 +3944,34 @@ def count_patch_proximity_res(
     output_dir="./",
     output_fname="",
 ):
+    """
+    Create a count plot for patch proximity results.
+
+    Parameters
+    ----------
+    adata : AnnData
+        Annotated data matrix.
+    x : str
+        The column name in the DataFrame for the x-axis variable.
+    hue : str
+        The column name in the DataFrame for the hue variable.
+    palette : str, optional
+        The palette to use for the plot. Defaults to "Set3".
+    order : bool, optional
+        Whether to order the count plot. Defaults to True.
+    key_name : str, optional
+        The key name for the patch proximity results in adata.uns. Defaults to "ppa_result".
+    savefig : bool, optional
+        Whether to save the figure or not. Defaults to False.
+    output_dir : str, optional
+        The output directory. Defaults to "./".
+    output_fname : str, optional
+        The output file name. Defaults to "".
+
+    Returns
+    -------
+    None
+    """
     region_results = adata.uns[key_name]
     ax = sns.countplot(
         x=x,

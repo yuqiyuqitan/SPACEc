@@ -355,6 +355,34 @@ def clustering(
     key_added=None,
     **cluster_kwargs,
 ):
+    """
+    Perform clustering on the given annotated data matrix.
+
+    Parameters
+    ----------
+    adata : AnnData
+        The annotated data matrix of shape n_obs x n_vars. Rows correspond
+        to cells and columns to stained markers.
+    clustering : str, optional
+        The clustering algorithm to use. Options are "leiden" or "louvain". Defaults to "leiden".
+    marker_list : list, optional
+        A list of markers for clustering. Defaults to None.
+    resolution : int, optional
+        The resolution for the clustering algorithm. Defaults to 1.
+    n_neighbors : int, optional
+        The number of neighbors to use for the neighbors graph. Defaults to 10.
+    reclustering : bool, optional
+        Whether to recluster the data. Defaults to False.
+    key_added : str, optional
+        The key name to add to the adata object. Defaults to None.
+    **cluster_kwargs : dict
+        Additional keyword arguments for the clustering function.
+
+    Returns
+    -------
+    AnnData
+        The annotated data matrix with the clustering results added.
+    """
     if clustering not in ["leiden", "louvain"]:
         print("Invalid clustering options. Please select from leiden or louvain!")
         exit()
@@ -1044,16 +1072,34 @@ def neighborhood_analysis(
     metric="distortion",
 ):
     """
-    Compute for Cellular neighborhood
-    adata:  anndata containing information
-    unique_region: each region is one independent CODEX image
-    cluster_col:  columns to compute CNs on, typicall 'celltype'
-    X:  X
-    Y: Y
-    k: k neighbors to compute
-    n_neighborhoods: number of neighborhoods one ends ups with
-    elbow: whether to see the optimal elbow plots or not
-    metric:
+    Compute for Cellular neighborhoods (CNs).
+
+    Parameters
+    ----------
+    adata : AnnData
+        Annotated data matrix.
+    unique_region : str
+        Each region is one independent CODEX image.
+    cluster_col : str
+        Columns to compute CNs on, typically 'celltype'.
+    X : str, optional
+        X coordinate column name, by default "x".
+    Y : str, optional
+        Y coordinate column name, by default "y".
+    k : int, optional
+        Number of neighbors to compute, by default 35.
+    n_neighborhoods : int, optional
+        Number of neighborhoods one ends up with, by default 30.
+    elbow : bool, optional
+        Whether to test for optimal number of clusters and visulize as elbow plot or not, by default False. If set to true the funktion will test 1 to n_neighborhoods and plots the distortion score in an elbow plot to assist the user in finding the optimal number of clusters.
+    metric : str, optional
+        The metric to use when calculating distance between instances in a feature array, by default "distortion".
+
+    Returns
+    -------
+    AnnData
+        Annotated data matrix with updated neighborhood information.
+
     """
     df = pd.DataFrame(adata.obs[[X, Y, cluster_col, unique_region]])
 
@@ -1165,6 +1211,41 @@ def cn_map(
     sub_col=None,
     rand_seed=1,
 ):
+    """
+    Generate a cellular neighborhood (CN) map.
+
+    Parameters
+    ----------
+    adata : AnnData
+        Annotated data matrix.
+    cn_col : str
+        Column name for cellular neighborhood.
+    unique_region : str
+        Unique region identifier.
+    palette : dict, optional
+        Color palette for the CN map, by default None.
+    k : int, optional
+        Number of neighbors to compute, by default 75.
+    X : str, optional
+        X coordinate column name, by default "x".
+    Y : str, optional
+        Y coordinate column name, by default "y".
+    threshold : float, optional
+        Threshold for neighborhood computation, by default 0.85.
+    per_keep_thres : float, optional
+        Threshold for keeping percentage, by default 0.85.
+    sub_list : list, optional
+        List of sub regions, by default None.
+    sub_col : str, optional
+        Column name for sub regions, by default None.
+    rand_seed : int, optional
+        Random seed for color generation, by default 1.
+
+    Returns
+    -------
+    dict
+        Dictionary containing the graph, top nodes, edges and simplicial frequencies.
+    """
     ks = [k]
     cells_df = pd.DataFrame(adata.obs)
     cells_df = cells_df[[X, Y, unique_region, cn_col]]
@@ -1212,6 +1293,23 @@ def cn_map(
 
 
 def tl_format_for_squidpy(adata, x_col, y_col):
+    """
+    Format an AnnData object for use with Squidpy.
+
+    Parameters
+    ----------
+    adata : AnnData
+        Annotated data matrix.
+    x_col : str
+        Column name for x spatial coordinates.
+    y_col : str
+        Column name for y spatial coordinates.
+
+    Returns
+    -------
+    AnnData
+        Annotated data matrix formatted for Squidpy, with spatial data in the 'obsm' attribute.
+    """
     # Extract the count data from your original AnnData object
     counts = adata.X
 
@@ -1269,6 +1367,29 @@ def tl_corr_cell_ad(
 
 
 def calculate_triangulation_distances(df_input, id, x_pos, y_pos, cell_type, region):
+    """
+    Calculate distances between cells using Delaunay triangulation.
+
+    Parameters
+    ----------
+    df_input : pandas.DataFrame
+        Input dataframe containing cell information.
+    id : str
+        Column name for cell id.
+    x_pos : str
+        Column name for x position of cells.
+    y_pos : str
+        Column name for y position of cells.
+    cell_type : str
+        Column name for cell type annotations.
+    region : str
+        Column name for region.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Annotated result dataframe with calculated distances and additional information.
+    """
     # Perform Delaunay triangulation
     points = df_input[[x_pos, y_pos]].values
     tri = Delaunay(points)
@@ -1361,6 +1482,31 @@ def calculate_triangulation_distances(df_input, id, x_pos, y_pos, cell_type, reg
 
 # Define the process_region function at the top level
 def process_region(df, unique_region, id, x_pos, y_pos, cell_type, region):
+    """
+    Process a specific region of a dataframe, calculating triangulation distances.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Input dataframe containing cell information.
+    unique_region : str
+        Unique region identifier.
+    id : str
+        Column name for cell id.
+    x_pos : str
+        Column name for x position of cells.
+    y_pos : str
+        Column name for y position of cells.
+    cell_type : str
+        Column name for cell type.
+    region : str
+        Column name for region.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Result dataframe with calculated distances and additional information for the specified region.
+    """
     subset = df[df[region] == unique_region].copy()
     subset["uniqueID"] = (
         subset[id].astype(str)
@@ -1384,6 +1530,33 @@ def process_region(df, unique_region, id, x_pos, y_pos, cell_type, region):
 def get_triangulation_distances(
     df_input, id, x_pos, y_pos, cell_type, region, num_cores=None, correct_dtype=True
 ):
+    """
+    Calculate triangulation distances for each unique region in the input dataframe.
+
+    Parameters
+    ----------
+    df_input : pandas.DataFrame
+        Input dataframe containing cell information.
+    id : str
+        Column name for cell id.
+    x_pos : str
+        Column name for x position of cells.
+    y_pos : str
+        Column name for y position of cells.
+    cell_type : str
+        Column name for cell type.
+    region : str
+        Column name for region.
+    num_cores : int, optional
+        Number of cores to use for parallel processing. If None, defaults to half of available cores.
+    correct_dtype : bool, optional
+        If True, corrects the data type of the cell_type and region columns to string.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Result dataframe with calculated distances and additional information for each unique region.
+    """
     if correct_dtype == True:
         # change columns to pandas string
         df_input[cell_type] = df_input[cell_type].astype(str)
@@ -1423,6 +1596,25 @@ def get_triangulation_distances(
 
 
 def shuffle_annotations(df_input, cell_type, region, permutation):
+    """
+    Shuffle annotations within each unique region in the input dataframe.
+
+    Parameters
+    ----------
+    df_input : pandas.DataFrame
+        Input dataframe containing cell information.
+    cell_type : str
+        Column name for cell type annotations.
+    region : str
+        Column name for region.
+    permutation : int
+        Seed for the random number generator.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Result dataframe with shuffled annotations for each unique region.
+    """
     # Set the seed for reproducibility
     np.random.seed(permutation + 1234)
 
@@ -1441,6 +1633,33 @@ def shuffle_annotations(df_input, cell_type, region, permutation):
 def tl_iterate_tri_distances(
     df_input, id, x_pos, y_pos, cell_type, region, num_cores=None, num_iterations=1000
 ):
+    """
+    Iterate over triangulation distances for each unique region in the input dataframe.
+
+    Parameters
+    ----------
+    df_input : pandas.DataFrame
+        Input dataframe containing cell information.
+    id : str
+        Column name for cell id.
+    x_pos : str
+        Column name for x position of cells.
+    y_pos : str
+        Column name for y position of cells.
+    cell_type : str
+        Column name for cell type.
+    region : str
+        Column name for region.
+    num_cores : int, optional
+        Number of cores to use for parallel processing. If None, defaults to half of available cores.
+    num_iterations : int, optional
+        Number of iterations to perform. Defaults to 1000.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Result dataframe with iterative triangulation distances for each unique region.
+    """
     unique_regions = df_input[region].unique()
     # Use only the necessary columns
     df_input = df_input[[id, x_pos, y_pos, cell_type, region]]
@@ -1524,6 +1743,37 @@ def tl_iterate_tri_distances_ad(
     key_name=None,
     correct_dtype=True,
 ):
+    """
+    Iterate over triangulation distances for each unique region in the input AnnData object.
+
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Annotated data matrix.
+    id : str
+        Column name for cell id.
+    x_pos : str
+        Column name for x position of cells.
+    y_pos : str
+        Column name for y position of cells.
+    cell_type : str
+        Column name for cell type.
+    region : str
+        Column name for region.
+    num_cores : int, optional
+        Number of cores to use for parallel processing. If None, defaults to half of available cores.
+    num_iterations : int, optional
+        Number of iterations to perform. Defaults to 1000.
+    key_name : str, optional
+        Key name to use when saving the result to the AnnData object. If None, defaults to "iTriDist_" + str(num_iterations).
+    correct_dtype : bool, optional
+        If True, corrects the data type of the cell type and region columns to string. Defaults to True.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Result dataframe with iterative triangulation distances for each unique region.
+    """
     df_input = pd.DataFrame(adata.obs)
     df_input[id] = df_input.index
 
@@ -1615,6 +1865,23 @@ def tl_iterate_tri_distances_ad(
 def add_missing_columns(
     triangulation_distances, metadata, shared_column="unique_region"
 ):
+    """
+    Add missing columns from metadata to triangulation_distances dataframe.
+
+    Parameters
+    ----------
+    triangulation_distances : pandas.DataFrame
+        DataFrame containing triangulation distances.
+    metadata : pandas.DataFrame
+        DataFrame containing metadata.
+    shared_column : str, optional
+        Column name that is shared between the two dataframes. Defaults to "unique_region".
+
+    Returns
+    -------
+    pandas.DataFrame
+        Updated triangulation_distances dataframe with missing columns added.
+    """
     # Find the difference in columns
     missing_columns = set(metadata.columns) - set(triangulation_distances.columns)
     # Add missing columns to triangulation_distances with NaN values
@@ -1636,15 +1903,21 @@ def add_missing_columns(
 
 
 # Calculate p-values and log fold differences
-# def calculate_pvalue(row):
-#    try:
-#        return st.ttest_ind(row['expected'], row['observed'], alternative='two-sided', equal_var = False).pvalue
-#    except ValueError:  # This handles cases with insufficient data
-#        return np.nan
-
-
-# Calculate p-values and log fold differences
 def calculate_pvalue(row):
+    """
+    Calculate the p-value using the Mann-Whitney U test.
+
+    Parameters
+    ----------
+    row : pandas.Series
+        A row of data containing 'expected' and 'observed' values.
+
+    Returns
+    -------
+    float
+        The calculated p-value. Returns np.nan if there is insufficient data to perform the test.
+    """
+    # function body here
     try:
         return st.mannwhitneyu(
             row["expected"], row["observed"], alternative="two-sided"
@@ -1661,6 +1934,29 @@ def tl_identify_interactions(
     distance_threshold=128,
     comparison="tissue",
 ):
+    """
+    Identify interactions between cell types based on triangulation distances.
+
+    Parameters
+    ----------
+    triangulation_distances : pandas.DataFrame
+        DataFrame containing triangulation distances.
+    iterative_triangulation_distances : pandas.DataFrame
+        DataFrame containing iterative triangulation distances.
+    metadata : pandas.DataFrame
+        DataFrame containing metadata.
+    min_observed : int, optional
+        Minimum number of observations required to keep a comparison. Defaults to 10.
+    distance_threshold : int, optional
+        Maximum distance to consider for interactions. Defaults to 128.
+    comparison : str, optional
+        Column name to use for comparison. Defaults to "tissue".
+
+    Returns
+    -------
+    pandas.DataFrame
+        DataFrame containing p-values, logfold changes, and interactions for each comparison.
+    """
     # Reformat observed dataset
     triangulation_distances_long = add_missing_columns(
         triangulation_distances, metadata, shared_column="unique_region"
@@ -1724,6 +2020,25 @@ def tl_identify_interactions(
 
 
 def filter_interactions(distance_pvals, pvalue=0.05, logfold_group_abs=0.1):
+    """
+    Filter interactions based on p-value, logfold change, and other conditions.
+
+    Parameters
+    ----------
+    distance_pvals : pandas.DataFrame
+        DataFrame containing p-values, logfold changes, and interactions for each comparison.
+    pvalue : float, optional
+        Maximum p-value to consider for significance. Defaults to 0.05.
+    logfold_group_abs : float, optional
+        Minimum absolute logfold change to consider for significance. Defaults to 0.1.
+
+    Returns
+    -------
+    dist_table : pandas.DataFrame
+        DataFrame containing logfold changes sorted into two columns by condition.
+    distance_pvals_sig_sub : pandas.DataFrame
+        Subset of the original DataFrame containing only significant interactions.
+    """
     # calculate absolute logfold difference
     distance_pvals["logfold_group_abs"] = distance_pvals["logfold_group"].abs()
 
@@ -1792,6 +2107,47 @@ def identify_interactions(
     key_name=None,
     correct_dtype=False,
 ):
+    """
+    Identify interactions between cell types based on their spatial distances.
+
+    Parameters
+    ----------
+    adata : AnnData
+        Annotated data matrix.
+    id : str
+        Identifier for cells.
+    x_pos : str
+        Column name for x position of cells.
+    y_pos : str
+        Column name for y position of cells.
+    cell_type : str
+        Column name for cell type.
+    region : str
+        Column name for region.
+    comparison : str
+        Column name for comparison.
+    iTriDist_keyname : str, optional
+        Key name for iterative triangulation distances, by default None
+    triDist_keyname : str, optional
+        Key name for triangulation distances, by default None
+    min_observed : int, optional
+        Minimum number of observed distances, by default 10
+    distance_threshold : int, optional
+        Threshold for distance, by default 128
+    num_cores : int, optional
+        Number of cores to use for computation, by default None
+    num_iterations : int, optional
+        Number of iterations for computation, by default 1000
+    key_name : str, optional
+        Key name for output, by default None
+    correct_dtype : bool, optional
+        Whether to correct data type or not, by default False
+
+    Returns
+    -------
+    DataFrame
+        DataFrame with p-values and logfold changes for interactions.
+    """
     df_input = pd.DataFrame(adata.obs)
     df_input[id] = df_input.index
 
@@ -1903,12 +2259,15 @@ def apply_dbscan_clustering(df, min_samples=10):
     """
     Apply DBSCAN clustering to a dataframe and update the cluster labels in the original dataframe.
 
-    Args:
-    df (pandas.DataFrame): The dataframe to be clustered.
-    eps (float): The maximum distance between two samples for them to be considered as in the same neighborhood.
-    min_samples (int): The number of samples in a neighborhood for a point to be considered as a core point.
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        The dataframe to be clustered.
+    min_samples : int, optional
+        The number of samples in a neighborhood for a point to be considered as a core point, by default 10
 
-    Returns:
+    Returns
+    -------
     None
     """
     # Initialize a new column for cluster labels
@@ -1947,6 +2306,29 @@ def plot_selected_neighbors_with_shapes(
     plot=True,
     identification_column="community",
 ):
+    """
+    Plot points and identify points in radius of selected points.
+
+    Parameters
+    ----------
+    full_df : pandas.DataFrame
+        The full dataframe containing all points.
+    selected_df : pandas.DataFrame
+        The dataframe containing selected points.
+    target_df : pandas.DataFrame
+        The dataframe containing target points.
+    radius : float
+        The radius within which to identify neighboring points.
+    plot : bool, optional
+        Whether to plot the points and their neighbors, by default True
+    identification_column : str, optional
+        The column name used for identification, by default "community"
+
+    Returns
+    -------
+    pandas.DataFrame
+        A dataframe containing all points within the radius of the selected points but from a different cluster.
+    """
     # Get unique clusters from the full DataFrame
     unique_clusters = full_df[identification_column].unique()
 
@@ -2048,6 +2430,37 @@ def identify_points_in_proximity(
     plot=True,
     concave_hull_length_threshold=50,
 ):
+    """
+    Generate a dataframe with the points in proximity to the selected points. Points are selected based on the coordinates of a 2D concave hull.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        The dataframe containing the points to be processed.
+    full_df : pandas.DataFrame
+        The full dataframe containing all points.
+    identification_column : str
+        The column name used for identification.
+    cluster_column : str, optional
+        The column name used for clustering, by default "cluster"
+    x_column : str, optional
+        The column name for the x-coordinate, by default "x"
+    y_column : str, optional
+        The column name for the y-coordinate, by default "y"
+    radius : int, optional
+        The radius within which to identify neighboring points, by default 200
+    edge_neighbours : int, optional
+        The number of nearest points to the hull to select, by default 3
+    plot : bool, optional
+        Whether to plot the points and their neighbors, by default True
+    concave_hull_length_threshold : int, optional
+        The length threshold for the concave hull, by default 50
+
+    Returns
+    -------
+    pandas.DataFrame
+        A dataframe containing all points within the radius of the selected points but from a different cluster.
+    """
     result_list = []
 
     # Loop through clusters in the DataFrame
@@ -2098,7 +2511,7 @@ def identify_points_in_proximity(
     return result
 
 
-# This function answers the what is in proximity of this group.
+# This function analyzes what is in proximity of a selected group (CN, Celltype, etc...).
 def patch_proximity_analysis(
     adata,
     region_column,
@@ -2115,6 +2528,45 @@ def patch_proximity_analysis(
     output_fname="",
     key_name="ppa_result",
 ):
+    """
+    Analyze what is in proximity of a selected group (CN, Celltype, etc...).
+
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        The annotated data matrix.
+    region_column : str
+        The column name for the region.
+    patch_column : str
+        The column name for the patch.
+    group : str
+        The group to analyze.
+    min_samples : int, optional
+        The minimum number of samples required to form a dense region, by default 80
+    x_column : str, optional
+        The column name for the x-coordinate, by default "x"
+    y_column : str, optional
+        The column name for the y-coordinate, by default "y"
+    radius : int, optional
+        The radius within which to identify neighboring points, by default 128
+    edge_neighbours : int, optional
+        The number of nearest points to the hull to select, by default 3 - used to better cover sparse parts of the patch
+    plot : bool, optional
+        Whether to plot the points and their neighbors, by default True
+    savefig : bool, optional
+        Whether to save the figure, by default False
+    output_dir : str, optional
+        The directory to save the figure, by default "./"
+    output_fname : str, optional
+        The filename for the saved figure, by default ""
+    key_name : str, optional
+        The key name for the final results in the uns attribute of the AnnData object, by default "ppa_result"
+
+    Returns
+    -------
+    pandas.DataFrame
+        A dataframe containing all points within the radius of the selected points but from a different cluster.
+    """
     df = adata.obs
 
     for col in df.select_dtypes(["category"]).columns:
@@ -2198,6 +2650,36 @@ def ml_train(
     nan_policy_y="raise",
     showfig=True,
 ):
+    """
+    Train a svm model on the provided data.
+
+    Parameters
+    ----------
+    adata_train : AnnData
+        The training data as an AnnData object.
+    label : str
+        The label to predict.
+    test_size : float, optional
+        The proportion of the dataset to include in the test split, by default 0.33.
+    random_state : int, optional
+        The seed used by the random number generator, by default 0.
+    model : str, optional
+        The type of model to train, by default "svm".
+    nan_policy_y : str, optional
+        How to handle NaNs in the label, by default "raise". Can be either 'omit' or 'raise'.
+    showfig : bool, optional
+        Whether to show the confusion matrix as a heatmap, by default True.
+
+    Returns
+    -------
+    SVC
+        The trained Support Vector Classifier model.
+
+    Raises
+    ------
+    ValueError
+        If `nan_policy_y` is not 'omit' or 'raise'.
+    """
     X = pd.DataFrame(adata_train.X)
     y = adata_train.obs[label].values
 
@@ -2238,6 +2720,26 @@ def ml_train(
 
 
 def ml_predict(adata_val, svc, save_name="svm_pred", return_prob_mat=False):
+    """
+    Predict labels for a given dataset using a trained Support Vector Classifier (SVC) model.
+
+    Parameters
+    ----------
+    adata_val : AnnData
+        The validation data as an AnnData object.
+    svc : SVC
+        The trained Support Vector Classifier model.
+    save_name : str, optional
+        The name under which the predictions will be saved in the AnnData object, by default "svm_pred".
+    return_prob_mat : bool, optional
+        Whether to return the probability matrix, by default False.
+
+    Returns
+    -------
+    DataFrame or None
+        If `return_prob_mat` is True, returns a DataFrame with the probability matrix. Otherwise, returns None.
+
+    """
     print("Classifying!")
     X_val = pd.DataFrame(adata_val.X)
     y_prob_val = svc.predict_proba(X_val)

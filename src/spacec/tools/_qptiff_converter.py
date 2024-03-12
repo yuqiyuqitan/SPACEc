@@ -18,6 +18,31 @@ def label_tissue(
     output_dir="./",
     output_fname="",
 ):
+    """
+    Label the tissue in the given image.
+
+    Parameters
+    ----------
+    resized_im : ndarray
+        The resized image to label.
+    lower_cutoff : float, optional
+        The lower cutoff for the sobel filter, by default 0.012.
+    upper_cutoff : float, optional
+        The upper cutoff for the sobel filter, by default 0.025.
+    savefig : bool, optional
+        Whether to save the figure or not, by default False.
+    showfig : bool, optional
+        Whether to show the figure or not, by default True.
+    output_dir : str, optional
+        The directory to save the figure in, by default "./".
+    output_fname : str, optional
+        The filename to save the figure as, by default "".
+
+    Returns
+    -------
+    DataFrame
+        A DataFrame containing the labels from the segmentation.
+    """
     # cut off
     elevation_map = sobel(resized_im)
     markers = np.zeros_like(resized_im, dtype=int)
@@ -71,6 +96,30 @@ def save_labelled_tissue(
     output_dir="./",
     output_fname="",
 ):
+    """
+    Save the labelled tissue from the given image.
+
+    Parameters
+    ----------
+    filepath : str
+        The path to the image file.
+    tissueframe : DataFrame
+        The DataFrame containing the labels from the segmentation.
+    region : str, optional
+        The region to group by, by default "region".
+    padding : int, optional
+        The padding to add to the extracted tissue, by default 50.
+    downscale_factor : int, optional
+        The factor to downscale the image by, by default 64.
+    output_dir : str, optional
+        The directory to save the image in, by default "./".
+    output_fname : str, optional
+        The filename to save the image as, by default "".
+
+    Returns
+    -------
+    None
+    """
     tissueframe2 = tissueframe.groupby(region).agg([min, max])
     print("Reading in the qptiff file, might take awhile!")
     currim = tifffile.imread(filepath)
