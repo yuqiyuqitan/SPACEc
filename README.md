@@ -1,4 +1,4 @@
-# SPatial Analysis for CodEX data (SPACEc)
+#SPatial Analysis for CodEX data (SPACEc)
 
 ## Installation notes
 
@@ -10,7 +10,7 @@ Install.
 
 ```bash
 # setup `conda` repository
-conda create -n spacec python==3.10
+conda create -n spacec python==3.9
 conda activate spacec
 
 # install `graphviz`
