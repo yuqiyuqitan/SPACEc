@@ -249,8 +249,8 @@ def extract_features(
     markers = mean_df.join(props_df)
 
     # rename column
-    markers.rename(columns={"centroid-0": "x"}, inplace=True)
-    markers.rename(columns={"centroid-1": "y"}, inplace=True)
+    markers.rename(columns={"centroid-0": "y"}, inplace=True)
+    markers.rename(columns={"centroid-1": "x"}, inplace=True)
 
     # Export to CSV
     markers.to_csv(output_file)
