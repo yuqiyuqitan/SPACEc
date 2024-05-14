@@ -16,6 +16,9 @@ conda activate spacec
 # install `graphviz`
 conda install graphviz
 
+# install 'libvips'
+conda install -c conda-forge libvips pyvips openslide-python
+
 # install `SPACEc` from pypi
 pip install spacec
 
