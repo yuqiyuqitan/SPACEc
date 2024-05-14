@@ -2832,7 +2832,7 @@ def catplot(
         n_columns,
         figsize=(figsize * n_columns, figsize * n_rows),
         squeeze=False,
-        gridspec_kw={"wspace": 1.1, "hspace": 0.4},
+        gridspec_kw={"wspace": 0.5, "hspace": 0.4},
     )
 
     for i_ax, (name, ax) in enumerate(zip(region_list, axes.flatten())):
@@ -3436,7 +3436,6 @@ def cn_exp_heatmap(
     cluster_col,
     cn_col,
     palette=None,
-    figsize=(18, 12),
     savefig=False,
     output_fname="",
     output_dir="./",
@@ -3525,7 +3524,7 @@ def cn_exp_heatmap(
         vmin=-3,
         vmax=3,
         cmap="bwr",
-        figsize=figsize,
+        figsize=(10, 5),
         row_colors=[neigh_data.reindex(fc_2.index)["color"]],
         cbar_pos=(0.03, 0.06, 0.03, 0.1),
     )
@@ -3536,8 +3535,19 @@ def cn_exp_heatmap(
     s.ax_heatmap.tick_params(axis="y", pad=42)
     s.ax_heatmap.yaxis.set_ticks_position("right")
 
+    # add text to bottom left corner of the plot
+    s.ax_heatmap.text(
+        -0.25,
+        -0.85,
+        "log2 fold change \nover tissue average",
+        transform=s.ax_heatmap.transAxes,
+        fontsize=12,
+        verticalalignment="bottom",
+        horizontalalignment="center",
+    )
+
     if savefig:
-        s.figure.savefig(output_dir / (output_fname + "_cn_heatmap.pdf"))
+        s.figure.savefig(output_dir / (output_fname + ".pdf"), bbox_inches="tight")
 
 
 def pl_area_nuc_cutoff(
@@ -3634,7 +3644,14 @@ def pl_plot_correlation_matrix(cmat):
     plt.show()
 
 
-def dumbbell(data, figsize=(10, 10), colors=["#DB444B", "#006BA2"]):
+def dumbbell(
+    data,
+    figsize=(10, 10),
+    colors=["#DB444B", "#006BA2"],
+    savefig=False,
+    output_fname="",
+    output_dir="./",
+):
     """
     Create a dumbbell plot.
 
@@ -3704,9 +3721,85 @@ def dumbbell(data, figsize=(10, 10), colors=["#DB444B", "#006BA2"]):
         loc=(0, 1.076),
         ncol=2,
         frameon=False,
-        handletextpad=-0.1,
+        handletextpad=0.4,
         handleheight=1,
     )
+
+    if savefig == True:
+        plt.savefig(output_dir + output_fname + ".pdf", bbox_inches="tight")
+
+
+def plot_top_n_distances(
+    dist_table_filt,
+    dist_data_filt,
+    n=5,
+    colors=None,
+    dodge=False,
+    savefig=False,
+    output_fname="",
+    output_dir="./",
+    figsize=(5, 5),
+    unit="px",
+    errorbars=True,
+):
+    # Calculate the aspect ratio based on the desired figure size
+    aspect = figsize[0] / figsize[1]
+
+    # calculate abs distance
+    dist_table_filt["abs_dist"] = abs(
+        dist_table_filt.iloc[:, 0] - dist_table_filt.iloc[:, 1]
+    )
+
+    # replace with the number of combinations you want
+    top_n_combinations = dist_table_filt.nlargest(n, "abs_dist")
+
+    print(top_n_combinations)
+
+    # Convert index of top_n_combinations to a set
+    top_pairs = set(top_n_combinations.index)
+
+    # Filter dist_data_filt
+    top_dist_data_filt = dist_data_filt[dist_data_filt["pairs"].isin(top_pairs)]
+
+    exploded_df = top_dist_data_filt.explode("observed")
+
+    # Draw a pointplot to show pulse as a function of three categorical factors
+    if errorbars == True:
+        g = sns.catplot(
+            data=exploded_df,
+            x="condition",
+            y="observed",
+            hue="interaction",
+            capsize=0.2,
+            palette=colors,
+            errorbar="se",
+            kind="point",
+            height=figsize[1],
+            aspect=aspect,
+            dodge=dodge,
+        )
+    else:
+        g = sns.catplot(
+            data=exploded_df,
+            x="condition",
+            y="observed",
+            hue="interaction",
+            capsize=0.2,
+            palette=colors,
+            kind="point",
+            height=figsize[1],
+            aspect=aspect,
+            dodge=dodge,
+            ci=None,
+        )
+
+    # change y axis name to "observed distance"
+    g.set_axis_labels("Condition", "Observed distance in " + unit)
+
+    g.despine(left=True)
+
+    if savefig == True:
+        plt.savefig(output_dir + output_fname + ".pdf", bbox_inches="tight")
 
 
 def cn_map(
@@ -3720,34 +3813,6 @@ def cn_map(
     output_dir="./",
     rand_seed=1,
 ):
-    """
-    Create a CNMap plot.
-
-    Parameters
-    ----------
-    adata : AnnData
-        Annotated data matrix.
-    cnmap_dict : dict
-        A dictionary containing the graph, tops, e0, e1, and simp_freqs.
-    cn_col : str
-        The column name for the color normalization.
-    palette : dict, optional
-        A dictionary to manually set colors for neighborhoods. Defaults to None.
-    figsize : tuple, optional
-        The size of the figure. Defaults to (40, 20).
-    savefig : bool, optional
-        Whether to save the figure or not. Defaults to False.
-    output_fname : str, optional
-        The output file name. Defaults to "".
-    output_dir : str, optional
-        The output directory. Defaults to "./".
-    rand_seed : int, optional
-        The random seed for color generation. Defaults to 1.
-
-    Returns
-    -------
-    None
-    """
     graph = cnmap_dict["g"]
     tops = cnmap_dict["tops"]
     e0 = cnmap_dict["e0"]
@@ -3771,7 +3836,11 @@ def cn_map(
             )
 
     plt.figure(figsize=figsize)
-    for n in draw.nodes():
+    # Sort the nodes
+    sorted_nodes = sorted(draw.nodes())
+
+    # Iterate over the sorted nodes
+    for n in sorted_nodes:
         col = "black"
         if len(draw.in_edges(n)) < len(n):
             col = "black"
@@ -3803,18 +3872,18 @@ def cn_map(
             c=[palette[l[i]] for i in n],
             marker="s",
             zorder=5,
-            s=400,
+            s=1000,
         )
 
     j = 0
     for e0, e1 in draw.edges():
-        weight = 0.2
+        weight = 2
         alpha = 0.3
         color = "black"
         if len(draw.in_edges(e1)) < len(e1):
             color = "black"
             lw = 1
-            weight = 0.4
+            weight = 3
 
         plt.plot(
             [pos[e0][0], pos[e1][0]],
@@ -3824,6 +3893,21 @@ def cn_map(
             alpha=alpha,
             zorder=-10,
         )
+
+    # Create a list of Patch objects, one for each unique color in your palette
+    legend_patches = [
+        mpatches.Patch(color=color, label=label) for label, color in palette.items()
+    ]
+
+    # Add legend to bottom of plot
+    plt.legend(
+        handles=legend_patches,
+        bbox_to_anchor=(0.0, -0.15, 1.0, 0.102),
+        loc="lower center",
+        ncol=3,
+        borderaxespad=0.0,
+        fontsize=35,
+    )
 
     plt.axis("off")
 
@@ -3988,6 +4072,506 @@ def count_patch_proximity_res(
     if savefig:
         plt.savefig(
             output_dir + output_fname + "_count_ppa_result.pdf", bbox_inches="tight"
+        )
+    else:
+        plt.show()
+
+
+def BC_projection(
+    adata,
+    cnmap_dict,
+    cn_col,
+    plot_list,  # list of 3 elements from cn_col
+    cn_col_annt=None,
+    palette=None,
+    figsize=(7, 7),
+    rand_seed=1,
+    SMALL_SIZE=14,
+    MEDIUM_SIZE=16,
+    BIGGER_SIZE=18,
+    n_num=None,
+    threshold=None,
+    savefig=False,
+    output_fname="",
+    output_dir="",  # output directory
+    dpi=300,
+):
+    """
+    Plot barycentric projection.
+
+    Parameters
+    ----------
+    adata : AnnData
+        Annotated data object.
+    cnmap_dict : dict
+        Dictionary containing keys 'w', 'l', 'k', and 'threshold'.
+    cn_col : str
+        Column name in adata.obs containing copy number information.
+    plot_list : list
+        List of 3 elements from cn_col.
+    cn_col_annt : str, optional
+        Annotated column name, by default None.
+    palette : dict, optional
+        Color palette, by default None.
+    figsize : tuple, optional
+        Figure size, by default (7, 7).
+    rand_seed : int, optional
+        Random seed, by default 1.
+    SMALL_SIZE : int, optional
+        Font size for small text, by default 14.
+    MEDIUM_SIZE : int, optional
+        Font size for medium text, by default 16.
+    BIGGER_SIZE : int, optional
+        Font size for large text, by default 18.
+    n_num : int, optional
+        Number, by default None.
+    threshold : float, optional
+        Threshold, by default None.
+    savefig : bool, optional
+        Whether to save the figure, by default False.
+    output_fname : str, optional
+        Output file name, by default "".
+    output_dir : str, optional
+        Output directory, by default "".
+    dpi : int, optional
+        Dots per inch, by default 300.
+    """
+    if cn_col_annt is None:
+        plot_list_annot = plot_list
+        all_list = list(adata.obs[cn_col].unique())
+        if all(x in all_list for x in plot_list):
+            pass
+        else:
+            print(
+                "Please provide a valid list of plot_list from cn_col or specify cn_col_annt!"
+            )
+            return
+    else:
+        if cn_col == cn_col_annt:
+            plot_list_annot = plot_list
+        else:
+            annt_map = dict(
+                zip(adata.obs[cn_col].unique(), adata.obs[cn_col_annt].unique())
+            )
+            plot_list_annot = [annt_map[i] for i in plot_list]
+
+    # Settings for graph
+    plt.rc("font", size=SMALL_SIZE)  # controls default text sizes
+    plt.rc("axes", titlesize=SMALL_SIZE)  # fontsize of the axes title
+    plt.rc("axes", labelsize=MEDIUM_SIZE)  # fontsize of the x and y labels
+    plt.rc("xtick", labelsize=SMALL_SIZE)  # fontsize of the tick labels
+    plt.rc("ytick", labelsize=SMALL_SIZE)  # fontsize of the tick labels
+    plt.rc("legend", fontsize=SMALL_SIZE)  # legend fontsize
+    plt.rc("figure", titlesize=BIGGER_SIZE)  # fontsize of the figure title
+
+    # generate color
+    if palette is None:
+        cn_colors = hf_generate_random_colors(
+            len(adata.obs[cn_col].unique()), rand_seed=rand_seed
+        )
+        if cn_col_annt + "_colors" not in adata.uns.keys():
+            palette = dict(zip(np.sort(adata.obs[cn_col].unique()), cn_colors))
+            adata.uns[cn_col + "_colors"] = cn_colors
+        else:
+            palette = dict(
+                zip(np.sort(adata.obs[cn_col].unique()), adata.uns[cn_col + "_colors"])
+            )
+
+    w = cnmap_dict["w"]
+    l = cnmap_dict["l"]
+    if n_num is None:
+        n_num = cnmap_dict["k"]
+    else:
+        n_num = n_num
+
+    if threshold is None:
+        threshold = cnmap_dict["threshold"]
+        threshold = threshold * 100
+    else:
+        threshold = threshold * 100
+
+    # lmap = {j: i for i, j in enumerate(l)}
+
+    wgc = w.loc[w.loc[:, plot_list].sum(axis=1) > threshold, :]
+    # idx = wgc.index.values
+    xl = wgc.loc[:, plot_list]
+    proj = np.array([[0, 0], [np.cos(np.pi / 3), np.sin(np.pi / 3)], [1, 0]])
+    coords = np.dot(xl / n_num, proj)  #####window size fraction
+
+    plt.figure(figsize=figsize)
+    jit = 0.002
+
+    cols = [palette[a] for a in wgc[cn_col]]
+
+    plt.scatter(
+        coords[:, 0] + jit * np.random.randn(len(coords)),
+        coords[:, 1] + jit * np.random.randn(len(coords)),
+        s=15,
+        alpha=0.5,
+        c=cols,
+    )
+
+    # add label to corners of the triangle
+    plt.text(-0.15, -0.05, plot_list_annot[0], fontsize=10)
+    plt.text(0.65, -0.05, plot_list_annot[2], fontsize=10)
+    plt.text(
+        np.cos(np.pi / 3),
+        np.sin(np.pi / 3) + 0.035,
+        plot_list_annot[1],
+        fontsize=10,
+        horizontalalignment="center",
+        verticalalignment="center",
+    )
+
+    # Create a list of Patch objects, one for each unique color in your palette
+    legend_patches = [
+        mpatches.Patch(color=color, label=label) for label, color in palette.items()
+    ]
+
+    # Add legend to bottom of plot
+    plt.legend(
+        handles=legend_patches,
+        bbox_to_anchor=(0.0, -0.15, 1.0, 0.102),
+        loc="lower center",
+        ncol=3,
+        borderaxespad=0.0,
+        fontsize=10,
+    )
+
+    plt.axis("off")
+
+    if savefig:
+        plt.savefig(
+            output_dir + output_fname + "_bc_proj.pdf",
+            dpi=dpi,
+            transparent=True,
+            bbox_inches="tight",
+        )
+    else:
+        plt.show()
+
+
+def ppa_res_donut(
+    adata,
+    cat_col,
+    palette=None,
+    key_names="ppa_result",
+    radii=[1, 2, 3, 4, 5],
+    unit="µm",
+    figsize=(10, 10),
+    add_guides=True,
+    text="example CN",
+    label_color="black",
+    rand_seed=1,
+    subset_column=None,
+    subset_condition=None,
+    title="Title",
+    savefig=False,
+    output_fname="",
+    output_dir="./",
+):
+    # plotting
+    key_names = key_names[::-1]
+    plt.figure(figsize=figsize)
+
+    if add_guides == True:
+        # add grid lines
+        plt.plot([0, 0], [1.05, -1.05], color="black", alpha=0.3, zorder=-1)
+        plt.plot([1.05, -1.05], [0, 0], color="black", alpha=0.3, zorder=-1)
+        # add diagonal lines
+        for angle in [45, -45]:
+            x_new = 1.05 * np.cos(np.radians(angle))
+            y_new = 1.05 * np.sin(np.radians(angle))
+            plt.plot(
+                [-x_new, x_new], [-y_new, y_new], color="black", alpha=0.3, zorder=-1
+            )
+
+    # generate reproducable colors if no palette is provided
+    if palette is None:
+        if cat_col + "_colors" not in adata.uns.keys():
+            ct_colors = hf_generate_random_colors(
+                len(adata.obs[cat_col].unique()), rand_seed=rand_seed
+            )
+            palette = dict(zip(np.sort(adata.obs[cat_col].unique()), ct_colors))
+            adata.uns[cat_col + "_colors"] = ct_colors
+        else:
+            palette = dict(
+                zip(
+                    np.sort(adata.obs[cat_col].unique()), adata.uns[cat_col + "_colors"]
+                )
+            )
+
+    for i, key_name in enumerate(key_names):
+        print(f"Key {i}: {key_name}")
+        # extract key from adata
+        region_results = adata.uns[key_name]
+
+        # subset by condition
+        if subset_column != None:
+            if subset_column not in region_results.columns:
+                raise ValueError(
+                    f"Column '{subset_column}' does not exist in the DataFrame."
+                )
+            elif subset_condition not in region_results[subset_column].unique():
+                raise ValueError(
+                    f"Value '{subset_condition}' does not exist in the column '{subset_column}'."
+                )
+            else:
+                region_results = region_results[
+                    region_results[subset_column] == subset_condition
+                ]
+
+        # calculate percentages of categories
+        percentage_list = region_results[cat_col].value_counts(normalize=True) * 100
+
+        # Check if all categories have a color in the palette
+        for category in percentage_list.index:
+            if category not in palette:
+                raise ValueError(
+                    f"No color provided for category {category} in the palette"
+                )
+
+        # Get the colors for the current categories from the palette
+        category_colors = [palette[category] for category in percentage_list.index]
+
+        rsed_index = len(radii) - 1 - i
+        plt.pie(
+            percentage_list, radius=(0.6 + 0.1 * rsed_index), colors=category_colors
+        )
+
+    # add labels for each distance
+    for j, percentage_list in enumerate(radii):
+        rsed_index = len(radii) - 1 - j
+        plt.text(
+            0,
+            (0.53 + 0.1 * rsed_index),
+            str(radii[rsed_index]) + unit,
+            horizontalalignment="center",
+            fontweight="bold",
+            color=label_color,
+        )
+
+    # add a circle at the center to transform it in a donut chart
+    my_circle = plt.Circle((0, 0), 0.5, color="white")
+    p = plt.gcf()
+    p.gca().add_artist(my_circle)
+
+    # add a legend based on the colors and keys in palette
+    handles = [plt.Rectangle((0, 0), 1, 1, color=palette[key]) for key in palette]
+    plt.legend(
+        handles,
+        palette.keys(),
+        bbox_to_anchor=(0.94, 0.925),
+        loc="upper left",
+        prop={"size": 15},
+    )
+
+    # Define the maximum length of a line
+    max_line_length = 20
+
+    # Split the text into multiple lines if it's too long
+    wrapped_text = textwrap.fill(text, max_line_length)
+
+    # Add a title in the middle of the white circle
+    plt.text(
+        0,
+        0,
+        wrapped_text,
+        horizontalalignment="center",
+        verticalalignment="center",
+        fontsize=18,
+    )
+
+    plt.title(title, size=24, y=0.96)
+
+    if savefig:
+        plt.savefig(output_dir + output_fname + ".pdf", bbox_inches="tight")
+    else:
+        plt.show()
+
+
+def distance_graph(
+    dist_table,
+    distance_pvals,
+    palette=None,
+    condition_pair=None,
+    interaction_col="interaction",
+    condition_col="condition",
+    logfold_group_col="logfold_group",
+    celltype1_col="celltype1",
+    celltype2_col="celltype2",
+    pair_col="pairs",
+    with_labels=True,
+    node_size=910,
+    font_size=7,
+    multiplication_factor=10,
+    savefig=False,
+    output_fname="",
+    output_dir="",  # output directory
+    dpi=300,
+):
+    """
+    Generates a distance graph from a dataframe.
+
+    Parameters:
+    df (DataFrame): The input dataframe.
+    palette (dict, optional): A dictionary mapping nodes to colors. If None, nodes are colored 'lightgrey'.
+    condition_pair (list, optional): A list of two conditions to compare. If None, uses unique conditions from the dataframe.
+    interaction_col (str, optional): The name of the interaction column in the dataframe. Defaults to 'interaction'.
+    condition_col (str, optional): The name of the condition column in the dataframe. Defaults to 'condition'.
+    logfold_group_col (str, optional): The name of the logfold group column in the dataframe. Defaults to 'logfold_group'.
+    celltype1_col (str, optional): The name of the first cell type column in the dataframe. Defaults to 'celltype1'.
+    celltype2_col (str, optional): The name of the second cell type column in the dataframe. Defaults to 'celltype2'.
+    with_labels (bool, optional): Whether to draw labels on the nodes. Defaults to True.
+    node_size (int, optional): The size of the nodes. Defaults to 910.
+    font_size (int, optional): The font size for the labels. Defaults to 7.
+
+    Returns:
+    None: The function generates a plot and does not return anything.
+    """
+
+    # Generate df for graph
+    # this is to restrict to the pairs that were filtered
+    pairs = dist_table[pair_col].unique()
+    distance_pvals[pair_col] = (
+        distance_pvals[celltype1_col] + "_" + distance_pvals[celltype2_col]
+    )
+    distance_pvals = distance_pvals[distance_pvals[pair_col].isin(pairs)]
+    print(distance_pvals.shape)
+    pairs = distance_pvals[interaction_col].unique()
+    distance_pvals_grouped = distance_pvals.groupby([celltype1_col, celltype2_col])
+
+    result_list = {}
+
+    if condition_pair == None:
+        conditions = distance_pvals[condition_col].unique()
+    else:
+        conditions = condition_pair
+
+    for p in pairs:
+        distance_pvals_c1 = distance_pvals[
+            (distance_pvals[interaction_col] == p)
+            & (distance_pvals[condition_col] == conditions[0])
+        ]
+        distance_pvals_c2 = distance_pvals[
+            (distance_pvals[interaction_col] == p)
+            & (distance_pvals[condition_col] == conditions[1])
+        ]
+
+        difference = abs(
+            distance_pvals_c2[logfold_group_col].values[0]
+            - distance_pvals_c1[logfold_group_col].values[0]
+        )
+
+        if (
+            0
+            > (
+                distance_pvals_c2[logfold_group_col].values[0]
+                - distance_pvals_c1[logfold_group_col]
+            ).values[0]
+        ):
+            direction = "#3976AC"
+        else:
+            direction = "#C63D30"
+
+        df_res = pd.DataFrame(
+            {
+                celltype1_col: distance_pvals_c2[celltype1_col],
+                celltype2_col: distance_pvals_c2[celltype2_col],
+                "difference": difference,
+                "direction": direction,
+            }
+        )
+
+        result_list[p] = df_res
+
+    graph_df = pd.concat(result_list.values())
+    graph_df = graph_df.drop_duplicates(
+        subset=[celltype1_col, celltype2_col], keep="first"
+    )
+
+    ## remove nan values
+    graph_df = graph_df[graph_df["difference"].notna()]
+
+    # Generate graph
+    G = nx.from_pandas_edgelist(
+        graph_df,
+        source=celltype1_col,
+        target=celltype2_col,
+        edge_attr=["difference", "direction"],
+    )
+
+    for u, v, d in G.edges(data=True):
+        d["weight"] = (
+            1e-100
+            if d["difference"] == 0
+            else abs(d["difference"] * multiplication_factor)
+        )
+
+    # Generate plot
+    weights = [G[u][v]["weight"] for u, v in G.edges()]
+
+    pos = nx.circular_layout(G)
+
+    edge_colors = [d["direction"] for u, v, d in G.edges(data=True)]
+
+    if palette == None:
+        node_colors = "lightgrey"
+    else:
+        node_colors = [palette[node] for node in G.nodes()]
+
+    nx.draw(
+        G,
+        pos,
+        node_color=node_colors,
+        with_labels=False,  # Don't draw labels here
+        edge_color=edge_colors,
+        node_size=node_size,
+        width=weights,
+    )
+
+    for node, (x, y) in pos.items():
+        wrapped_node = textwrap.fill(node, 10)  # Split long names into multiple lines
+        plt.text(
+            x,
+            y,
+            wrapped_node,
+            fontsize=font_size,
+            color="white" if is_dark(palette.get(node, "lightgrey")) else "black",
+            ha="center",
+            va="center",
+        )
+
+    # add legend
+    plt.plot(
+        [],
+        [],
+        color="#3976AC",
+        label="More distant in " + conditions[0] + " than " + conditions[1],
+    )
+    plt.plot(
+        [],
+        [],
+        color="#C63D30",
+        label="Closer in " + conditions[0] + " than " + conditions[1],
+    )
+
+    # add width legend
+    plt.plot(
+        [],
+        [],
+        color="k",
+        label="edge width = absolute difference * " + str(multiplication_factor),
+    )
+
+    # position legend at bottom middle
+    plt.legend(bbox_to_anchor=(0.5, -0.2), loc="lower center", ncol=2)
+
+    if savefig:
+        plt.savefig(
+            output_dir + output_fname + "_dist_graph.pdf",
+            dpi=dpi,
+            bbox_inches="tight",
         )
     else:
         plt.show()
