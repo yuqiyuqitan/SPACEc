@@ -19,6 +19,9 @@ conda install graphviz
 # install 'libvips'
 conda install -c conda-forge libvips pyvips openslide-python
 
+# install 'PyTorch Geometric' (only needed if STELLAR is used)
+conda install pyg -c pyg
+
 # install `SPACEc` from pypi
 pip install spacec
 
