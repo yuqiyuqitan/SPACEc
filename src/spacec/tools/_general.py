@@ -3553,9 +3553,9 @@ def tm_prepare_input(
         )
 
     return image_list, csv_paths
-    
-    
-    def install_gpu_leiden(CUDA = "12"):
+
+
+def install_gpu_leiden(CUDA="12"):
     """
     Install the necessary packages for GPU-accelerated Leiden clustering.
 
@@ -3570,28 +3570,29 @@ def tm_prepare_input(
 
     Notes
     -----
-    This function runs a series of pip install commands to install the necessary packages. The specific packages and versions installed depend on the CUDA version. The function prints the output and any errors from each command.
+    This function runs a series of pip install commands to install the necessary packages. The specific packages and versions installed depend on the CUDA
+    version. The function prints the output and any errors from each command.
     """
     print("installing rapids_singlecell")
     # Define the commands to run
     if CUDA == "11":
-        
         commands = [
             "pip install rapids-singlecell==0.9.5",
             "pip install --extra-index-url=https://pypi.nvidia.com cudf-cu11==24.2.* dask-cudf-cu11==24.2.* cuml-cu11==24.2.* cugraph-cu11==24.2.* cuspatial-cu11==24.2.* cuproj-cu11==24.2.* cuxfilter-cu11==24.2.* cucim-cu11==24.2.* pylibraft-cu11==24.2.* raft-dask-cu11==24.2.*",
-            "pip install protobuf==3.20"
+            "pip install protobuf==3.20",
         ]
-
     else:
         commands = [
             "pip install rapids-singlecell==0.9.5",
             "pip install --extra-index-url=https://pypi.nvidia.com cudf-cu12==24.2.* dask-cudf-cu12==24.2.* cuml-cu12==24.2.* cugraph-cu12==24.2.* cuspatial-cu12==24.2.* cuproj-cu12==24.2.* cuxfilter-cu12==24.2.* cucim-cu12==24.2.* pylibraft-cu12==24.2.* raft-dask-cu12==24.2.*",
-            "pip install protobuf==3.20"
-            ]
+            "pip install protobuf==3.20",
+        ]
 
     # Run each command
     for command in commands:
-        process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        process = subprocess.Popen(
+            command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
         stdout, stderr = process.communicate()
 
         # Print the output and error, if any

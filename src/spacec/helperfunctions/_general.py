@@ -2,7 +2,10 @@
 import os
 import random
 import time
+import warnings
 from functools import reduce
+from typing import TYPE_CHECKING
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -15,9 +18,6 @@ from scipy.stats import pearsonr
 from sklearn.cross_decomposition import CCA
 from sklearn.neighbors import NearestNeighbors
 from tqdm import tqdm
-import warnings
-from typing import TYPE_CHECKING
-
 
 # sns.set_style("ticks")
 
@@ -1047,5 +1047,3 @@ def is_dark(color):
     r, g, b = mcolors.to_rgb(color)
     brightness = (r * 299 + g * 587 + b * 114) / 1000
     return brightness < 0.5
-
-

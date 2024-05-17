@@ -1,28 +1,26 @@
-import numpy as np
-import pandas as pd
-import os
-
-import rapids_singlecell as rsc
-
-from pyFlowSOM import map_data_to_nodes, som
 from __future__ import annotations
 
+import os
 import warnings
 from typing import TYPE_CHECKING
 
 import cupy as cp
-
+import numpy as np
+import pandas as pd
+import rapids_singlecell as rsc
 from cupyx.scipy.sparse import csc_matrix as csc_matrix_gpu
 from cupyx.scipy.sparse import csr_matrix as csr_matrix_gpu
 from cupyx.scipy.sparse import isspmatrix_csc as isspmatrix_csc_gpu
 from cupyx.scipy.sparse import isspmatrix_csr as isspmatrix_csr_gpu
+from pyFlowSOM import map_data_to_nodes, som
 from scanpy.get import _get_obs_rep, _set_obs_rep
 from scipy.sparse import isspmatrix_csc as isspmatrix_csc_cpu
 from scipy.sparse import isspmatrix_csr as isspmatrix_csr_cpu
 
 if TYPE_CHECKING:
     from anndata import AnnData
-    
+
+
 def anndata_to_GPU(
     adata: AnnData,
     layer: str | None = None,
