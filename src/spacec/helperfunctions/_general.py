@@ -15,7 +15,6 @@ from scipy.stats import pearsonr
 from sklearn.cross_decomposition import CCA
 from sklearn.neighbors import NearestNeighbors
 from tqdm import tqdm
-from __future__ import annotations
 import warnings
 from typing import TYPE_CHECKING
 
