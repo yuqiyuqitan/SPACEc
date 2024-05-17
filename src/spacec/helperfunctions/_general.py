@@ -3,7 +3,6 @@ import os
 import random
 import time
 from functools import reduce
-
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -16,6 +15,9 @@ from scipy.stats import pearsonr
 from sklearn.cross_decomposition import CCA
 from sklearn.neighbors import NearestNeighbors
 from tqdm import tqdm
+from __future__ import annotations
+import warnings
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from anndata import AnnData
