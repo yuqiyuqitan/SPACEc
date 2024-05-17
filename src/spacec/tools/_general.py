@@ -2812,7 +2812,7 @@ def identify_points_in_proximity(
 
 
 # This function analyzes what is in proximity of a selected group (CN, Celltype, etc...).
-def tl_patch_proximity_analysis(
+def patch_proximity_analysis(
     adata,
     region_column,
     patch_column,

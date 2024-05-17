@@ -1,6 +1,6 @@
 from ._general import (
-    clustering,
     build_cn_map,
+    clustering,
     filter_interactions,
     identify_interactions,
     ml_predict,
