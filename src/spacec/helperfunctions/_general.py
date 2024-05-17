@@ -17,6 +17,9 @@ from sklearn.cross_decomposition import CCA
 from sklearn.neighbors import NearestNeighbors
 from tqdm import tqdm
 
+if TYPE_CHECKING:
+    from anndata import AnnData
+
 # sns.set_style("ticks")
 
 # helper functions

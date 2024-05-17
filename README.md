@@ -27,6 +27,19 @@ pip install spacec
 # and always import spacec first before importing other packages
 ```
 
+Enable GPU accelerated leiden clustering
+NOTE: This module is based on Nvidias RAPIDS that is currently only available on linux! If you run SPACEc on a Windows machine you need to run SPACEc in WSL to take advantage of this module. For further information read the offical RAPIDS documentation: https://t1p.de/hxo3c
+
+```bash
+# activate spacec environment and open python
+conda activate spacec
+python
+
+# install GPU leiden
+>>> import spacec as sp
+>>> sp.tl.install_gpu_leiden(CUDA = "12") # choose between CUDA 11 or 12
+```
+
 Run tests.
 
 ```bash
