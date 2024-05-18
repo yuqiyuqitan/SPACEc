@@ -25,4 +25,5 @@ __all__ = [
     "ml_predict",
     "label_tissue",
     "save_labelled_tissue",
+    "adata_stellar",
 ]
