@@ -14,6 +14,7 @@ def downscale_tissue(
     showfig=True,
     output_dir="./",
     output_fname="",
+    figsize=(10, 5),  # new parameter for figure size
 ):
     print("Reading in the qptiff file, might take awhile!")
     currim = tifffile.imread(file_path)
@@ -28,7 +29,7 @@ def downscale_tissue(
     resized_im = ndi.gaussian_filter(resized_im, sigma=sigma)
 
     if showfig:
-        fig, axs = plt.subplots(1, 2)
+        fig, axs = plt.subplots(1, 2, figsize=figsize)  # use figsize parameter here
         axs[0].imshow(nucim)
         axs[0].set_title("Nuclear image")
         axs[1].hist(resized_im)

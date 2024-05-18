@@ -1047,3 +1047,16 @@ def is_dark(color):
     r, g, b = mcolors.to_rgb(color)
     brightness = (r * 299 + g * 587 + b * 114) / 1000
     return brightness < 0.5
+    
+import tensorflow as tf
+from cellpose.core import use_gpu
+
+def check_for_gpu():
+    if tf.config.list_physical_devices('GPU'):
+        print("GPU is available to Tensorflow")
+    else:
+        print("GPU is not available to Tensorflow")
+        
+    use_GPU = use_gpu()
+    yn = ['GPU is not available to Pytorch', 'GPU is available to Pytorch']
+    print(f'{yn[use_GPU]}')
