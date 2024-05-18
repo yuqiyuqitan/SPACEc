@@ -2958,6 +2958,19 @@ def stellar_get_tonsilbe_edge_index(pos, distance_thres):
     edge_list = np.transpose(np.nonzero(dists_mask)).tolist()
     return edge_list
 
+class STELLAR_GraphDataset(InMemoryDataset):
+
+    def __init__(self, labeled_X, labeled_y, unlabeled_X, labeled_edges, unlabeled_edges, transform=None,):
+        self.root = '.'
+        super(STELLAR_GraphDataset, self).__init__(self.root, transform)
+        self.labeled_data = Data(x=torch.FloatTensor(labeled_X), edge_index=torch.LongTensor(labeled_edges).T, y=torch.LongTensor(labeled_y))
+        self.unlabeled_data = Data(x=torch.FloatTensor(unlabeled_X), edge_index=torch.LongTensor(unlabeled_edges).T)
+
+    def __len__(self):
+        return 2
+
+    def __getitem__(self, idx):
+        return self.labeled_data, self.unlabeled_data
 
 def adata_stellar(
     adata_train,
@@ -3050,7 +3063,7 @@ def adata_stellar(
 
     # build dataset
     print("Building dataset")
-    dataset = GraphDataset(train_X, train_y, test_X, labeled_edges, unlabeled_edges)
+    dataset = STELLAR_GraphDataset(train_X, train_y, test_X, labeled_edges, unlabeled_edges)
 
     # run stellar
     print("Running STELLAR")
