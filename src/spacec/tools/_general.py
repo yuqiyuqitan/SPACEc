@@ -39,6 +39,7 @@ from sklearn.metrics import pairwise_distances
 from itertools import combinations
 from scipy.spatial import distance
 from scipy.spatial import KDTree
+import sys
 
 from ..helperfunctions._general import *
 
