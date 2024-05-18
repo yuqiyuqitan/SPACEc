@@ -2958,19 +2958,6 @@ def stellar_get_tonsilbe_edge_index(pos, distance_thres):
     edge_list = np.transpose(np.nonzero(dists_mask)).tolist()
     return edge_list
 
-class STELLAR_GraphDataset(InMemoryDataset):
-
-    def __init__(self, labeled_X, labeled_y, unlabeled_X, labeled_edges, unlabeled_edges, transform=None,):
-        self.root = '.'
-        super(STELLAR_GraphDataset, self).__init__(self.root, transform)
-        self.labeled_data = Data(x=torch.FloatTensor(labeled_X), edge_index=torch.LongTensor(labeled_edges).T, y=torch.LongTensor(labeled_y))
-        self.unlabeled_data = Data(x=torch.FloatTensor(unlabeled_X), edge_index=torch.LongTensor(unlabeled_edges).T)
-
-    def __len__(self):
-        return 2
-
-    def __getitem__(self, idx):
-        return self.labeled_data, self.unlabeled_data
 
 def adata_stellar(
     adata_train,
@@ -2981,6 +2968,7 @@ def adata_stellar(
     sample_rate=0.5,
     distance_thres=50,
     key_added="stellar_pred",
+    stellar_path = "",
 ):
     """
     Applies the STELLAR algorithm to the given annotated and unannotated data.
@@ -2998,6 +2986,11 @@ def adata_stellar(
     Returns:
     adata (AnnData): The unannotated data with the added key for the predicted results.
     """
+
+    sys.path.append(str(STELLAR_path))
+    from utils import prepare_save_dir
+    from STELLAR import STELLAR
+    from datasets import GraphDataset
 
     parser = argparse.ArgumentParser(description="STELLAR")
     parser.add_argument(
@@ -3063,7 +3056,7 @@ def adata_stellar(
 
     # build dataset
     print("Building dataset")
-    dataset = STELLAR_GraphDataset(train_X, train_y, test_X, labeled_edges, unlabeled_edges)
+    dataset = GraphDataset(train_X, train_y, test_X, labeled_edges, unlabeled_edges)
 
     # run stellar
     print("Running STELLAR")
