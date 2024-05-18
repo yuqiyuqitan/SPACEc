@@ -2969,7 +2969,7 @@ def adata_stellar(
     sample_rate=0.5,
     distance_thres=50,
     key_added="stellar_pred",
-    stellar_path = "",
+    STELLAR_path = "",
 ):
     """
     Applies the STELLAR algorithm to the given annotated and unannotated data.
