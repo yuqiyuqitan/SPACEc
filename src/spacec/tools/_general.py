@@ -3455,7 +3455,7 @@ def masks_to_outlines_scikit_image(masks):
         return find_boundaries(masks, mode="inner")
 
 
-def tm_prepare_input(
+def tm_viewer(
     adata,
     images_pickle_path,
     directory,

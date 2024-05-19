@@ -8,6 +8,7 @@ from ._general import (
     neighborhood_analysis,
     patch_proximity_analysis,
     adata_stellar,
+    tm_viewer,
 )
 from ._qptiff_converter import label_tissue, save_labelled_tissue
 from ._segmentation import cell_segmentation
@@ -27,4 +28,5 @@ __all__ = [
     "label_tissue",
     "save_labelled_tissue",
     "adata_stellar",
+    "tm_viewer"
 ]
