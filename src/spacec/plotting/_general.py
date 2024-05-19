@@ -12,6 +12,7 @@ import skimage
 import tensorly as tl
 import textwrap
 from scipy import stats
+import matplotlib.patches as mpatches
 from statsmodels.stats.multicomp import pairwise_tukeyhsd
 from tensorly.decomposition import non_negative_tucker
 

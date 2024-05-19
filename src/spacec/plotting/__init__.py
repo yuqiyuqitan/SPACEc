@@ -9,6 +9,7 @@ from ._general import (
     stacked_bar_plot,
     zcount_thres,
     ppa_res_donut,
+    BC_projection,
 )
 from ._qptiff_converter import tissue_lables
 from ._segmentation import segmentation_ch, show_masks
@@ -31,4 +32,5 @@ __all__ = [
     # qptiff converter
     "tissue_lables",
     "ppa_res_donut",
+    "BC_projection"
 ]
