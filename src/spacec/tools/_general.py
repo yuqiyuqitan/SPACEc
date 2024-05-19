@@ -35,6 +35,7 @@ import argparse
 import torch
 from builtins import range
 from torch_geometric.data import InMemoryDataset, Data
+from torch_geometric.data import ClusterData, ClusterLoader
 from sklearn.metrics import pairwise_distances
 from itertools import combinations
 from scipy.spatial import distance
