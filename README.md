@@ -19,6 +19,9 @@ conda install graphviz
 # install 'libvips'
 conda install -c conda-forge libvips pyvips openslide-python
 
+# before installing GPU related features check your installed CUDA version
+nvcc --version
+
 # install 'PyTorch Geometric' (only needed if STELLAR is used)
 conda install pyg -c pyg
 
