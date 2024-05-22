@@ -101,6 +101,7 @@ def cell_segmentation(
             channel_names=None,  # file with list of channel names (see channelnames.txt)
             input_format=input_format,
         )
+        channel_names = list(image_dict.keys())
     # Generate image for segmentation
     if membrane_channel_list is not None:
         image_dict = combine_channels(
