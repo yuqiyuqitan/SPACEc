@@ -31,7 +31,7 @@ pip install spacec
 ```
 
 ### Install additional features 
-GPU accelerated clustering
+#### GPU accelerated clustering
 NOTE: This module is based on Nvidias RAPIDS that is currently only available on linux! If you run SPACEc on a Windows machine you need to run SPACEc in WSL to take advantage of this module. For further information read the offical RAPIDS documentation:
 - https://t1p.de/hxo3c
 
@@ -50,7 +50,7 @@ pip install --extra-index-url=https://pypi.nvidia.com cudf-cu12==24.2.* dask-cud
 pip install protobuf==3.20
 ```
 
-STELLAR machine learning based cell annotation
+#### STELLAR machine learning-based cell annotation
 Further install information for PyTorch and PyTorch Geometric can be found here:
 - https://pytorch.org/get-started/locally/
 - https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html
