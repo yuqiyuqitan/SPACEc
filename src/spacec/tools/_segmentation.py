@@ -15,7 +15,7 @@ from skimage.measure import regionprops_table
 from tensorflow.keras.models import load_model
 from tqdm import tqdm
 
-from .._shared.segmentation import combine_channels, format_CODEX
+from .._shared.segmentation import combine_channels, format_CODEX, create_multichannel_tiff
 
 
 def cell_segmentation(
@@ -25,7 +25,7 @@ def cell_segmentation(
     output_fname="",
     seg_method="mesmer",
     nuclei_channel="DAPI",
-    technology="Phenocycler",  # CODEX or Phenocycler --> This depends on the machine you are using and the resulting file format (see documentation above)
+    input_format="Multichannel",  # CODEX or Multichannel --> This depends on the machine you are using and the resulting file format (see documentation above)
     membrane_channel_list=None,
     size_cutoff=0,  # quantificaition
     compartment="whole-cell",  # mesmer # segment whole cells or nuclei only
@@ -55,8 +55,8 @@ def cell_segmentation(
         The segmentation method to use. Options are 'mesmer' and 'cellpose'. Default is 'mesmer'.
     nuclei_channel : str
         The name of the nuclei channel. Default is 'DAPI'.
-    technology : str
-        The technology used to generate the image. Options are 'CODEX' and 'Phenocycler'. Default is 'Phenocycler'.
+    input_format : str
+        The input_format used to generate the image. Options are 'CODEX' and 'Multichannel'. Default is 'Multichannel'.
     membrane_channel_list : list of str, optional
         The names of the membrane channels.
     size_cutoff : int, optional
@@ -92,7 +92,7 @@ def cell_segmentation(
     image_dict = format_CODEX(
         image=img,
         channel_names=channel_names,  # file with list of channel names (see channelnames.txt)
-        technology=technology,
+        input_format=input_format,
     )
     # Generate image for segmentation
     if membrane_channel_list is not None:
