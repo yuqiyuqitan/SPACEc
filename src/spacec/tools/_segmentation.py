@@ -83,17 +83,24 @@ def cell_segmentation(
         A dictionary containing the original image ('img'), the segmentation masks ('masks'), and the image dictionary ('image_dict').
     """
     print("Create image channels!")
-    # Load the image
-    img = skimage.io.imread(file_name)
-    # Read channels and store as list
-    with open(channel_file, "r") as f:
-        channel_names = f.read().splitlines()
-    # Function reads channels and stores them as a dictionary (storing as a dictionary allows to select specific channels by name)
-    image_dict = format_CODEX(
-        image=img,
-        channel_names=channel_names,  # file with list of channel names (see channelnames.txt)
-        input_format=input_format,
-    )
+    if input_format != "Channels":
+        # Load the image
+        img = skimage.io.imread(file_name)
+        # Read channels and store as list
+        with open(channel_file, "r") as f:
+            channel_names = f.read().splitlines()
+        # Function reads channels and stores them as a dictionary (storing as a dictionary allows to select specific channels by name)
+        image_dict = format_CODEX(
+            image=img,
+            channel_names=channel_names,  # file with list of channel names (see channelnames.txt)
+            input_format=input_format,
+        )
+    else:
+        image_dict = format_CODEX(
+            image=file_name,
+            channel_names=None,  # file with list of channel names (see channelnames.txt)
+            input_format=input_format,
+        )
     # Generate image for segmentation
     if membrane_channel_list is not None:
         image_dict = combine_channels(

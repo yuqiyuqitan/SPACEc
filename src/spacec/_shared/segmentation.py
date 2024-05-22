@@ -108,7 +108,7 @@ def format_CODEX(
     
     if input_format == "Channels":
         # Get a list of all TIFF files in the input directory
-        tiff_files = [f for f in os.listdir(input_dir) if f.endswith(('.tiff', '.tif'))]
+        tiff_files = [f for f in os.listdir(image) if f.endswith(('.tiff', '.tif'))]
 
         # Create a list of channel names from the TIFF file names
         channel_names = [os.path.splitext(f)[0] for f in tiff_files]
