@@ -2614,7 +2614,7 @@ def identify_interactions(
 
 # Function for patch identification
 ## Adjust clustering parameter to get the desired number of clusters
-def apply_dbscan_clustering(df, min_samples=10):
+def apply_dbscan_clustering(df, min_cluster_size=10):
     """
     Apply DBSCAN clustering to a dataframe and update the cluster labels in the original dataframe.
 
@@ -2622,7 +2622,7 @@ def apply_dbscan_clustering(df, min_samples=10):
     ----------
     df : pandas.DataFrame
         The dataframe to be clustered.
-    min_samples : int, optional
+    min_cluster_size : int, optional
         The number of samples in a neighborhood for a point to be considered as a core point, by default 10
 
     Returns
@@ -2634,8 +2634,8 @@ def apply_dbscan_clustering(df, min_samples=10):
 
     # Apply DBSCAN clustering
     hdbscan = HDBSCAN(
-        min_samples=min_samples,
-        min_cluster_size=5,
+        min_samples=None,
+        min_cluster_size=min_cluster_size,
         cluster_selection_epsilon=0.0,
         max_cluster_size=None,
         metric="euclidean",
@@ -2831,7 +2831,7 @@ def patch_proximity_analysis(
     region_column,
     patch_column,
     group,
-    min_samples=80,
+    min_cluster_size=80,
     x_column="x",
     y_column="y",
     radius=128,
@@ -2850,7 +2850,7 @@ def patch_proximity_analysis(
     region_column (str): The name of the column in the DataFrame that contains the region information.
     patch_column (str): The name of the column in the DataFrame that contains the patch information.
     group (str): The group to perform the proximity analysis on.
-    min_samples (int, optional): The minimum number of samples required to form a dense region. Default is 80.
+    min_cluster_size (int, optional): The minimum number of samples required to form a dense region. Default is 80.
     x_column (str, optional): The name of the column in the DataFrame that contains the x-coordinate. Default is 'x'.
     y_column (str, optional): The name of the column in the DataFrame that contains the y-coordinate. Default is 'y'.
     radius (int, optional): The radius within which to identify points in proximity. Default is 128.
@@ -2880,7 +2880,7 @@ def patch_proximity_analysis(
 
         df_community = df_region[df_region[patch_column] == group].copy()
 
-        apply_dbscan_clustering(df_community, min_samples=min_samples)
+        apply_dbscan_clustering(df_community, min_cluster_size=min_cluster_size)
 
         # plot patches
         if plot:
