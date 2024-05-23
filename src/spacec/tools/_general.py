@@ -34,8 +34,6 @@ from yellowbrick.cluster import KElbowVisualizer
 import argparse
 import torch
 from builtins import range
-from torch_geometric.data import InMemoryDataset, Data
-from torch_geometric.data import ClusterData, ClusterLoader
 from sklearn.metrics import pairwise_distances
 from itertools import combinations
 from scipy.spatial import distance
@@ -47,6 +45,12 @@ from skimage.io import imsave
 import pathlib
 import anndata
 from ..helperfunctions._general import *
+
+try:
+    from torch_geometric.data import InMemoryDataset, Data
+    from torch_geometric.data import ClusterData, ClusterLoader
+except ImportError:
+    pass
 
 # Tools
 ############################################################
