@@ -32,10 +32,7 @@ if platform.system() == 'Windows':
     
     # Add vipsbin to the DLL search path or PATH environment variable
     add_dll_dir = getattr(os, 'add_dll_directory', None)
-    if callable(add_dll_dir):
-        add_dll_dir(vipsbin)
-    else:
-        os.environ['PATH'] = os.pathsep.join((vipsbin, os.environ['PATH']))
+    os.environ['PATH'] = os.pathsep.join((vipsbin, os.environ['PATH']))
         
         
 import time
