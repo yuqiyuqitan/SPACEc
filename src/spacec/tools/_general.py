@@ -7,7 +7,7 @@ import subprocess
 import sys
 
 if platform.system() == 'Windows':
-    vipsbin = r'c:\vips-dev-8.15\bin'
+    vipsbin = r'c:\vips-dev-8.15\bin\vips-dev-8.15\bin'
     vips_file_path = os.path.join(vipsbin, 'vips.exe')
 
     # Check if VIPS is installed
