@@ -4,6 +4,7 @@ import platform
 import requests
 import zipfile
 import subprocess
+import sys
 
 if platform.system() == 'Windows':
     vipsbin = r'c:\vips-dev-8.15\bin'
@@ -74,7 +75,6 @@ from sklearn.metrics import pairwise_distances
 from itertools import combinations
 from scipy.spatial import distance
 from scipy.spatial import KDTree
-import sys
 import pickle
 from skimage.segmentation import find_boundaries
 from skimage.io import imsave
