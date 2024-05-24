@@ -2,7 +2,7 @@
 
 ## Installation notes
 
-**Note**: Due to some dependencies, we currently only support Python up to `3.9`.
+**Note**: Due to some dependencies, we currently only support Python up to `3.10`.
 
 We generally recommend to use a `conda` environment. It makes installing requirements like `graphviz` a lot easier.
 
@@ -10,7 +10,7 @@ We generally recommend to use a `conda` environment. It makes installing require
 
 ```bash
 # setup `conda` repository
-conda create -n spacec python==3.9
+conda create -n spacec python==3.10
 conda activate spacec
 
 # install `graphviz`
