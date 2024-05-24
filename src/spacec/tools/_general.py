@@ -1,7 +1,43 @@
 # load required packages
 import os
-import time
+import platform
+import requests
+import zipfile
+import subprocess
 
+if platform.system() == 'Windows':
+    vipsbin = r'c:\vips-dev-8.15\bin'
+    vips_file_path = os.path.join(vipsbin, 'vips.exe')
+
+    # Check if VIPS is installed
+    if not os.path.exists(vips_file_path):
+        # VIPS is not installed, download and extract it
+        url = 'https://github.com/libvips/build-win64-mxe/releases/download/v8.15.2/vips-dev-w64-all-8.15.2.zip'
+        zip_file_path = 'vips-dev-w64-all-8.15.2.zip'
+        response = requests.get(url, stream=True)
+
+        if response.status_code == 200:
+            with open(zip_file_path, 'wb') as f:
+                f.write(response.raw.read())
+            
+            # Extract the zip file
+            with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
+                zip_ref.extractall(vipsbin)
+        else:
+            print('Error downloading the file.')
+        
+        # Install pyvips
+        subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'pyvips'])
+    
+    # Add vipsbin to the DLL search path or PATH environment variable
+    add_dll_dir = getattr(os, 'add_dll_directory', None)
+    if callable(add_dll_dir):
+        add_dll_dir(vipsbin)
+    else:
+        os.environ['PATH'] = os.pathsep.join((vipsbin, os.environ['PATH']))
+        
+        
+import time
 import concave_hull
 import matplotlib.pyplot as plt
 import networkx as nx
