@@ -10,6 +10,7 @@ from ._general import (
     zcount_thres,
     ppa_res_donut,
     BC_projection,
+    plot_top_n_distances,
 )
 from ._qptiff_converter import tissue_lables
 from ._segmentation import segmentation_ch, show_masks
@@ -29,8 +30,9 @@ __all__ = [
     "dumbbell",
     "count_patch_proximity_res",
     "zcount_thres",
+    "BC_projection",
+    "plot_top_n_distances",
     # qptiff converter
     "tissue_lables",
     "ppa_res_donut",
-    "BC_projection"
 ]
