@@ -4521,9 +4521,8 @@ def distance_graph(
     if palette is None:
         combined_list = distance_pvals[celltype1_col].tolist() + distance_pvals[celltype2_col].tolist()
         unique_values = set(combined_list)
-        num_unique_values = len(unique_values)
         ct_colors = hf_generate_random_colors(
-            len(num_unique_values), rand_seed=color_seed
+            len(unique_values), rand_seed=color_seed
         )
         node_colors = [ct_colors[node] for node in G.nodes()]    
     else:
