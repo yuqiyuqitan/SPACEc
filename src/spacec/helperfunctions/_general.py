@@ -18,6 +18,9 @@ from scipy.stats import pearsonr
 from sklearn.cross_decomposition import CCA
 from sklearn.neighbors import NearestNeighbors
 from tqdm import tqdm
+import matplotlib.colors as mcolors 
+import tensorflow as tf
+from cellpose.core import use_gpu
 
 # sns.set_style("ticks")
 
@@ -1047,9 +1050,6 @@ def is_dark(color):
     r, g, b = mcolors.to_rgb(color)
     brightness = (r * 299 + g * 587 + b * 114) / 1000
     return brightness < 0.5
-    
-import tensorflow as tf
-from cellpose.core import use_gpu
 
 def check_for_gpu():
     if tf.config.list_physical_devices('GPU'):
