@@ -1,4 +1,5 @@
 # load required packages
+from __future__ import annotations
 import os
 import platform
 import requests
@@ -79,7 +80,7 @@ import pathlib
 import anndata
 from pyFlowSOM import map_data_to_nodes, som
 
-from __future__ import annotations
+
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
         from anndata import AnnData
