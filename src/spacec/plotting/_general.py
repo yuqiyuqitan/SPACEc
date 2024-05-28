@@ -4524,7 +4524,9 @@ def distance_graph(
         ct_colors = hf_generate_random_colors(
             len(unique_values), rand_seed=color_seed
         )
-        node_colors = [ct_colors[node] for node in G.nodes()]    
+        # map colors to cell types
+        color_map = {value: ct_colors[i] for i, value in enumerate(unique_values)}
+        node_colors = [color_map[node] for node in G.nodes()]    
     else:
         node_colors = [palette[node] for node in G.nodes()]
 
