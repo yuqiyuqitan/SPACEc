@@ -4517,8 +4517,15 @@ def distance_graph(
 
     edge_colors = [d["direction"] for u, v, d in G.edges(data=True)]
 
-    if palette == None:
-        node_colors = "lightgrey"
+    if palette is None:
+        if color + "_colors" not in adata.uns.keys():
+            ct_colors = hf_generate_random_colors(
+                len(adata.obs[color].unique()), rand_seed=rand_seed
+            )
+            palette = dict(zip(np.sort(adata.obs[color].unique()), ct_colors))
+            adata.uns[color + "_colors"] = ct_colors
+            
+        node_colors = [ct_colors[node] for node in G.nodes()]    
     else:
         node_colors = [palette[node] for node in G.nodes()]
 
