@@ -2324,7 +2324,9 @@ def identify_interactions(
 
 
 
-def filter_interactions(distance_pvals, pvalue=0.05, logfold_group_abs=0.1):
+def filter_interactions(distance_pvals, 
+                        pvalue=0.05, 
+                        logfold_group_abs=0.1):
     """
     Filter interactions based on p-value, logfold change, and other conditions.
 
@@ -2358,16 +2360,6 @@ def filter_interactions(distance_pvals, pvalue=0.05, logfold_group_abs=0.1):
         & (distance_pvals["celltype1"] != distance_pvals["celltype2"])
         & (~distance_pvals["observed_mean"].isna())
         & (distance_pvals["logfold_group_abs"] > logfold_group_abs)
-    ]
-
-    # calculate absolute logfold difference
-    distance_pvals["logfold_group_abs"] = distance_pvals["logfold_group"].abs()
-
-    # Filter significant p-values and other specified conditions
-    distance_pvals_sig = distance_pvals[
-        (distance_pvals["pvalue"] < pvalue)
-        & (distance_pvals["celltype1"] != distance_pvals["celltype2"])
-        & (~distance_pvals["observed_mean"].isna())
     ]
 
     # Assuming distance_pvals_interesting2 is a pandas DataFrame with the same structure as the R dataframe.
