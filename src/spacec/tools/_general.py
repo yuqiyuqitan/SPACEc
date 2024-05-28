@@ -2326,7 +2326,8 @@ def identify_interactions(
 
 def filter_interactions(distance_pvals, 
                         pvalue=0.05, 
-                        logfold_group_abs=0.1):
+                        logfold_group_abs=0.1,
+                        comparison="condition"):
     """
     Filter interactions based on p-value, logfold change, and other conditions.
 
@@ -2372,7 +2373,7 @@ def filter_interactions(distance_pvals,
     # Subsetting data
     distance_pvals_sig_sub = data[data["pairs"].isin(pairs)]
     distance_pvals_sig_sub_reduced = distance_pvals_sig_sub.loc[
-        :, ["condition", "logfold_group", "pairs"]
+        :, [comparison, "logfold_group", "pairs"]
     ].copy()
 
     # set pairs as index
@@ -2380,7 +2381,7 @@ def filter_interactions(distance_pvals,
 
     # sort logfold_group into two columns by tissue
     dist_table = distance_pvals_sig_sub_reduced.pivot(
-        columns="condition", values="logfold_group"
+        columns=comparison, values="logfold_group"
     )
     dist_table.dropna(inplace=True)
 
