@@ -2810,21 +2810,15 @@ def adata_stellar(
     stellar.train()
     _, results = stellar.pred()
 
-    adata = anndata.AnnData(test_X)
     results = results.astype("object")
     for i in range(len(results)):
         if results[i] in inverse_dict.keys():
             results[i] = inverse_dict[results[i]]
-    adata.obs[key_added] = pd.Categorical(results)
+    adata_unannotated.obs[key_added] = pd.Categorical(results)
 
     adata.var_names = adata_unannotated.var_names
 
-    # add missing keys from adata_unannotated.obs to adata.obs
-    for key in adata_unannotated.obs.keys():
-        if key not in adata.obs.keys():
-            adata.obs[key] = adata_unannotated.obs[key]
-
-    return adata
+    return adata_unannotated
 
 
 def ml_train(
