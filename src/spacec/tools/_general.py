@@ -2322,30 +2322,30 @@ def identify_interactions(
     return distance_pvals
 
 
-
-
 def filter_interactions(distance_pvals, 
                         pvalue=0.05, 
                         logfold_group_abs=0.1,
                         comparison="condition"):
     """
-    Filter interactions based on p-value, logfold change, and other conditions.
+    Filters interactions based on p-value, logfold change, and other conditions.
 
     Parameters
     ----------
     distance_pvals : pandas.DataFrame
         DataFrame containing p-values, logfold changes, and interactions for each comparison.
     pvalue : float, optional
-        Maximum p-value to consider for significance. Defaults to 0.05.
+        The maximum p-value to consider for significance. Defaults to 0.05.
     logfold_group_abs : float, optional
-        Minimum absolute logfold change to consider for significance. Defaults to 0.1.
+        The minimum absolute logfold change to consider for significance. Defaults to 0.1.
+    comparison : str, optional
+        The comparison condition to filter by. Defaults to "condition".
 
     Returns
     -------
     dist_table : pandas.DataFrame
-        DataFrame containing logfold changes sorted into two columns by condition.
+        DataFrame containing logfold changes sorted into two columns by the comparison condition.
     distance_pvals_sig_sub : pandas.DataFrame
-        Subset of the original DataFrame containing only significant interactions.
+        Subset of the original DataFrame containing only significant interactions based on the specified conditions.
     """
     # calculate absolute logfold difference
     distance_pvals["logfold_group_abs"] = distance_pvals["logfold_group"].abs()
@@ -2368,7 +2368,7 @@ def filter_interactions(distance_pvals,
     pairs = distance_pvals_sig["pairs"].unique()
 
     # Filtering data
-    data = distance_pvals_sig[~distance_pvals_sig["interaction"].isna()]
+    data = distance_pvals[~distance_pvals["interaction"].isna()]
 
     # Subsetting data
     distance_pvals_sig_sub = data[data["pairs"].isin(pairs)]
