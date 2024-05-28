@@ -2889,6 +2889,7 @@ def ml_train(
     model="svm",
     nan_policy_y="raise",
     showfig=True,
+    figsize=(10, 8)
 ):
     """
     Train a svm model on the provided data.
@@ -2953,6 +2954,7 @@ def ml_train(
         y_true=y_test, y_pred=svm_label, target_names=target_names, output_dict=True
     )
     if showfig:
+        plt.figure(figsize=figsize)
         sns.heatmap(pd.DataFrame(svm_eval).iloc[:-1, :].T, annot=True)
         plt.show()
 
