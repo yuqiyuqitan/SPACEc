@@ -2155,99 +2155,6 @@ def calculate_pvalue(row):
         return np.nan
 
 
-def tl_identify_interactions(
-    triangulation_distances,
-    iterative_triangulation_distances,
-    metadata,
-    min_observed=10,
-    distance_threshold=128,
-    comparison="tissue",
-):
-    """
-    Identify interactions between cell types based on triangulation distances.
-
-    Parameters
-    ----------
-    triangulation_distances : pandas.DataFrame
-        DataFrame containing triangulation distances.
-    iterative_triangulation_distances : pandas.DataFrame
-        DataFrame containing iterative triangulation distances.
-    metadata : pandas.DataFrame
-        DataFrame containing metadata.
-    min_observed : int, optional
-        Minimum number of observations required to keep a comparison. Defaults to 10.
-    distance_threshold : int, optional
-        Maximum distance to consider for interactions. Defaults to 128.
-    comparison : str, optional
-        Column name to use for comparison. Defaults to "tissue".
-
-    Returns
-    -------
-    pandas.DataFrame
-        DataFrame containing p-values, logfold changes, and interactions for each comparison.
-    """
-    # Reformat observed dataset
-    triangulation_distances_long = add_missing_columns(
-        triangulation_distances, metadata, shared_column="unique_region"
-    )
-
-    observed_distances = (
-        triangulation_distances_long.query("distance <= @distance_threshold")
-        .groupby(
-            ["celltype1_index", "celltype1", "celltype2", comparison, "unique_region"]
-        )
-        .agg(mean_per_cell=("distance", "mean"))
-        .reset_index()
-        .groupby(["celltype1", "celltype2", comparison])
-        .agg(observed=("mean_per_cell", list), observed_mean=("mean_per_cell", "mean"))
-        .reset_index()
-    )
-
-    # Reformat expected dataset
-    iterated_triangulation_distances_long = add_missing_columns(
-        iterative_triangulation_distances, metadata, shared_column="unique_region"
-    )
-
-    expected_distances = (
-        iterated_triangulation_distances_long.query("mean_dist <= @distance_threshold")
-        .groupby(["celltype1", "celltype2", comparison])
-        .agg(expected=("mean_dist", list), expected_mean=("mean_dist", "mean"))
-        .reset_index()
-    )
-
-    # Drop comparisons with low numbers of observations
-    observed_distances["keep"] = observed_distances["observed"].apply(
-        lambda x: len(x) > min_observed
-    )
-    observed_distances = observed_distances[observed_distances["keep"]]
-
-    expected_distances["keep"] = expected_distances["expected"].apply(
-        lambda x: len(x) > min_observed
-    )
-    expected_distances = expected_distances[expected_distances["keep"]]
-
-    # concatenate observed and expected distances
-    distance_pvals = expected_distances.merge(
-        observed_distances, on=["celltype1", "celltype2", comparison], how="left"
-    )
-
-    distance_pvals = expected_distances.merge(
-        observed_distances, on=["celltype1", "celltype2", comparison], how="left"
-    )
-    distance_pvals["pvalue"] = distance_pvals.apply(calculate_pvalue, axis=1)
-    distance_pvals["logfold_group"] = np.log2(
-        distance_pvals["observed_mean"] / distance_pvals["expected_mean"]
-    )
-    distance_pvals["interaction"] = (
-        distance_pvals["celltype1"] + " --> " + distance_pvals["celltype2"]
-    )
-
-    # drop na from distance_pvals
-    # distance_pvals = distance_pvals.dropna()
-
-    return distance_pvals
-
-
 def identify_interactions(
     adata,
     cellid,
@@ -2354,7 +2261,7 @@ def identify_interactions(
         "Save iterative triangulation distance output to anndata.uns " + triDist_keyname
     )
 
-    metadata = df_input.loc[:, ["unique_region", "condition"]].copy()
+    metadata = df_input.loc[:, ["unique_region", comparison]].copy()
     # Reformat observed dataset
     triangulation_distances_long = add_missing_columns(
         triangulation_distances, metadata, shared_column=region
@@ -2413,6 +2320,8 @@ def identify_interactions(
     # distance_pvals = distance_pvals.dropna()
 
     return distance_pvals
+
+
 
 
 def filter_interactions(distance_pvals, pvalue=0.05, logfold_group_abs=0.1):
@@ -2486,167 +2395,6 @@ def filter_interactions(distance_pvals, pvalue=0.05, logfold_group_abs=0.1):
     return dist_table, distance_pvals_sig_sub
 
 
-def identify_interactions(
-    adata,
-    id,
-    x_pos,
-    y_pos,
-    cell_type,
-    region,
-    comparison,
-    iTriDist_keyname=None,
-    triDist_keyname=None,
-    min_observed=10,
-    distance_threshold=128,
-    num_cores=None,
-    num_iterations=1000,
-    key_name=None,
-    correct_dtype=False,
-):
-    """
-    Identify interactions between cell types based on their spatial distances.
-
-    Parameters
-    ----------
-    adata : AnnData
-        Annotated data matrix.
-    id : str
-        Identifier for cells.
-    x_pos : str
-        Column name for x position of cells.
-    y_pos : str
-        Column name for y position of cells.
-    cell_type : str
-        Column name for cell type.
-    region : str
-        Column name for region.
-    comparison : str
-        Column name for comparison.
-    iTriDist_keyname : str, optional
-        Key name for iterative triangulation distances, by default None
-    triDist_keyname : str, optional
-        Key name for triangulation distances, by default None
-    min_observed : int, optional
-        Minimum number of observed distances, by default 10
-    distance_threshold : int, optional
-        Threshold for distance, by default 128
-    num_cores : int, optional
-        Number of cores to use for computation, by default None
-    num_iterations : int, optional
-        Number of iterations for computation, by default 1000
-    key_name : str, optional
-        Key name for output, by default None
-    correct_dtype : bool, optional
-        Whether to correct data type or not, by default False
-
-    Returns
-    -------
-    DataFrame
-        DataFrame with p-values and logfold changes for interactions.
-    """
-    df_input = pd.DataFrame(adata.obs)
-    df_input[id] = df_input.index
-
-    # change columns to pandas string
-    df_input[cell_type] = df_input[cell_type].astype(str)
-    df_input[region] = df_input[region].astype(str)
-
-    print("Computing for observed distances between cell types!")
-    triangulation_distances = get_triangulation_distances(
-        df_input=df_input,
-        id=id,
-        x_pos=x_pos,
-        y_pos=y_pos,
-        cell_type=cell_type,
-        region=region,
-        num_cores=num_cores,
-        correct_dtype=correct_dtype,
-    )
-    if triDist_keyname is None:
-        triDist_keyname = "triDist"
-    adata.uns["triDist_keyname"] = triangulation_distances
-    print("Save triangulation distances output to anndata.uns " + triDist_keyname)
-
-    print("Permuting data labels to obtain the randomly distributed distances!")
-    print("this step can take awhile")
-    iterative_triangulation_distances = tl_iterate_tri_distances(
-        df_input=df_input,
-        id=id,
-        x_pos=x_pos,
-        y_pos=y_pos,
-        cell_type=cell_type,
-        region=region,
-        num_cores=num_cores,
-        num_iterations=num_iterations,
-    )
-
-    # append result to adata
-    if triDist_keyname is None:
-        triDist_keyname = "iTriDist_" + str(num_iterations)
-    adata.uns[triDist_keyname] = iterative_triangulation_distances
-    print(
-        "Save iterative triangulation distance output to anndata.uns " + triDist_keyname
-    )
-
-    metadata = df_input.loc[:, ["unique_region", "condition"]].copy()
-    # Reformat observed dataset
-    triangulation_distances_long = add_missing_columns(
-        triangulation_distances, metadata, shared_column=region
-    )
-
-    observed_distances = (
-        triangulation_distances_long.query("distance <= @distance_threshold")
-        .groupby(["celltype1_index", "celltype1", "celltype2", comparison, region])
-        .agg(mean_per_cell=("distance", "mean"))
-        .reset_index()
-        .groupby(["celltype1", "celltype2", comparison])
-        .agg(observed=("mean_per_cell", list), observed_mean=("mean_per_cell", "mean"))
-        .reset_index()
-    )
-
-    # Reformat expected dataset
-    iterated_triangulation_distances_long = add_missing_columns(
-        iterative_triangulation_distances, metadata, shared_column=region
-    )
-
-    expected_distances = (
-        iterated_triangulation_distances_long.query("mean_dist <= @distance_threshold")
-        .groupby(["celltype1", "celltype2", comparison])
-        .agg(expected=("mean_dist", list), expected_mean=("mean_dist", "mean"))
-        .reset_index()
-    )
-
-    # Drop comparisons with low numbers of observations
-    observed_distances["keep"] = observed_distances["observed"].apply(
-        lambda x: len(x) > min_observed
-    )
-    observed_distances = observed_distances[observed_distances["keep"]]
-
-    expected_distances["keep"] = expected_distances["expected"].apply(
-        lambda x: len(x) > min_observed
-    )
-    expected_distances = expected_distances[expected_distances["keep"]]
-
-    # concatenate observed and expected distances
-    distance_pvals = expected_distances.merge(
-        observed_distances, on=["celltype1", "celltype2", comparison], how="left"
-    )
-
-    distance_pvals = expected_distances.merge(
-        observed_distances, on=["celltype1", "celltype2", comparison], how="left"
-    )
-    distance_pvals["pvalue"] = distance_pvals.apply(calculate_pvalue, axis=1)
-    distance_pvals["logfold_group"] = np.log2(
-        distance_pvals["observed_mean"] / distance_pvals["expected_mean"]
-    )
-    distance_pvals["interaction"] = (
-        distance_pvals["celltype1"] + " --> " + distance_pvals["celltype2"]
-    )
-
-    # drop na from distance_pvals
-    # distance_pvals = distance_pvals.dropna()
-
-    return distance_pvals
 
 
 # Function for patch identification
