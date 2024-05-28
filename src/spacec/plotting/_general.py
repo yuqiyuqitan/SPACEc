@@ -4525,8 +4525,8 @@ def distance_graph(
             len(unique_values), rand_seed=color_seed
         )
         # map colors to cell types
-        color_map = {value: ct_colors[i] for i, value in enumerate(unique_values)}
-        node_colors = [color_map[node] for node in G.nodes()]    
+        palette = {value: ct_colors[i] for i, value in enumerate(unique_values)}
+        node_colors = [palette[node] for node in G.nodes()]    
     else:
         node_colors = [palette[node] for node in G.nodes()]
 
