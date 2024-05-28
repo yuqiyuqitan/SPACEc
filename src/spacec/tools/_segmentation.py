@@ -2,6 +2,7 @@ import os
 import pathlib
 import shutil
 import sys
+
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
@@ -15,7 +16,11 @@ from skimage.measure import regionprops_table
 from tensorflow.keras.models import load_model
 from tqdm import tqdm
 
-from .._shared.segmentation import combine_channels, format_CODEX, create_multichannel_tiff
+from .._shared.segmentation import (
+    combine_channels,
+    create_multichannel_tiff,
+    format_CODEX,
+)
 
 
 def cell_segmentation(
@@ -83,11 +88,13 @@ def cell_segmentation(
         A dictionary containing the original image ('img'), the segmentation masks ('masks'), and the image dictionary ('image_dict').
     """
     print("Create image channels!")
-    
+
     # check input format
     if input_format not in ["CODEX", "Multichannel", "Channels"]:
-        sys.exit("Please provide a valid input format (Multichannel, Channels or CODEX)!")
-    
+        sys.exit(
+            "Please provide a valid input format (Multichannel, Channels or CODEX)!"
+        )
+
     if input_format != "Channels":
         # Load the image
         img = skimage.io.imread(file_name)

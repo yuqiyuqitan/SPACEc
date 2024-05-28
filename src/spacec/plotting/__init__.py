@@ -1,17 +1,17 @@
 from ._general import (
+    BC_projection,
     catplot,
     cn_exp_heatmap,
     cn_map,
     coordinates_on_image,
     count_patch_proximity_res,
     create_pie_charts,
+    distance_graph,
     dumbbell,
+    plot_top_n_distances,
+    ppa_res_donut,
     stacked_bar_plot,
     zcount_thres,
-    ppa_res_donut,
-    BC_projection,
-    plot_top_n_distances,
-    distance_graph,
 )
 from ._qptiff_converter import tissue_lables
 from ._segmentation import segmentation_ch, show_masks

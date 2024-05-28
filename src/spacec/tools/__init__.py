@@ -1,4 +1,5 @@
 from ._general import (
+    adata_stellar,
     build_cn_map,
     clustering,
     filter_interactions,
@@ -7,7 +8,6 @@ from ._general import (
     ml_train,
     neighborhood_analysis,
     patch_proximity_analysis,
-    adata_stellar,
     tm_viewer,
 )
 from ._qptiff_converter import label_tissue, save_labelled_tissue
@@ -28,5 +28,5 @@ __all__ = [
     "label_tissue",
     "save_labelled_tissue",
     "adata_stellar",
-    "tm_viewer"
+    "tm_viewer",
 ]

@@ -1,7 +1,10 @@
 # load required packages
 import os as os
 import pathlib
+import textwrap
 
+import matplotlib.colors as mcolors
+import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
@@ -10,12 +13,9 @@ import scipy as sp
 import seaborn as sns
 import skimage
 import tensorly as tl
-import textwrap
 from scipy import stats
-import matplotlib.patches as mpatches
 from statsmodels.stats.multicomp import pairwise_tukeyhsd
 from tensorly.decomposition import non_negative_tucker
-import matplotlib.colors as mcolors
 
 from ..helperfunctions._general import *
 
@@ -4412,7 +4412,7 @@ def distance_graph(
     output_fname="",
     output_dir="",  # output directory
     dpi=300,
-    color_seed = 0,
+    color_seed=0,
 ):
     """
     Generates a distance graph from a dataframe.
@@ -4520,14 +4520,15 @@ def distance_graph(
     edge_colors = [d["direction"] for u, v, d in G.edges(data=True)]
 
     if palette is None:
-        combined_list = distance_pvals[celltype1_col].tolist() + distance_pvals[celltype2_col].tolist()
-        unique_values = set(combined_list)
-        ct_colors = hf_generate_random_colors(
-            len(unique_values), rand_seed=color_seed
+        combined_list = (
+            distance_pvals[celltype1_col].tolist()
+            + distance_pvals[celltype2_col].tolist()
         )
+        unique_values = set(combined_list)
+        ct_colors = hf_generate_random_colors(len(unique_values), rand_seed=color_seed)
         # map colors to cell types
         palette = {value: ct_colors[i] for i, value in enumerate(unique_values)}
-        node_colors = [palette[node] for node in G.nodes()]    
+        node_colors = [palette[node] for node in G.nodes()]
     else:
         node_colors = [palette[node] for node in G.nodes()]
 

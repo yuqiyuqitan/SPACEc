@@ -6,21 +6,21 @@ import warnings
 from functools import reduce
 from typing import TYPE_CHECKING
 
+import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import scanpy as sc
 import scipy as sp
 import seaborn as sns
+import tensorflow as tf
 import tifffile as tiff
+from cellpose.core import use_gpu
 from scipy.spatial.distance import cdist
 from scipy.stats import pearsonr
 from sklearn.cross_decomposition import CCA
 from sklearn.neighbors import NearestNeighbors
 from tqdm import tqdm
-import matplotlib.colors as mcolors 
-import tensorflow as tf
-from cellpose.core import use_gpu
 
 # sns.set_style("ticks")
 
@@ -1051,12 +1051,13 @@ def is_dark(color):
     brightness = (r * 299 + g * 587 + b * 114) / 1000
     return brightness < 0.5
 
+
 def check_for_gpu():
-    if tf.config.list_physical_devices('GPU'):
+    if tf.config.list_physical_devices("GPU"):
         print("GPU is available to Tensorflow")
     else:
         print("GPU is not available to Tensorflow")
-        
+
     use_GPU = use_gpu()
-    yn = ['GPU is not available to Pytorch', 'GPU is available to Pytorch']
-    print(f'{yn[use_GPU]}')
+    yn = ["GPU is not available to Pytorch", "GPU is available to Pytorch"]
+    print(f"{yn[use_GPU]}")

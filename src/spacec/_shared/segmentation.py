@@ -1,11 +1,12 @@
-import numpy as np
 import os
+
+import numpy as np
 from skimage import io
 
 
 def create_multichannel_tiff(input_dir, output_dir, output_filename):
     # Get a list of all TIFF files in the input directory
-    tiff_files = [f for f in os.listdir(input_dir) if f.endswith(('.tiff', '.tif'))]
+    tiff_files = [f for f in os.listdir(input_dir) if f.endswith((".tiff", ".tif"))]
 
     # Create a list of channel names from the TIFF file names
     channel_names = [os.path.splitext(f)[0] for f in tiff_files]
@@ -18,19 +19,19 @@ def create_multichannel_tiff(input_dir, output_dir, output_filename):
 
     # move last dimension to first position
     multi_channel_image = np.moveaxis(multi_channel_image, -1, 0)
-    
+
     print(multi_channel_image.shape)
 
     # Save the multi-channel image as a new TIFF file in the output directory
     io.imsave(os.path.join(output_dir, output_filename), multi_channel_image)
 
-
     # save channel names to text file
-    with open(os.path.join(output_dir, 'channelnames.txt'), 'w') as f:
+    with open(os.path.join(output_dir, "channelnames.txt"), "w") as f:
         for item in channel_names:
             f.write("%s\n" % item)
-        
+
     return channel_names
+
 
 # combine multiple channels in one image and add as new image to image_dict with the name segmentation_channel
 def combine_channels(image_dict, channel_list, new_channel_name):
@@ -105,10 +106,10 @@ def format_CODEX(
             index += 1
 
         return image_dict
-    
+
     if input_format == "Channels":
         # Get a list of all TIFF files in the input directory
-        tiff_files = [f for f in os.listdir(image) if f.endswith(('.tiff', '.tif'))]
+        tiff_files = [f for f in os.listdir(image) if f.endswith((".tiff", ".tif"))]
 
         # Create a list of channel names from the TIFF file names
         channel_names = [os.path.splitext(f)[0] for f in tiff_files]
@@ -121,10 +122,10 @@ def format_CODEX(
 
         # move last dimension to first position
         multi_channel_image = np.moveaxis(multi_channel_image, -1, 0)
-                
+
         image_dict = {}
         index = 0
-        
+
         for i in range(len(channel_names)):
             image2 = multi_channel_image[i, :, :]
             image_dict[channel_names[i]] = image2

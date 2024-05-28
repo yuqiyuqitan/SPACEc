@@ -1,42 +1,52 @@
 # load required packages
 from __future__ import annotations
+
 import os
 import platform
-import requests
-import zipfile
 import subprocess
 import sys
+import zipfile
 
-if platform.system() == 'Windows':
-    vipsbin = r'c:\vips-dev-8.15\bin\vips-dev-8.15\bin'
-    vips_file_path = os.path.join(vipsbin, 'vips.exe')
+import requests
+
+if platform.system() == "Windows":
+    vipsbin = r"c:\vips-dev-8.15\bin\vips-dev-8.15\bin"
+    vips_file_path = os.path.join(vipsbin, "vips.exe")
 
     # Check if VIPS is installed
     if not os.path.exists(vips_file_path):
         # VIPS is not installed, download and extract it
-        url = 'https://github.com/libvips/build-win64-mxe/releases/download/v8.15.2/vips-dev-w64-all-8.15.2.zip'
-        zip_file_path = 'vips-dev-w64-all-8.15.2.zip'
+        url = "https://github.com/libvips/build-win64-mxe/releases/download/v8.15.2/vips-dev-w64-all-8.15.2.zip"
+        zip_file_path = "vips-dev-w64-all-8.15.2.zip"
         response = requests.get(url, stream=True)
 
         if response.status_code == 200:
-            with open(zip_file_path, 'wb') as f:
+            with open(zip_file_path, "wb") as f:
                 f.write(response.raw.read())
-            
+
             # Extract the zip file
-            with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
+            with zipfile.ZipFile(zip_file_path, "r") as zip_ref:
                 zip_ref.extractall(vipsbin)
         else:
-            print('Error downloading the file.')
-        
+            print("Error downloading the file.")
+
         # Install pyvips
-        subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'pyvips'])
-    
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "pyvips"])
+
     # Add vipsbin to the DLL search path or PATH environment variable
-    add_dll_dir = getattr(os, 'add_dll_directory', None)
-    os.environ['PATH'] = os.pathsep.join((vipsbin, os.environ['PATH']))
-        
-        
+    add_dll_dir = getattr(os, "add_dll_directory", None)
+    os.environ["PATH"] = os.pathsep.join((vipsbin, os.environ["PATH"]))
+
+
+import argparse
+import pathlib
+import pickle
 import time
+from builtins import range
+from itertools import combinations
+from typing import TYPE_CHECKING
+
+import anndata
 import concave_hull
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -52,44 +62,32 @@ import skimage.morphology
 import skimage.transform
 import statsmodels.api as sm
 import tissuumaps.jupyter as tj
+import torch
 from concave_hull import concave_hull_indexes
 from joblib import Parallel, delayed
+from pyFlowSOM import map_data_to_nodes, som
 from scipy import stats
-from scipy.spatial import Delaunay
+from scipy.spatial import Delaunay, KDTree, distance
 from scipy.spatial.distance import cdist
 from scipy.stats import pearsonr, spearmanr
+from skimage.io import imsave
+from skimage.segmentation import find_boundaries
 from sklearn.cluster import HDBSCAN, MiniBatchKMeans
 from sklearn.cross_decomposition import CCA
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import classification_report, f1_score
+from sklearn.metrics import classification_report, f1_score, pairwise_distances
 from sklearn.model_selection import train_test_split
 from sklearn.svm import SVC
 from tqdm import tqdm
 from yellowbrick.cluster import KElbowVisualizer
-import argparse
-import torch
-from builtins import range
-from sklearn.metrics import pairwise_distances
-from itertools import combinations
-from scipy.spatial import distance
-from scipy.spatial import KDTree
-import pickle
-from skimage.segmentation import find_boundaries
-from skimage.io import imsave
-import pathlib
-import anndata
-from pyFlowSOM import map_data_to_nodes, som
 
-
-from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-        from anndata import AnnData
+    from anndata import AnnData
 
 from ..helperfunctions._general import *
 
 try:
-    from torch_geometric.data import InMemoryDataset, Data
-    from torch_geometric.data import ClusterData, ClusterLoader
+    from torch_geometric.data import ClusterData, ClusterLoader, Data, InMemoryDataset
 except ImportError:
     pass
 
@@ -494,7 +492,7 @@ def clustering(
             print("For example: sp.tl.install_gpu_leiden(CUDA = '12')")
             print("THIS FUNCTION DOES NOT WORK ON MacOS OR WINDOWS")
             print("using leiden instead of leiden_gpu")
-            clustering = 'leiden'
+            clustering = "leiden"
 
     if key_added is None:
         key_added = clustering + "_" + str(resolution)
@@ -1240,6 +1238,7 @@ def tl_test_clustering_resolutions(
             )
 
         sc.pl.umap(adata, color=f"{clustering}_{res}", legend_loc="on data")
+
 
 def neighborhood_analysis(
     adata,
@@ -2284,10 +2283,9 @@ def identify_interactions(
     return distance_pvals
 
 
-def filter_interactions(distance_pvals, 
-                        pvalue=0.05, 
-                        logfold_group_abs=0.1,
-                        comparison="condition"):
+def filter_interactions(
+    distance_pvals, pvalue=0.05, logfold_group_abs=0.1, comparison="condition"
+):
     """
     Filters interactions based on p-value, logfold change, and other conditions.
 
@@ -2348,8 +2346,6 @@ def filter_interactions(distance_pvals,
     dist_table.dropna(inplace=True)
 
     return dist_table, distance_pvals_sig_sub
-
-
 
 
 # Function for patch identification
@@ -2714,7 +2710,7 @@ def adata_stellar(
     sample_rate=0.5,
     distance_thres=50,
     key_added="stellar_pred",
-    STELLAR_path = "",
+    STELLAR_path="",
 ):
     """
     Applies the STELLAR algorithm to the given annotated and unannotated data.
@@ -2734,9 +2730,9 @@ def adata_stellar(
     """
 
     sys.path.append(str(STELLAR_path))
-    from utils import prepare_save_dir
-    from STELLAR import STELLAR
     from datasets import GraphDataset
+    from STELLAR import STELLAR
+    from utils import prepare_save_dir
 
     parser = argparse.ArgumentParser(description="STELLAR")
     parser.add_argument(
@@ -2817,7 +2813,9 @@ def adata_stellar(
     adata_unannotated.obs[key_added] = pd.Categorical(results)
 
     # make stellar_pred a string
-    adata_unannotated.obs['stellar_pred'] = adata_unannotated.obs['stellar_pred'].astype(str)
+    adata_unannotated.obs["stellar_pred"] = adata_unannotated.obs[
+        "stellar_pred"
+    ].astype(str)
 
     return adata_unannotated
 
@@ -2830,7 +2828,7 @@ def ml_train(
     model="svm",
     nan_policy_y="raise",
     showfig=True,
-    figsize=(10, 8)
+    figsize=(10, 8),
 ):
     """
     Train a svm model on the provided data.
@@ -3335,9 +3333,9 @@ def install_gpu_leiden(CUDA="12"):
     This function runs a series of pip install commands to install the necessary packages. The specific packages and versions installed depend on the CUDA
     version. The function prints the output and any errors from each command.
     """
-    if platform.system() != 'Linux':
+    if platform.system() != "Linux":
         print("This feature is currently only supported on Linux.")
-    
+
     else:
         print("installing rapids_singlecell")
         # Define the commands to run
@@ -3366,6 +3364,7 @@ def install_gpu_leiden(CUDA="12"):
                 print(f"Output:\n{stdout.decode()}")
             if stderr:
                 print(f"Error:\n{stderr.decode()}")
+
 
 def anndata_to_GPU(
     adata: AnnData,
@@ -3468,17 +3467,54 @@ def anndata_to_CPU(
 
     if copy:
         return adata
-    
-    
+
+
 def install_stellar(CUDA=12):
     if CUDA == 12:
         subprocess.run(["pip3", "install", "torch"], check=True)
         subprocess.run(["pip", "install", "torch_geometric"], check=True)
-        subprocess.run(["pip", "install", "pyg_lib", "torch_scatter", "torch_sparse", "torch_cluster", "torch_spline_conv", "-f", "https://data.pyg.org/whl/torch-2.3.0+cu121.html"], check=True)
+        subprocess.run(
+            [
+                "pip",
+                "install",
+                "pyg_lib",
+                "torch_scatter",
+                "torch_sparse",
+                "torch_cluster",
+                "torch_spline_conv",
+                "-f",
+                "https://data.pyg.org/whl/torch-2.3.0+cu121.html",
+            ],
+            check=True,
+        )
     elif CUDA == 11.8:
-        subprocess.run(["pip3", "install", "torch", "--index-url", "https://download.pytorch.org/whl/cu118"], check=True)
+        subprocess.run(
+            [
+                "pip3",
+                "install",
+                "torch",
+                "--index-url",
+                "https://download.pytorch.org/whl/cu118",
+            ],
+            check=True,
+        )
         subprocess.run(["pip", "install", "torch_geometric"], check=True)
-        subprocess.run(["pip", "install", "pyg_lib", "torch_scatter", "torch_sparse", "torch_cluster", "torch_spline_conv", "-f", "https://data.pyg.org/whl/torch-2.3.0+cu118.html"], check=True)
+        subprocess.run(
+            [
+                "pip",
+                "install",
+                "pyg_lib",
+                "torch_scatter",
+                "torch_sparse",
+                "torch_cluster",
+                "torch_spline_conv",
+                "-f",
+                "https://data.pyg.org/whl/torch-2.3.0+cu118.html",
+            ],
+            check=True,
+        )
     else:
         print("Please choose between CUDA 12 or 11.8")
-        print("If neither is working for you check the installation guide at: https://pytorch.org/get-started/locally/ and https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html")
+        print(
+            "If neither is working for you check the installation guide at: https://pytorch.org/get-started/locally/ and https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html"
+        )

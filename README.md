@@ -30,7 +30,7 @@ pip install spacec
 # and always import spacec first before importing other packages
 ```
 
-### Install additional features 
+### Install additional features
 #### GPU accelerated clustering
 NOTE: This module is based on Nvidia `RAPIDS` that is currently only available on linux! If you run SPACEc on a Windows machine you need to run SPACEc in WSL to take advantage of this module. For further information read the offical RAPIDS documentation:
 - https://t1p.de/hxo3c
