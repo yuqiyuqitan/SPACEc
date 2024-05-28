@@ -2816,6 +2816,9 @@ def adata_stellar(
             results[i] = inverse_dict[results[i]]
     adata_unannotated.obs[key_added] = pd.Categorical(results)
 
+    # make stellar_pred a string
+    adata_unannotated.obs['stellar_pred'] = adata_unannotated.obs['stellar_pred'].astype(str)
+
     return adata_unannotated
 
 
