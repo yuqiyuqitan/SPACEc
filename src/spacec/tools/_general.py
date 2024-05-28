@@ -2819,6 +2819,11 @@ def adata_stellar(
 
     adata.var_names = adata_unannotated.var_names
 
+    # add missing keys from adata_unannotated.obs to adata.obs
+    for key in adata_unannotated.obs.keys():
+        if key not in adata.obs.keys():
+            adata.obs[key] = adata_unannotated.obs[key]
+
     return adata
 
 
@@ -3335,33 +3340,37 @@ def install_gpu_leiden(CUDA="12"):
     This function runs a series of pip install commands to install the necessary packages. The specific packages and versions installed depend on the CUDA
     version. The function prints the output and any errors from each command.
     """
-    print("installing rapids_singlecell")
-    # Define the commands to run
-    if CUDA == "11":
-        commands = [
-            "pip install rapids-singlecell==0.9.5",
-            "pip install --extra-index-url=https://pypi.nvidia.com cudf-cu11==24.2.* dask-cudf-cu11==24.2.* cuml-cu11==24.2.* cugraph-cu11==24.2.* cuspatial-cu11==24.2.* cuproj-cu11==24.2.* cuxfilter-cu11==24.2.* cucim-cu11==24.2.* pylibraft-cu11==24.2.* raft-dask-cu11==24.2.*",
-            "pip install protobuf==3.20",
-        ]
+    if platform.system() != 'Linux':
+        print("This feature is currently only supported on Linux.")
+    
     else:
-        commands = [
-            "pip install rapids-singlecell==0.9.5",
-            "pip install --extra-index-url=https://pypi.nvidia.com cudf-cu12==24.2.* dask-cudf-cu12==24.2.* cuml-cu12==24.2.* cugraph-cu12==24.2.* cuspatial-cu12==24.2.* cuproj-cu12==24.2.* cuxfilter-cu12==24.2.* cucim-cu12==24.2.* pylibraft-cu12==24.2.* raft-dask-cu12==24.2.*",
-            "pip install protobuf==3.20",
-        ]
+        print("installing rapids_singlecell")
+        # Define the commands to run
+        if CUDA == "11":
+            commands = [
+                "pip install rapids-singlecell==0.9.5",
+                "pip install --extra-index-url=https://pypi.nvidia.com cudf-cu11==24.2.* dask-cudf-cu11==24.2.* cuml-cu11==24.2.* cugraph-cu11==24.2.* cuspatial-cu11==24.2.* cuproj-cu11==24.2.* cuxfilter-cu11==24.2.* cucim-cu11==24.2.* pylibraft-cu11==24.2.* raft-dask-cu11==24.2.*",
+                "pip install protobuf==3.20",
+            ]
+        else:
+            commands = [
+                "pip install rapids-singlecell==0.9.5",
+                "pip install --extra-index-url=https://pypi.nvidia.com cudf-cu12==24.2.* dask-cudf-cu12==24.2.* cuml-cu12==24.2.* cugraph-cu12==24.2.* cuspatial-cu12==24.2.* cuproj-cu12==24.2.* cuxfilter-cu12==24.2.* cucim-cu12==24.2.* pylibraft-cu12==24.2.* raft-dask-cu12==24.2.*",
+                "pip install protobuf==3.20",
+            ]
 
-    # Run each command
-    for command in commands:
-        process = subprocess.Popen(
-            command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-        )
-        stdout, stderr = process.communicate()
+        # Run each command
+        for command in commands:
+            process = subprocess.Popen(
+                command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            )
+            stdout, stderr = process.communicate()
 
-        # Print the output and error, if any
-        if stdout:
-            print(f"Output:\n{stdout.decode()}")
-        if stderr:
-            print(f"Error:\n{stderr.decode()}")
+            # Print the output and error, if any
+            if stdout:
+                print(f"Output:\n{stdout.decode()}")
+            if stderr:
+                print(f"Error:\n{stderr.decode()}")
 
 def anndata_to_GPU(
     adata: AnnData,
@@ -3464,3 +3473,17 @@ def anndata_to_CPU(
 
     if copy:
         return adata
+    
+    
+def install_stellar(CUDA=12):
+    if CUDA == 12:
+        subprocess.run(["pip3", "install", "torch"], check=True)
+        subprocess.run(["pip", "install", "torch_geometric"], check=True)
+        subprocess.run(["pip", "install", "pyg_lib", "torch_scatter", "torch_sparse", "torch_cluster", "torch_spline_conv", "-f", "https://data.pyg.org/whl/torch-2.3.0+cu121.html"], check=True)
+    elif CUDA == 11.8:
+        subprocess.run(["pip3", "install", "torch", "--index-url", "https://download.pytorch.org/whl/cu118"], check=True)
+        subprocess.run(["pip", "install", "torch_geometric"], check=True)
+        subprocess.run(["pip", "install", "pyg_lib", "torch_scatter", "torch_sparse", "torch_cluster", "torch_spline_conv", "-f", "https://data.pyg.org/whl/torch-2.3.0+cu118.html"], check=True)
+    else:
+        print("Please choose between CUDA 12 or 11.8")
+        print("If neither is working for you check the installation guide at: https://pytorch.org/get-started/locally/ and https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html")
