@@ -479,7 +479,7 @@ def clustering(
             "Invalid clustering options. Please select from leiden, louvain, leiden_gpu or flowSOM!"
         )
         print("For GPU accelerated leiden clustering, please use leiden_gpu")
-        raise
+        sys.exit()
 
     # test if rapids_singlecell is available
     if clustering == "leiden_gpu":
@@ -491,7 +491,7 @@ def clustering(
         except ImportError:
             print("Please install rapids_singlecell to use leiden_gpu!")
             print("install_gpu_leiden(CUDA = your cuda version as string)")
-            print("For example: install_gpu_leiden(CUDA = '12')")
+            print("For example: sp.tl.install_gpu_leiden(CUDA = '12')")
             print("THIS FUNCTION DOES NOT WORK ON MacOS OR WINDOWS")
             print("using leiden instead of leiden_gpu")
             clustering = 'leiden'
@@ -502,7 +502,7 @@ def clustering(
     if key_filter is not None:
         if subset_cluster is None:
             print("Please provide subset_cluster!")
-            raise
+            sys.exit()
         else:
             adata_tmp = adata
             adata = adata[adata.obs[key_filter].isin(subset_cluster)]
