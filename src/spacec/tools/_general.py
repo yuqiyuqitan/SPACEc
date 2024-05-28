@@ -2816,8 +2816,6 @@ def adata_stellar(
             results[i] = inverse_dict[results[i]]
     adata_unannotated.obs[key_added] = pd.Categorical(results)
 
-    adata.var_names = adata_unannotated.var_names
-
     return adata_unannotated
 
 
