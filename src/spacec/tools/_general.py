@@ -492,8 +492,9 @@ def clustering(
             print("Please install rapids_singlecell to use leiden_gpu!")
             print("install_gpu_leiden(CUDA = your cuda version as string)")
             print("For example: install_gpu_leiden(CUDA = '12')")
-            print("THIS FUNCTION DOES NOT WORK ON MacOS")
-            raise
+            print("THIS FUNCTION DOES NOT WORK ON MacOS OR WINDOWS")
+            print("using leiden instead of leiden_gpu")
+            clustering = 'leiden'
 
     if key_added is None:
         key_added = clustering + "_" + str(resolution)
@@ -1239,66 +1240,6 @@ def tl_test_clustering_resolutions(
             )
 
         sc.pl.umap(adata, color=f"{clustering}_{res}", legend_loc="on data")
-
-
-###############
-# clustering
-
-
-def tl_clustering_ad(
-    adata,
-    clustering="leiden",
-    marker_list=None,
-    res=1,
-    n_neighbors=10,
-    reclustering=False,
-):
-    if clustering not in ["leiden", "louvain"]:
-        print("Invalid clustering options. Please select from leiden or louvain!")
-        exit()
-    # input a list of markers for clustering
-    # reconstruct the anndata
-    if marker_list is not None:
-        if len(list(set(marker_list) - set(adata.var_names))) > 0:
-            print("Marker list not all in adata var_names! Using intersection instead!")
-            marker_list = list(set(marker_list) & set(adata.var_names))
-            print("New marker_list: " + " ".join(marker_list))
-        adata_tmp = adata
-        adata = adata[:, marker_list]
-    # Compute the neighborhood relations of single cells the range 2 to 100 and usually 10
-    if reclustering:
-        print("Clustering")
-        if clustering == "leiden":
-            sc.tl.leiden(adata, resolution=res, key_added="leiden_" + str(res))
-        else:
-            sc.tl.louvain(adata, resolution=res, key_added="louvain" + str(res))
-    else:
-        print("Computing neighbors and UMAP")
-        sc.pp.neighbors(adata, n_neighbors=n_neighbors)
-        # UMAP computation
-        sc.tl.umap(adata)
-        print("Clustering")
-        # Perform leiden clustering - improved version of louvain clustering
-        if clustering == "leiden":
-            sc.tl.leiden(adata, resolution=res, key_added="leiden_" + str(res))
-        else:
-            sc.tl.louvain(adata, resolution=res, key_added="louvain" + str(res))
-
-    if marker_list is None:
-        return adata
-    else:
-        if clustering == "leiden":
-            adata_tmp.obs["leiden_" + str(res)] = adata.obs["leiden_" + str(res)].values
-        else:
-            adata_tmp.obs["leiden_" + str(res)] = adata.obs[
-                "louvain_" + str(res)
-            ].values
-        # append other data
-        adata_tmp.obsm = adata.obsm
-        adata_tmp.obsp = adata.obsp
-        adata_tmp.uns = adata.uns
-        return adata_tmp
-
 
 def neighborhood_analysis(
     adata,
