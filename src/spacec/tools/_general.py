@@ -2577,6 +2577,7 @@ def patch_proximity_analysis(
     output_dir="./",
     output_fname="",
     key_name="ppa_result",
+    plot_color="#6a3d9a",
 ):
     """
     Performs a proximity analysis on patches of a given group within each region of a dataset.
@@ -2616,7 +2617,7 @@ def patch_proximity_analysis(
 
         df_community = df_region[df_region[patch_column] == group].copy()
 
-        if len(df_community) == 0:
+        if  df_community.shape[0] < min_cluster_size:
             print(f"No {group} in {region}")
             continue   
         
@@ -2627,7 +2628,7 @@ def patch_proximity_analysis(
             if plot:
                 df_filtered = df_community[df_community["cluster"] != -1]
                 fig, ax = plt.subplots(figsize=(10, 10))
-                ax.scatter(df_filtered["x"], df_filtered["y"], c="#6a3d9a", alpha=0.5)
+                ax.scatter(df_filtered["x"], df_filtered["y"], c=plot_color, alpha=0.5)
                 ax.set_title(f"HDBSCAN Clusters for {region}_{group}")
                 ax.set_xlabel(x_column)
                 ax.set_ylabel(y_column)
