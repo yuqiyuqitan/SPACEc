@@ -2616,51 +2616,56 @@ def patch_proximity_analysis(
 
         df_community = df_region[df_region[patch_column] == group].copy()
 
-        apply_dbscan_clustering(df_community, min_cluster_size=min_cluster_size)
+        if len(df_community) == 0:
+            print(f"No {group} in {region}")
+            continue   
+        
+        else:
+            apply_dbscan_clustering(df_community, min_cluster_size=min_cluster_size)
 
-        # plot patches
-        if plot:
-            df_filtered = df_community[df_community["cluster"] != -1]
-            fig, ax = plt.subplots(figsize=(10, 10))
-            ax.scatter(df_filtered["x"], df_filtered["y"], c="#6a3d9a", alpha=0.5)
-            ax.set_title(f"HDBSCAN Clusters for {region}_{group}")
-            ax.set_xlabel(x_column)
-            ax.set_ylabel(y_column)
-            ax.grid(False)
-            ax.axis("equal")
+            # plot patches
+            if plot:
+                df_filtered = df_community[df_community["cluster"] != -1]
+                fig, ax = plt.subplots(figsize=(10, 10))
+                ax.scatter(df_filtered["x"], df_filtered["y"], c="#6a3d9a", alpha=0.5)
+                ax.set_title(f"HDBSCAN Clusters for {region}_{group}")
+                ax.set_xlabel(x_column)
+                ax.set_ylabel(y_column)
+                ax.grid(False)
+                ax.axis("equal")
 
-            if savefig:
-                fig.savefig(
-                    output_dir
-                    + output_fname
-                    + "_"
-                    + str(region)
-                    + "_patch_proximity.pdf",
-                    bbox_inches="tight",
-                )
-            else:
-                plt.show()
+                if savefig:
+                    fig.savefig(
+                        output_dir
+                        + output_fname
+                        + "_"
+                        + str(region)
+                        + "_patch_proximity.pdf",
+                        bbox_inches="tight",
+                    )
+                else:
+                    plt.show()
 
-        results, hull_nearest_neighbors = identify_points_in_proximity(
-            df=df_community,
-            full_df=df_region,
-            cluster_column="cluster",
-            identification_column=patch_column,
-            x_column=x_column,
-            y_column=y_column,
-            radius=radius,
-            edge_neighbours=edge_neighbours,
-            plot=plot,
-        )
+            results, hull_nearest_neighbors = identify_points_in_proximity(
+                df=df_community,
+                full_df=df_region,
+                cluster_column="cluster",
+                identification_column=patch_column,
+                x_column=x_column,
+                y_column=y_column,
+                radius=radius,
+                edge_neighbours=edge_neighbours,
+                plot=plot,
+            )
 
-        # add hull_nearest_neighbors to list
-        outlines.append(hull_nearest_neighbors)
+            # add hull_nearest_neighbors to list
+            outlines.append(hull_nearest_neighbors)
 
-        print(f"Finished {region}_{group}")
+            print(f"Finished {region}_{group}")
 
-        # append to region_results
-        region_results.append(results)
-
+            # append to region_results
+            region_results.append(results)
+        
     # Concatenate all results into a single DataFrame
     final_results = pd.concat(region_results)
 
