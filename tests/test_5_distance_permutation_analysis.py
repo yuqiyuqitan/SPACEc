@@ -20,7 +20,7 @@ def test_5_distance_permutation_analysis():
 
         # %%
         # Load data
-        adata = sc.read(processed_path / "adata_nn_demo_annotated_cn.h5ad")
+        adata = sc.read(processed_path / "adata_nn_2000.h5ad")
         adata
 
         # %% [markdown]
@@ -28,20 +28,18 @@ def test_5_distance_permutation_analysis():
 
         # %%
         distance_pvals = sp.tl.identify_interactions(
-            adata=adata,
-            id="index",
-            x_pos="x",
-            y_pos="y",
-            cell_type="celltype",
-            region="unique_region",
-            num_iterations=100,
-            num_cores=1,
-            # TODO: Windows runner on Github Actions hat trouble with multi-core.
-            #       We should test with multiple cores, too.
-            # num_cores=10,
-            min_observed=10,
-            comparison="condition",
-        )
+            adata = adata, # AnnData object
+            cellid = "index", # column that contains the cell id (set index if the cell id is the index of the dataframe)
+            x_pos = "x", # x coordinate column
+            y_pos = "y", # y coordinate column
+            cell_type = "cell_type", # column that contains the cell type information
+            region = "unique_region", # column that contains the region information
+            num_iterations=1000, # number of iterations for the permutation test
+            num_cores=10,  # number of CPU threads to use
+            min_observed = 10, # minimum number of observed interactions to consider a cell type pair
+            comparison = 'condition', # column that contains the condition information we want to compare
+            distance_threshold=20/0.5085) # distance threshold in px (20 µm)
+        
         distance_pvals.head()
 
         # %%
@@ -49,16 +47,30 @@ def test_5_distance_permutation_analysis():
         # dist_table_filt is a simplified table used for plotting
         # dist_data_filt contains the filtered raw data with more information about the pairs
         dist_table_filt, dist_data_filt = sp.tl.filter_interactions(
-            distance_pvals=distance_pvals, pvalue=0.05, logfold_group_abs=0.1
-        )
+            distance_pvals = distance_pvals,
+            pvalue = 0.05,
+            logfold_group_abs = 0.1,
+            comparison = 'condition')
 
         print(dist_table_filt.shape)
         dist_data_filt.head()
 
-        # %%
-        sp.pl.dumbbell(
-            data=dist_table_filt, figsize=(10, 10), colors=["#DB444B", "#006BA2"]
+        sp.pl.plot_top_n_distances(
+            dist_table_filt,
+            dist_data_filt,
+            n=5,
+            colors=None,
+            dodge=False,
+            savefig=False,
+            output_fname="",
+            output_dir="./",
+            figsize=(5, 5),
+            unit="px",
+            errorbars=True,
         )
+
+        # %%
+        sp.pl.dumbbell(data = dist_table_filt, figsize=(8,12), colors = ['#DB444B', '#006BA2'])
 
 
 if __name__ == "__main__":
