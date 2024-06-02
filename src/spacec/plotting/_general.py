@@ -4309,38 +4309,45 @@ def ppa_res_donut(
         # extract key from adata
         region_results = adata.uns[key_name]
 
-        # subset by condition
-        if subset_column != None:
-            if subset_column not in region_results.columns:
-                raise ValueError(
-                    f"Column '{subset_column}' does not exist in the DataFrame."
-                )
-            elif subset_condition not in region_results[subset_column].unique():
-                raise ValueError(
-                    f"Value '{subset_condition}' does not exist in the column '{subset_column}'."
-                )
-            else:
-                region_results = region_results[
-                    region_results[subset_column] == subset_condition
-                ]
+        # test if region_results is empty
+        if region_results.shape[0] == 0:
+            print(f"Key {i} is empty.")
+            continue
+        else:
+            print(f"Key {i} has {region_results.shape[0]} rows.")
 
-        # calculate percentages of categories
-        percentage_list = region_results[cat_col].value_counts(normalize=True) * 100
+            # subset by condition
+            if subset_column != None:
+                if subset_column not in region_results.columns:
+                    raise ValueError(
+                        f"Column '{subset_column}' does not exist in the DataFrame."
+                    )
+                elif subset_condition not in region_results[subset_column].unique():
+                    raise ValueError(
+                        f"Value '{subset_condition}' does not exist in the column '{subset_column}'."
+                    )
+                else:
+                    region_results = region_results[
+                        region_results[subset_column] == subset_condition
+                    ]
 
-        # Check if all categories have a color in the palette
-        for category in percentage_list.index:
-            if category not in palette:
-                raise ValueError(
-                    f"No color provided for category {category} in the palette"
-                )
+            # calculate percentages of categories
+            percentage_list = region_results[cat_col].value_counts(normalize=True) * 100
 
-        # Get the colors for the current categories from the palette
-        category_colors = [palette[category] for category in percentage_list.index]
+            # Check if all categories have a color in the palette
+            for category in percentage_list.index:
+                if category not in palette:
+                    raise ValueError(
+                        f"No color provided for category {category} in the palette"
+                    )
 
-        rsed_index = len(radii) - 1 - i
-        plt.pie(
-            percentage_list, radius=(0.6 + 0.1 * rsed_index), colors=category_colors
-        )
+            # Get the colors for the current categories from the palette
+            category_colors = [palette[category] for category in percentage_list.index]
+
+            rsed_index = len(radii) - 1 - i
+            plt.pie(
+                percentage_list, radius=(0.6 + 0.1 * rsed_index), colors=category_colors
+            )
 
     # add labels for each distance
     for j, percentage_list in enumerate(radii):
