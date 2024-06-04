@@ -80,6 +80,9 @@ from sklearn.model_selection import train_test_split
 from sklearn.svm import SVC
 from tqdm import tqdm
 from yellowbrick.cluster import KElbowVisualizer
+from multiprocessing import Pool
+from sklearn.neighbors import NearestNeighbors
+
 
 if TYPE_CHECKING:
     from anndata import AnnData
@@ -2490,73 +2493,57 @@ def plot_selected_neighbors_with_shapes(
     return all_in_circle_diff_cluster
 
 
-def identify_points_in_proximity(
-    df,
-    full_df,
-    identification_column,
-    cluster_column="cluster",
-    x_column="x",
-    y_column="y",
-    radius=200,
-    edge_neighbours=3,
-    plot=True,
-    concave_hull_length_threshold=50,
-):
-    result_list = []
-    outline_list = []
+def process_cluster(args):
+    df, cluster, cluster_column, x_column, y_column, concave_hull_length_threshold, edge_neighbours, full_df, radius, plot, identification_column = args
+    # Filter DataFrame for the current cluster
+    subset = df.loc[df[cluster_column] == cluster]
+    points = subset[[x_column, y_column]].values
 
-    # Loop through clusters in the DataFrame
-    for cluster in set(df[cluster_column]) - {-1}:
-        # Filter DataFrame for the current cluster
-        subset = df.loc[df[cluster_column] == cluster]
-        points = subset[[x_column, y_column]].values
+    # Compute concave hull indexes
+    idxes = concave_hull_indexes(
+        points[:, :2],
+        length_threshold=concave_hull_length_threshold,
+    )
 
-        # Compute concave hull indexes
-        idxes = concave_hull_indexes(
-            points[:, :2],
-            length_threshold=concave_hull_length_threshold,
-        )
+    # Get hull points from the DataFrame
+    hull_points = pd.DataFrame(points[idxes], columns=['x', 'y'])
 
-        # Get hull points from the DataFrame
-        hull_points = pd.DataFrame(points[idxes], columns=["x", "y"])
+    # Find nearest neighbors of hull points in the original DataFrame
+    nbrs = NearestNeighbors(n_neighbors=edge_neighbours).fit(df[[x_column, y_column]])
+    distances, indices = nbrs.kneighbors(hull_points[["x", 'y']])
 
-        # Find nearest neighbors of hull points in the original DataFrame
-        nbrs = NearestNeighbors(n_neighbors=edge_neighbours).fit(
-            df[[x_column, y_column]]
-        )
-        distances, indices = nbrs.kneighbors(hull_points[["x", "y"]])
+    hull_nearest_neighbors = df.iloc[indices.flatten()]
 
-        hull_nearest_neighbors = df.iloc[indices.flatten()]
+    # Plot selected neighbors and get the DataFrame with different clusters in the circle
+    prox_points = plot_selected_neighbors_with_shapes(full_df=full_df, \
+                                                      selected_df=hull_nearest_neighbors, target_df=full_df, \
+                                                      radius=radius, plot=plot, identification_column=identification_column)
 
-        # Plot selected neighbors and get the DataFrame with different clusters in the circle
-        prox_points = plot_selected_neighbors_with_shapes(
-            full_df=full_df,
-            selected_df=hull_nearest_neighbors,
-            target_df=full_df,
-            radius=radius,
-            plot=plot,
-            identification_column=identification_column,
-        )
+    # Add a 'patch_id' column to identify the cluster
+    prox_points['patch_id'] = cluster
 
-        # Add a 'patch_id' column to identify the cluster
-        prox_points["patch_id"] = cluster
+    return prox_points, hull_nearest_neighbors
 
-        # Append the result to the list
-        result_list.append(prox_points)
+def identify_points_in_proximity(df, full_df, identification_column, cluster_column="cluster",\
+                                 x_column='x', y_column='y', radius=200, edge_neighbours=3, plot=True, concave_hull_length_threshold=50):
+    
+    num_processes = max(1, os.cpu_count() - 2)  # Use all available CPUs minus 2, but at least 1
+    with Pool(processes=num_processes) as pool:
+        results = pool.map(process_cluster, [(df, cluster, cluster_column, x_column, y_column, concave_hull_length_threshold, edge_neighbours, full_df, radius, plot, identification_column) for cluster in set(df[cluster_column]) - {-1}])
 
-        # collect outlines
-        outline_list.append(hull_nearest_neighbors)
+    # Unpack the results
+    result_list, outline_list = zip(*results)
 
     # Concatenate the list of DataFrames into a single result DataFrame
     if len(result_list) > 0:
         result = pd.concat(result_list)
     else:
-        result = pd.DataFrame(columns=["x", "y", "patch_id", identification_column])
+        result = pd.DataFrame(columns=['x', 'y', 'patch_id', identification_column])
 
     if len(outline_list) > 0:
         outlines = pd.concat(outline_list)
     else:
-        outlines = pd.DataFrame(columns=["x", "y", "patch_id", identification_column])
+        outlines = pd.DataFrame(columns=['x', 'y', 'patch_id', identification_column])
 
     return result, outlines
 
