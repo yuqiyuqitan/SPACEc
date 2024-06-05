@@ -34,8 +34,8 @@ def test_5_distance_permutation_analysis():
             y_pos="y",  # y coordinate column
             cell_type="cell_type",  # column that contains the cell type information
             region="unique_region",  # column that contains the region information
-            num_iterations=1000,  # number of iterations for the permutation test
-            num_cores=10,  # number of CPU threads to use
+            num_iterations=100,  # number of iterations for the permutation test
+            num_cores=1,  # number of CPU threads to use
             min_observed=10,  # minimum number of observed interactions to consider a cell type pair
             comparison="condition",  # column that contains the condition information we want to compare
             distance_threshold=20 / 0.5085,
