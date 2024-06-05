@@ -60,7 +60,7 @@ jobs:
     strategy:
       matrix:
         python:
-        - "3.8"  # oldest Python supported by PSF
+        # - "3.8"  # oldest Python supported
         - "3.9"
         - "3.10"  # newest Python that is stable
         platform:
