@@ -44,8 +44,8 @@ def test_3_cell_annotation_STELLAR():
 
         # Load training data
         adata = sc.read(processed_path / "adata_nn_2000.h5ad")
+        # TODO: if we go lower than 400 things break
         adata_train = adata[adata.obs["condition"] == "tonsil"][:400, :]
-
         adata_val = adata[adata.obs["condition"] == "tonsillitis"][:400:]
 
         # ## 3.1 Training

@@ -89,7 +89,7 @@ jobs:
         run: sudo apt-get install -y libvips
       - name: Install libvips on Windows
         if: startsWith(matrix.platform, 'windows')
-        run: choco install vips
+        run: choco install libvips
       # - name: Install libvips on Mac
       #   if: startsWith(matrix.platform, 'macos')
       #   run: brew install vips
