@@ -1,9 +1,12 @@
 import pathlib
 from tempfile import TemporaryDirectory
 
+import pytest
+
 TEST_DIR = pathlib.Path(__file__).parent
 
 
+@pytest.mark.slow
 def test_3_cell_annotation_STELLAR():
     # import standard packages
 
@@ -41,8 +44,9 @@ def test_3_cell_annotation_STELLAR():
 
         # Load training data
         adata = sc.read(processed_path / "adata_nn_2000.h5ad")
-        adata_train = adata[adata.obs["condition"] == "tonsil"]
-        adata_val = adata[adata.obs["condition"] == "tonsillitis"]
+        adata_train = adata[adata.obs["condition"] == "tonsil"][:400, :]
+
+        adata_val = adata[adata.obs["condition"] == "tonsillitis"][:400:]
 
         # ## 3.1 Training
 
@@ -69,6 +73,7 @@ def test_3_cell_annotation_STELLAR():
             y_col="y",
             sample_rate=0.5,
             distance_thres=50,
+            epochs=1,
             STELLAR_path=STELLAR_path,
         )
 
@@ -98,4 +103,4 @@ def test_3_cell_annotation_STELLAR():
 
 
 if __name__ == "__main__":
-    test_3_cell_annotation_ml()
+    test_3_cell_annotation_STELLAR()

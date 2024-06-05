@@ -2748,6 +2748,7 @@ def adata_stellar(
     y_col="y",
     sample_rate=0.5,
     distance_thres=50,
+    epochs=50,
     key_added="stellar_pred",
     STELLAR_path="",
 ):
@@ -2793,6 +2794,7 @@ def adata_stellar(
     args = parser.parse_args(args=[])
     args.cuda = torch.cuda.is_available()
     args.device = torch.device("cuda" if args.cuda else "cpu")
+    args.epochs = 50
 
     # prepare input data
     print("Preparing input data")
