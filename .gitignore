@@ -2,6 +2,7 @@ data
 _out
 notebooks/models
 tests/models
+tests/example_data
 models
 docs/tutorials
 

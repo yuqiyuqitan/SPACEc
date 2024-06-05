@@ -16,7 +16,7 @@ def segmentation_ch(
     output_dir,  #
     extra_seg_ch_list=None,  # channels used for membrane segmentation
     nuclei_channel="DAPI",
-    technology="Phenocycler",  # CODEX or Phenocycler --> This depends on the machine you are using and the resulting file format (see documentation above)
+    input_format="Multichannel",  # CODEX or Phenocycler --> This depends on the machine you are using and the resulting file format (see documentation above)
 ):
     """
     Plot the channel selected for segmentation.
@@ -33,25 +33,31 @@ def segmentation_ch(
         The channels used for membrane segmentation, by default None.
     nuclei_channel : str, optional
         The channel used for nuclei, by default "DAPI".
-    technology : str, optional
-        The technology used (either "CODEX" or "Phenocycler"), by default "Phenocycler".
+    input_format : str, optional
+        The input_format used (either "CODEX", "Multichannel" or channels), by default "Multichannel".
 
     Returns
     -------
     None
     """
-    # Load the image
-    img = skimage.io.imread(file_name)
-
-    # Read channels and store as list
-    with open(channel_file, "r") as f:
-        channel_names = f.read().splitlines()
-
-    # Function reads channels and stores them as dictonary
-    # (storing as dictionary allows to select specific channels by name)
-    image_dict = format_CODEX(
-        image=img, channel_names=channel_names, technology=technology
-    )
+    if input_format != "Channels":
+        # Load the image
+        img = skimage.io.imread(file_name)
+        # Read channels and store as list
+        with open(channel_file, "r") as f:
+            channel_names = f.read().splitlines()
+        # Function reads channels and stores them as a dictionary (storing as a dictionary allows to select specific channels by name)
+        image_dict = format_CODEX(
+            image=img,
+            channel_names=channel_names,  # file with list of channel names (see channelnames.txt)
+            input_format=input_format,
+        )
+    else:
+        image_dict = format_CODEX(
+            image=file_name,
+            channel_names=None,  # file with list of channel names (see channelnames.txt)
+            input_format=input_format,
+        )
 
     image_dict = combine_channels(
         image_dict, extra_seg_ch_list, new_channel_name="segmentation_channel"

@@ -1,7 +1,53 @@
 # load required packages
-import os
-import time
+from __future__ import annotations
 
+import os
+import platform
+import subprocess
+import sys
+import zipfile
+
+import requests
+
+if platform.system() == "Windows":
+    vipsbin = r"c:\vips-dev-8.15\bin\vips-dev-8.15\bin"
+    vips_file_path = os.path.join(vipsbin, "vips.exe")
+
+    # Check if VIPS is installed
+    if not os.path.exists(vips_file_path):
+        # VIPS is not installed, download and extract it
+        url = "https://github.com/libvips/build-win64-mxe/releases/download/v8.15.2/vips-dev-w64-all-8.15.2.zip"
+        zip_file_path = "vips-dev-w64-all-8.15.2.zip"
+        response = requests.get(url, stream=True)
+
+        if response.status_code == 200:
+            with open(zip_file_path, "wb") as f:
+                f.write(response.raw.read())
+
+            # Extract the zip file
+            with zipfile.ZipFile(zip_file_path, "r") as zip_ref:
+                zip_ref.extractall(vipsbin)
+        else:
+            print("Error downloading the file.")
+
+        # Install pyvips
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "pyvips"])
+
+    # Add vipsbin to the DLL search path or PATH environment variable
+    add_dll_dir = getattr(os, "add_dll_directory", None)
+    os.environ["PATH"] = os.pathsep.join((vipsbin, os.environ["PATH"]))
+
+
+import argparse
+import pathlib
+import pickle
+import time
+from builtins import range
+from itertools import combinations
+from multiprocessing import Pool
+from typing import TYPE_CHECKING
+
+import anndata
 import concave_hull
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -16,22 +62,49 @@ import skimage.io as io
 import skimage.morphology
 import skimage.transform
 import statsmodels.api as sm
+import tissuumaps.jupyter as tj
+import torch
 from concave_hull import concave_hull_indexes
 from joblib import Parallel, delayed
+from pyFlowSOM import map_data_to_nodes, som
 from scipy import stats
-from scipy.spatial import Delaunay
+from scipy.spatial import Delaunay, KDTree, distance
 from scipy.spatial.distance import cdist
 from scipy.stats import pearsonr, spearmanr
+from skimage.io import imsave
+from skimage.segmentation import find_boundaries
 from sklearn.cluster import HDBSCAN, MiniBatchKMeans
 from sklearn.cross_decomposition import CCA
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import classification_report, f1_score
+from sklearn.metrics import classification_report, f1_score, pairwise_distances
 from sklearn.model_selection import train_test_split
+from sklearn.neighbors import NearestNeighbors
 from sklearn.svm import SVC
 from tqdm import tqdm
 from yellowbrick.cluster import KElbowVisualizer
 
+if TYPE_CHECKING:
+    from anndata import AnnData
+
 from ..helperfunctions._general import *
+
+try:
+    from torch_geometric.data import ClusterData, ClusterLoader, Data, InMemoryDataset
+except ImportError:
+    pass
+
+try:
+    import cupy as cp
+    import rapids_singlecell as rsc
+    from cupyx.scipy.sparse import csc_matrix as csc_matrix_gpu
+    from cupyx.scipy.sparse import csr_matrix as csr_matrix_gpu
+    from cupyx.scipy.sparse import isspmatrix_csc as isspmatrix_csc_gpu
+    from cupyx.scipy.sparse import isspmatrix_csr as isspmatrix_csr_gpu
+    from scanpy.get import _get_obs_rep, _set_obs_rep
+    from scipy.sparse import isspmatrix_csc as isspmatrix_csc_cpu
+    from scipy.sparse import isspmatrix_csr as isspmatrix_csr_cpu
+except ImportError:
+    pass
 
 # Tools
 ############################################################
@@ -353,6 +426,12 @@ def clustering(
     n_neighbors=10,
     reclustering=False,
     key_added=None,
+    key_filter=None,
+    subset_cluster=None,
+    seed=42,
+    fs_xdim=10,
+    fs_ydim=10,
+    fs_rlen=10,  # FlowSOM parameters
     **cluster_kwargs,
 ):
     """
@@ -375,6 +454,18 @@ def clustering(
         Whether to recluster the data. Defaults to False.
     key_added : str, optional
         The key name to add to the adata object. Defaults to None.
+    key_filter : str, optional
+        The key name to filter the adata object. Defaults to None.
+    subset_cluster : list, optional
+        The list of clusters to subset. Defaults to None.
+    seed : int, optional
+        Seed for random state. Default is 42.
+    fs_xdim : int, optional
+        X dimension for FlowSOM. Default is 10.
+    fs_ydim : int, optional
+        Y dimension for FlowSOM. Default is 10.
+    fs_rlen : int, optional
+        Rlen for FlowSOM. Default is 10.
     **cluster_kwargs : dict
         Additional keyword arguments for the clustering function.
 
@@ -383,12 +474,38 @@ def clustering(
     AnnData
         The annotated data matrix with the clustering results added.
     """
-    if clustering not in ["leiden", "louvain"]:
-        print("Invalid clustering options. Please select from leiden or louvain!")
-        exit()
+    if clustering not in ["leiden", "louvain", "leiden_gpu", "flowSOM"]:
+        print(
+            "Invalid clustering options. Please select from leiden, louvain, leiden_gpu or flowSOM!"
+        )
+        print("For GPU accelerated leiden clustering, please use leiden_gpu")
+        sys.exit()
+
+    # test if rapids_singlecell is available
+    if clustering == "leiden_gpu":
+        try:
+            import cudf
+            import cuml
+            import cupy
+            import rapids_singlecell as rsc
+        except ImportError:
+            print("Please install rapids_singlecell to use leiden_gpu!")
+            print("install_gpu_leiden(CUDA = your cuda version as string)")
+            print("For example: sp.tl.install_gpu_leiden(CUDA = '12')")
+            print("THIS FUNCTION DOES NOT WORK ON MacOS OR WINDOWS")
+            print("using leiden instead of leiden_gpu")
+            clustering = "leiden"
 
     if key_added is None:
         key_added = clustering + "_" + str(resolution)
+
+    if key_filter is not None:
+        if subset_cluster is None:
+            print("Please provide subset_cluster!")
+            sys.exit()
+        else:
+            adata_tmp = adata
+            adata = adata[adata.obs[key_filter].isin(subset_cluster)]
 
     # input a list of markers for clustering
     # reconstruct the anndata
@@ -397,44 +514,168 @@ def clustering(
             print("Marker list not all in adata var_names! Using intersection instead!")
             marker_list = list(set(marker_list) & set(adata.var_names))
             print("New marker_list: " + " ".join(marker_list))
-        adata_tmp = adata
+        if key_filter is None:
+            adata_tmp = adata
         adata = adata[:, marker_list]
+
     # Compute the neighborhood relations of single cells the range 2 to 100 and usually 10
     if reclustering:
-        print("Clustering")
-        if clustering == "leiden":
-            sc.tl.leiden(
-                adata, resolution=resolution, key_added=key_added, **cluster_kwargs
+        if clustering == "leiden_gpu":
+            print("Clustering on GPU")
+            anndata_to_GPU(adata)  # moves `.X` to the GPU
+            rsc.tl.leiden(
+                adata,
+                resolution=resolution,
+                key_added=key_added,
+                random_state=seed,
+                **cluster_kwargs,
             )
+            anndata_to_CPU(adata)  # moves `.X` to the CPU
         else:
-            sc.tl.louvain(
-                adata, resolution=resolution, key_added=key_added, **cluster_kwargs
-            )
+            print("Clustering")
+            if clustering == "leiden":
+                sc.tl.leiden(
+                    adata,
+                    resolution=resolution,
+                    key_added=key_added,
+                    random_state=seed,
+                    **cluster_kwargs,
+                )
+            else:
+                if clustering == "louvain":
+                    print("Louvain clustering")
+                    sc.tl.louvain(
+                        adata,
+                        resolution=resolution,
+                        key_added=key_added,
+                        random_state=seed,
+                        **cluster_kwargs,
+                    )
+                else:
+                    print("FlowSOM clustering")
+                    adata_df = pd.DataFrame(
+                        adata.X, index=adata.obs.index, columns=adata.var.index
+                    )
+                    # df to numpy array
+                    som_input_arr = adata_df.to_numpy()
+                    # train the SOM
+                    node_output = som(
+                        som_input_arr,
+                        xdim=fs_xdim,
+                        ydim=fs_ydim,
+                        rlen=fs_rlen,
+                        seed=seed,
+                    )
+                    # use trained SOM to assign clusters to each observation in your data
+                    clusters, dists = map_data_to_nodes(node_output, som_input_arr)
+                    clusters = pd.Categorical(clusters)
+                    # add cluster to adata
+                    adata.obs[key_added] = clusters
     else:
-        print("Computing neighbors and UMAP")
-        sc.pp.neighbors(adata, n_neighbors=n_neighbors)
-        # UMAP computation
-        sc.tl.umap(adata)
-        print("Clustering")
-        # Perform leiden clustering - improved version of louvain clustering
-        if clustering == "leiden":
-            sc.tl.leiden(
-                adata, resolution=resolution, key_added=key_added, **cluster_kwargs
+        if clustering == "leiden_gpu":
+            anndata_to_GPU(adata)  # moves `.X` to the GPU
+            print("Computing neighbors and UMAP on GPU")
+            rsc.pp.neighbors(adata, n_neighbors=n_neighbors)
+            # UMAP computation
+            rsc.tl.umap(adata)
+            print("Clustering on GPU")
+            # Perform leiden clustering - improved version of louvain clustering
+            rsc.tl.leiden(
+                adata, resolution=resolution, key_added=key_added, random_state=seed
             )
-        else:
-            sc.tl.louvain(
-                adata, resolution=resolution, key_added=key_added, **cluster_kwargs
-            )
+            anndata_to_CPU(adata)  # moves `.X` to the CPU
 
-    if marker_list is None:
-        return adata
-    else:
-        adata_tmp.obs[key_added] = adata.obs[key_added].values
-        # append other data
-        adata_tmp.obsm = adata.obsm
-        adata_tmp.obsp = adata.obsp
-        adata_tmp.uns = adata.uns
-        return adata_tmp
+        else:
+            print("Computing neighbors and UMAP")
+            sc.pp.neighbors(adata, n_neighbors=n_neighbors)
+            # UMAP computation
+            sc.tl.umap(adata)
+            print("Clustering")
+            # Perform leiden clustering - improved version of louvain clustering
+            if clustering == "leiden":
+                print("Leiden clustering")
+                sc.tl.leiden(
+                    adata,
+                    resolution=resolution,
+                    key_added=key_added,
+                    random_state=seed,
+                    **cluster_kwargs,
+                )
+            else:
+                if clustering == "louvain":
+                    print("Louvain clustering")
+                    sc.tl.louvain(
+                        adata,
+                        resolution=resolution,
+                        key_added=key_added,
+                        random_state=seed,
+                        **cluster_kwargs,
+                    )
+                else:
+                    print("FlowSOM clustering")
+                    adata_df = pd.DataFrame(
+                        adata.X, index=adata.obs.index, columns=adata.var.index
+                    )
+                    # df to numpy array
+                    som_input_arr = adata_df.to_numpy()
+                    # train the SOM
+                    node_output = som(
+                        som_input_arr,
+                        xdim=fs_xdim,
+                        ydim=fs_ydim,
+                        rlen=fs_rlen,
+                        seed=seed,
+                    )
+                    # use trained SOM to assign clusters to each observation in your data
+                    clusters, dists = map_data_to_nodes(node_output, som_input_arr)
+
+                    # make clusters a string
+                    clusters = clusters.astype(str)
+
+                    clusters = pd.Categorical(clusters)
+                    # add cluster to adata
+                    adata.obs[key_added] = clusters
+
+    if key_filter is None:
+        if marker_list is None:
+            return adata
+        else:
+            adata_tmp.obs[key_added] = adata.obs[key_added].values
+            # append other data
+            adata_tmp.obsm = adata.obsm
+            adata_tmp.obsp = adata.obsp
+            adata_tmp.uns = adata.uns
+
+    if key_filter is not None:
+        original_df = adata_tmp.obs
+        donor_df = adata.obs
+
+        donor_df_cols = donor_df.loc[:, donor_df.columns != key_added].columns.tolist()
+        # Perform the merge operation
+        merged_df = pd.merge(
+            original_df,
+            donor_df,
+            left_on=donor_df_cols,
+            right_on=donor_df_cols,
+            how="left",
+        )
+
+        # Fill NA/NaN values in 'key_added' using the values from 'key_filter'
+        merged_df[key_filter] = merged_df[key_filter].astype(str)
+        merged_df[key_added] = merged_df[key_added].astype(str)
+
+        merged_df.replace("nan", np.nan, inplace=True)
+
+        merged_df[key_added].fillna(merged_df[key_filter], inplace=True)
+
+        merged_df[key_filter] = merged_df[key_filter].astype("category")
+        merged_df[key_added] = merged_df[key_added].astype("category")
+
+        merged_df.index = merged_df.index.astype(str)
+        # assign df as obs for adata_tmp
+        adata_tmp.obs = merged_df
+
+    return adata_tmp
 
 
 ###############
@@ -1001,65 +1242,6 @@ def tl_test_clustering_resolutions(
         sc.pl.umap(adata, color=f"{clustering}_{res}", legend_loc="on data")
 
 
-###############
-# clustering
-
-
-def tl_clustering_ad(
-    adata,
-    clustering="leiden",
-    marker_list=None,
-    res=1,
-    n_neighbors=10,
-    reclustering=False,
-):
-    if clustering not in ["leiden", "louvain"]:
-        print("Invalid clustering options. Please select from leiden or louvain!")
-        exit()
-    # input a list of markers for clustering
-    # reconstruct the anndata
-    if marker_list is not None:
-        if len(list(set(marker_list) - set(adata.var_names))) > 0:
-            print("Marker list not all in adata var_names! Using intersection instead!")
-            marker_list = list(set(marker_list) & set(adata.var_names))
-            print("New marker_list: " + " ".join(marker_list))
-        adata_tmp = adata
-        adata = adata[:, marker_list]
-    # Compute the neighborhood relations of single cells the range 2 to 100 and usually 10
-    if reclustering:
-        print("Clustering")
-        if clustering == "leiden":
-            sc.tl.leiden(adata, resolution=res, key_added="leiden_" + str(res))
-        else:
-            sc.tl.louvain(adata, resolution=res, key_added="louvain" + str(res))
-    else:
-        print("Computing neighbors and UMAP")
-        sc.pp.neighbors(adata, n_neighbors=n_neighbors)
-        # UMAP computation
-        sc.tl.umap(adata)
-        print("Clustering")
-        # Perform leiden clustering - improved version of louvain clustering
-        if clustering == "leiden":
-            sc.tl.leiden(adata, resolution=res, key_added="leiden_" + str(res))
-        else:
-            sc.tl.louvain(adata, resolution=res, key_added="louvain" + str(res))
-
-    if marker_list is None:
-        return adata
-    else:
-        if clustering == "leiden":
-            adata_tmp.obs["leiden_" + str(res)] = adata.obs["leiden_" + str(res)].values
-        else:
-            adata_tmp.obs["leiden_" + str(res)] = adata.obs[
-                "louvain_" + str(res)
-            ].values
-        # append other data
-        adata_tmp.obsm = adata.obsm
-        adata_tmp.obsp = adata.obsp
-        adata_tmp.uns = adata.uns
-        return adata_tmp
-
-
 def neighborhood_analysis(
     adata,
     unique_region,
@@ -1197,7 +1379,7 @@ def neighborhood_analysis(
     return adata
 
 
-def cn_map(
+def build_cn_map(
     adata,
     cn_col,
     unique_region,
@@ -1289,7 +1471,17 @@ def cn_map(
         w, l, k, threshold=threshold, per_keep_thres=per_keep_thres  # color palette
     )
     g, tops, e0, e1 = tl_build_graph_CN_comb_map(simp_freqs)
-    return {"g": g, "tops": tops, "e0": e0, "e1": e1, "simp_freqs": simp_freqs}
+    return {
+        "g": g,
+        "tops": tops,
+        "e0": e0,
+        "e1": e1,
+        "simp_freqs": simp_freqs,
+        "w": w,
+        "l": l,
+        "k": k,
+        "threshold": threshold,
+    }
 
 
 def tl_format_for_squidpy(adata, x_col, y_col):
@@ -1926,173 +2118,9 @@ def calculate_pvalue(row):
         return np.nan
 
 
-def tl_identify_interactions(
-    triangulation_distances,
-    iterative_triangulation_distances,
-    metadata,
-    min_observed=10,
-    distance_threshold=128,
-    comparison="tissue",
-):
-    """
-    Identify interactions between cell types based on triangulation distances.
-
-    Parameters
-    ----------
-    triangulation_distances : pandas.DataFrame
-        DataFrame containing triangulation distances.
-    iterative_triangulation_distances : pandas.DataFrame
-        DataFrame containing iterative triangulation distances.
-    metadata : pandas.DataFrame
-        DataFrame containing metadata.
-    min_observed : int, optional
-        Minimum number of observations required to keep a comparison. Defaults to 10.
-    distance_threshold : int, optional
-        Maximum distance to consider for interactions. Defaults to 128.
-    comparison : str, optional
-        Column name to use for comparison. Defaults to "tissue".
-
-    Returns
-    -------
-    pandas.DataFrame
-        DataFrame containing p-values, logfold changes, and interactions for each comparison.
-    """
-    # Reformat observed dataset
-    triangulation_distances_long = add_missing_columns(
-        triangulation_distances, metadata, shared_column="unique_region"
-    )
-
-    observed_distances = (
-        triangulation_distances_long.query("distance <= @distance_threshold")
-        .groupby(
-            ["celltype1_index", "celltype1", "celltype2", comparison, "unique_region"]
-        )
-        .agg(mean_per_cell=("distance", "mean"))
-        .reset_index()
-        .groupby(["celltype1", "celltype2", comparison])
-        .agg(observed=("mean_per_cell", list), observed_mean=("mean_per_cell", "mean"))
-        .reset_index()
-    )
-
-    # Reformat expected dataset
-    iterated_triangulation_distances_long = add_missing_columns(
-        iterative_triangulation_distances, metadata, shared_column="unique_region"
-    )
-
-    expected_distances = (
-        iterated_triangulation_distances_long.query("mean_dist <= @distance_threshold")
-        .groupby(["celltype1", "celltype2", comparison])
-        .agg(expected=("mean_dist", list), expected_mean=("mean_dist", "mean"))
-        .reset_index()
-    )
-
-    # Drop comparisons with low numbers of observations
-    observed_distances["keep"] = observed_distances["observed"].apply(
-        lambda x: len(x) > min_observed
-    )
-    observed_distances = observed_distances[observed_distances["keep"]]
-
-    expected_distances["keep"] = expected_distances["expected"].apply(
-        lambda x: len(x) > min_observed
-    )
-    expected_distances = expected_distances[expected_distances["keep"]]
-
-    # concatenate observed and expected distances
-    distance_pvals = expected_distances.merge(
-        observed_distances, on=["celltype1", "celltype2", comparison], how="left"
-    )
-
-    distance_pvals = expected_distances.merge(
-        observed_distances, on=["celltype1", "celltype2", comparison], how="left"
-    )
-    distance_pvals["pvalue"] = distance_pvals.apply(calculate_pvalue, axis=1)
-    distance_pvals["logfold_group"] = np.log2(
-        distance_pvals["observed_mean"] / distance_pvals["expected_mean"]
-    )
-    distance_pvals["interaction"] = (
-        distance_pvals["celltype1"] + " --> " + distance_pvals["celltype2"]
-    )
-
-    # drop na from distance_pvals
-    # distance_pvals = distance_pvals.dropna()
-
-    return distance_pvals
-
-
-def filter_interactions(distance_pvals, pvalue=0.05, logfold_group_abs=0.1):
-    """
-    Filter interactions based on p-value, logfold change, and other conditions.
-
-    Parameters
-    ----------
-    distance_pvals : pandas.DataFrame
-        DataFrame containing p-values, logfold changes, and interactions for each comparison.
-    pvalue : float, optional
-        Maximum p-value to consider for significance. Defaults to 0.05.
-    logfold_group_abs : float, optional
-        Minimum absolute logfold change to consider for significance. Defaults to 0.1.
-
-    Returns
-    -------
-    dist_table : pandas.DataFrame
-        DataFrame containing logfold changes sorted into two columns by condition.
-    distance_pvals_sig_sub : pandas.DataFrame
-        Subset of the original DataFrame containing only significant interactions.
-    """
-    # calculate absolute logfold difference
-    distance_pvals["logfold_group_abs"] = distance_pvals["logfold_group"].abs()
-
-    # Creating pairs
-    distance_pvals["pairs"] = (
-        distance_pvals["celltype1"] + "_" + distance_pvals["celltype2"]
-    )
-
-    # Filter significant p-values and other specified conditions
-    distance_pvals_sig = distance_pvals[
-        (distance_pvals["pvalue"] < pvalue)
-        & (distance_pvals["celltype1"] != distance_pvals["celltype2"])
-        & (~distance_pvals["observed_mean"].isna())
-        & (distance_pvals["logfold_group_abs"] > logfold_group_abs)
-    ]
-
-    # calculate absolute logfold difference
-    distance_pvals["logfold_group_abs"] = distance_pvals["logfold_group"].abs()
-
-    # Filter significant p-values and other specified conditions
-    distance_pvals_sig = distance_pvals[
-        (distance_pvals["pvalue"] < pvalue)
-        & (distance_pvals["celltype1"] != distance_pvals["celltype2"])
-        & (~distance_pvals["observed_mean"].isna())
-    ]
-
-    # Assuming distance_pvals_interesting2 is a pandas DataFrame with the same structure as the R dataframe.
-    # pair_to = distance_pvals_sig["interaction"].unique()
-    pairs = distance_pvals_sig["pairs"].unique()
-
-    # Filtering data
-    data = distance_pvals_sig[~distance_pvals_sig["interaction"].isna()]
-
-    # Subsetting data
-    distance_pvals_sig_sub = data[data["pairs"].isin(pairs)]
-    distance_pvals_sig_sub_reduced = distance_pvals_sig_sub.loc[
-        :, ["condition", "logfold_group", "pairs"]
-    ].copy()
-
-    # set pairs as index
-    distance_pvals_sig_sub_reduced = distance_pvals_sig_sub_reduced.set_index("pairs")
-
-    # sort logfold_group into two columns by tissue
-    dist_table = distance_pvals_sig_sub_reduced.pivot(
-        columns="condition", values="logfold_group"
-    )
-    dist_table.dropna(inplace=True)
-
-    return dist_table, distance_pvals_sig_sub
-
-
 def identify_interactions(
     adata,
-    id,
+    cellid,
     x_pos,
     y_pos,
     cell_type,
@@ -2149,7 +2177,11 @@ def identify_interactions(
         DataFrame with p-values and logfold changes for interactions.
     """
     df_input = pd.DataFrame(adata.obs)
-    df_input[id] = df_input.index
+    if cellid in df_input.columns:
+        df_input.index = df_input[cellid]
+    else:
+        print(cellid + " is not in the adata.obs, use index as cellid instead!")
+        df_input[cellid] = df_input.index
 
     # change columns to pandas string
     df_input[cell_type] = df_input[cell_type].astype(str)
@@ -2158,7 +2190,7 @@ def identify_interactions(
     print("Computing for observed distances between cell types!")
     triangulation_distances = get_triangulation_distances(
         df_input=df_input,
-        id=id,
+        id=cellid,
         x_pos=x_pos,
         y_pos=y_pos,
         cell_type=cell_type,
@@ -2166,7 +2198,7 @@ def identify_interactions(
         num_cores=num_cores,
         correct_dtype=correct_dtype,
     )
-    if triDist_keyname is None:
+    if key_name is None:
         triDist_keyname = "triDist"
     adata.uns["triDist_keyname"] = triangulation_distances
     print("Save triangulation distances output to anndata.uns " + triDist_keyname)
@@ -2175,7 +2207,7 @@ def identify_interactions(
     print("this step can take awhile")
     iterative_triangulation_distances = tl_iterate_tri_distances(
         df_input=df_input,
-        id=id,
+        id=cellid,
         x_pos=x_pos,
         y_pos=y_pos,
         cell_type=cell_type,
@@ -2192,7 +2224,7 @@ def identify_interactions(
         "Save iterative triangulation distance output to anndata.uns " + triDist_keyname
     )
 
-    metadata = df_input.loc[:, ["unique_region", "condition"]].copy()
+    metadata = df_input.loc[:, ["unique_region", comparison]].copy()
     # Reformat observed dataset
     triangulation_distances_long = add_missing_columns(
         triangulation_distances, metadata, shared_column=region
@@ -2253,9 +2285,74 @@ def identify_interactions(
     return distance_pvals
 
 
+def filter_interactions(
+    distance_pvals, pvalue=0.05, logfold_group_abs=0.1, comparison="condition"
+):
+    """
+    Filters interactions based on p-value, logfold change, and other conditions.
+
+    Parameters
+    ----------
+    distance_pvals : pandas.DataFrame
+        DataFrame containing p-values, logfold changes, and interactions for each comparison.
+    pvalue : float, optional
+        The maximum p-value to consider for significance. Defaults to 0.05.
+    logfold_group_abs : float, optional
+        The minimum absolute logfold change to consider for significance. Defaults to 0.1.
+    comparison : str, optional
+        The comparison condition to filter by. Defaults to "condition".
+
+    Returns
+    -------
+    dist_table : pandas.DataFrame
+        DataFrame containing logfold changes sorted into two columns by the comparison condition.
+    distance_pvals_sig_sub : pandas.DataFrame
+        Subset of the original DataFrame containing only significant interactions based on the specified conditions.
+    """
+    # calculate absolute logfold difference
+    distance_pvals["logfold_group_abs"] = distance_pvals["logfold_group"].abs()
+
+    # Creating pairs
+    distance_pvals["pairs"] = (
+        distance_pvals["celltype1"] + "_" + distance_pvals["celltype2"]
+    )
+
+    # Filter significant p-values and other specified conditions
+    distance_pvals_sig = distance_pvals[
+        (distance_pvals["pvalue"] < pvalue)
+        & (distance_pvals["celltype1"] != distance_pvals["celltype2"])
+        & (~distance_pvals["observed_mean"].isna())
+        & (distance_pvals["logfold_group_abs"] > logfold_group_abs)
+    ]
+
+    # Assuming distance_pvals_interesting2 is a pandas DataFrame with the same structure as the R dataframe.
+    # pair_to = distance_pvals_sig["interaction"].unique()
+    pairs = distance_pvals_sig["pairs"].unique()
+
+    # Filtering data
+    data = distance_pvals[~distance_pvals["interaction"].isna()]
+
+    # Subsetting data
+    distance_pvals_sig_sub = data[data["pairs"].isin(pairs)]
+    distance_pvals_sig_sub_reduced = distance_pvals_sig_sub.loc[
+        :, [comparison, "logfold_group", "pairs"]
+    ].copy()
+
+    # set pairs as index
+    distance_pvals_sig_sub_reduced = distance_pvals_sig_sub_reduced.set_index("pairs")
+
+    # sort logfold_group into two columns by tissue
+    dist_table = distance_pvals_sig_sub_reduced.pivot(
+        columns=comparison, values="logfold_group"
+    )
+    dist_table.dropna(inplace=True)
+
+    return dist_table, distance_pvals_sig_sub
+
+
 # Function for patch identification
 ## Adjust clustering parameter to get the desired number of clusters
-def apply_dbscan_clustering(df, min_samples=10):
+def apply_dbscan_clustering(df, min_cluster_size=10):
     """
     Apply DBSCAN clustering to a dataframe and update the cluster labels in the original dataframe.
 
@@ -2263,7 +2360,7 @@ def apply_dbscan_clustering(df, min_samples=10):
     ----------
     df : pandas.DataFrame
         The dataframe to be clustered.
-    min_samples : int, optional
+    min_cluster_size : int, optional
         The number of samples in a neighborhood for a point to be considered as a core point, by default 10
 
     Returns
@@ -2275,8 +2372,8 @@ def apply_dbscan_clustering(df, min_samples=10):
 
     # Apply DBSCAN clustering
     hdbscan = HDBSCAN(
-        min_samples=min_samples,
-        min_cluster_size=5,
+        min_samples=None,
+        min_cluster_size=min_cluster_size,
         cluster_selection_epsilon=0.0,
         max_cluster_size=None,
         metric="euclidean",
@@ -2306,29 +2403,6 @@ def plot_selected_neighbors_with_shapes(
     plot=True,
     identification_column="community",
 ):
-    """
-    Plot points and identify points in radius of selected points.
-
-    Parameters
-    ----------
-    full_df : pandas.DataFrame
-        The full dataframe containing all points.
-    selected_df : pandas.DataFrame
-        The dataframe containing selected points.
-    target_df : pandas.DataFrame
-        The dataframe containing target points.
-    radius : float
-        The radius within which to identify neighboring points.
-    plot : bool, optional
-        Whether to plot the points and their neighbors, by default True
-    identification_column : str, optional
-        The column name used for identification, by default "community"
-
-    Returns
-    -------
-    pandas.DataFrame
-        A dataframe containing all points within the radius of the selected points but from a different cluster.
-    """
     # Get unique clusters from the full DataFrame
     unique_clusters = full_df[identification_column].unique()
 
@@ -2356,7 +2430,7 @@ def plot_selected_neighbors_with_shapes(
                 in_circle_diff_cluster["x"],
                 in_circle_diff_cluster["y"],
                 facecolors="none",
-                edgecolors="red",
+                edgecolors="#DC0000B2",
                 marker="*",
                 s=100,
                 zorder=5,
@@ -2373,8 +2447,8 @@ def plot_selected_neighbors_with_shapes(
         plt.scatter(
             selected_df["x"],
             selected_df["y"],
-            color="yellow",
-            label="Selected Points",
+            color="#3C5488B2",
+            label="Boarder cells",
             s=100,
             edgecolor="black",
             zorder=6,
@@ -2383,7 +2457,7 @@ def plot_selected_neighbors_with_shapes(
             circle = plt.Circle(
                 (row["x"], row["y"]),
                 radius,
-                color="red",
+                color="#3C5488B2",
                 fill=False,
                 linestyle="--",
                 alpha=0.5,
@@ -2393,8 +2467,8 @@ def plot_selected_neighbors_with_shapes(
         # Set plot labels and title
         plt.xlabel("X")
         plt.ylabel("Y")
-        plt.title(f"Points with Radius {radius} for Selected Points")
-        plt.grid(True)
+        plt.title(f"Cells within {radius} radius")
+        plt.grid(False)
         plt.axis("equal")
 
         # Place the legend outside the plot
@@ -2407,6 +2481,9 @@ def plot_selected_neighbors_with_shapes(
             bbox_to_anchor=(1, 0.5),
         )
         plt.tight_layout()
+        # set figure size
+        plt.gcf().set_size_inches(15, 5)
+
         plt.show()
 
     # Remove duplicates from the final DataFrame
@@ -2415,9 +2492,55 @@ def plot_selected_neighbors_with_shapes(
     return all_in_circle_diff_cluster
 
 
-# generate a dataframe with the points in proximity to the selected points
-## points are selected based on the coordinates of a 2D concave hull
-### set edge_neighbours to 3 to select the 3 nearest points to the hull or 1 to disable functionality
+def process_cluster(args):
+    (
+        df,
+        cluster,
+        cluster_column,
+        x_column,
+        y_column,
+        concave_hull_length_threshold,
+        edge_neighbours,
+        full_df,
+        radius,
+        plot,
+        identification_column,
+    ) = args
+    # Filter DataFrame for the current cluster
+    subset = df.loc[df[cluster_column] == cluster]
+    points = subset[[x_column, y_column]].values
+
+    # Compute concave hull indexes
+    idxes = concave_hull_indexes(
+        points[:, :2],
+        length_threshold=concave_hull_length_threshold,
+    )
+
+    # Get hull points from the DataFrame
+    hull_points = pd.DataFrame(points[idxes], columns=["x", "y"])
+
+    # Find nearest neighbors of hull points in the original DataFrame
+    nbrs = NearestNeighbors(n_neighbors=edge_neighbours).fit(df[[x_column, y_column]])
+    distances, indices = nbrs.kneighbors(hull_points[["x", "y"]])
+
+    hull_nearest_neighbors = df.iloc[indices.flatten()]
+
+    # Plot selected neighbors and get the DataFrame with different clusters in the circle
+    prox_points = plot_selected_neighbors_with_shapes(
+        full_df=full_df,
+        selected_df=hull_nearest_neighbors,
+        target_df=full_df,
+        radius=radius,
+        plot=plot,
+        identification_column=identification_column,
+    )
+
+    # Add a 'patch_id' column to identify the cluster
+    prox_points["patch_id"] = cluster
+
+    return prox_points, hull_nearest_neighbors
+
+
 def identify_points_in_proximity(
     df,
     full_df,
@@ -2430,77 +2553,32 @@ def identify_points_in_proximity(
     plot=True,
     concave_hull_length_threshold=50,
 ):
-    """
-    Generate a dataframe with the points in proximity to the selected points. Points are selected based on the coordinates of a 2D concave hull.
-
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        The dataframe containing the points to be processed.
-    full_df : pandas.DataFrame
-        The full dataframe containing all points.
-    identification_column : str
-        The column name used for identification.
-    cluster_column : str, optional
-        The column name used for clustering, by default "cluster"
-    x_column : str, optional
-        The column name for the x-coordinate, by default "x"
-    y_column : str, optional
-        The column name for the y-coordinate, by default "y"
-    radius : int, optional
-        The radius within which to identify neighboring points, by default 200
-    edge_neighbours : int, optional
-        The number of nearest points to the hull to select, by default 3
-    plot : bool, optional
-        Whether to plot the points and their neighbors, by default True
-    concave_hull_length_threshold : int, optional
-        The length threshold for the concave hull, by default 50
-
-    Returns
-    -------
-    pandas.DataFrame
-        A dataframe containing all points within the radius of the selected points but from a different cluster.
-    """
-    result_list = []
-
-    # Loop through clusters in the DataFrame
-    for cluster in set(df[cluster_column]) - {-1}:
-        # Filter DataFrame for the current cluster
-        subset = df.loc[df[cluster_column] == cluster]
-        points = subset[[x_column, y_column]].values
-
-        # Compute concave hull indexes
-        idxes = concave_hull_indexes(
-            points[:, :2],
-            length_threshold=concave_hull_length_threshold,
+    num_processes = max(
+        1, os.cpu_count() - 2
+    )  # Use all available CPUs minus 2, but at least 1
+    with Pool(processes=num_processes) as pool:
+        results = pool.map(
+            process_cluster,
+            [
+                (
+                    df,
+                    cluster,
+                    cluster_column,
+                    x_column,
+                    y_column,
+                    concave_hull_length_threshold,
+                    edge_neighbours,
+                    full_df,
+                    radius,
+                    plot,
+                    identification_column,
+                )
+                for cluster in set(df[cluster_column]) - {-1}
+            ],
         )
 
-        # Get hull points from the DataFrame
-        hull_points = pd.DataFrame(points[idxes], columns=["x", "y"])
-
-        # Find nearest neighbors of hull points in the original DataFrame
-        nbrs = NearestNeighbors(n_neighbors=edge_neighbours).fit(
-            df[[x_column, y_column]]
-        )
-        distances, indices = nbrs.kneighbors(hull_points[["x", "y"]])
-
-        hull_nearest_neighbors = df.iloc[indices.flatten()]
-
-        # Plot selected neighbors and get the DataFrame with different clusters in the circle
-        prox_points = plot_selected_neighbors_with_shapes(
-            full_df=full_df,
-            selected_df=hull_nearest_neighbors,
-            target_df=full_df,
-            radius=radius,
-            plot=plot,
-            identification_column=identification_column,
-        )
-
-        # Add a 'patch_id' column to identify the cluster
-        prox_points["patch_id"] = cluster
-
-        # Append the result to the list
-        result_list.append(prox_points)
+    # Unpack the results
+    result_list, outline_list = zip(*results)
 
     # Concatenate the list of DataFrames into a single result DataFrame
     if len(result_list) > 0:
@@ -2508,7 +2586,12 @@ def identify_points_in_proximity(
     else:
         result = pd.DataFrame(columns=["x", "y", "patch_id", identification_column])
 
-    return result
+    if len(outline_list) > 0:
+        outlines = pd.concat(outline_list)
+    else:
+        outlines = pd.DataFrame(columns=["x", "y", "patch_id", identification_column])
+
+    return result, outlines
 
 
 # This function analyzes what is in proximity of a selected group (CN, Celltype, etc...).
@@ -2517,7 +2600,7 @@ def patch_proximity_analysis(
     region_column,
     patch_column,
     group,
-    min_samples=80,
+    min_cluster_size=80,
     x_column="x",
     y_column="y",
     radius=128,
@@ -2527,46 +2610,32 @@ def patch_proximity_analysis(
     output_dir="./",
     output_fname="",
     key_name="ppa_result",
+    plot_color="#6a3d9a",
 ):
     """
-    Analyze what is in proximity of a selected group (CN, Celltype, etc...).
+    Performs a proximity analysis on patches of a given group within each region of a dataset.
 
-    Parameters
-    ----------
-    adata : anndata.AnnData
-        The annotated data matrix.
-    region_column : str
-        The column name for the region.
-    patch_column : str
-        The column name for the patch.
-    group : str
-        The group to analyze.
-    min_samples : int, optional
-        The minimum number of samples required to form a dense region, by default 80
-    x_column : str, optional
-        The column name for the x-coordinate, by default "x"
-    y_column : str, optional
-        The column name for the y-coordinate, by default "y"
-    radius : int, optional
-        The radius within which to identify neighboring points, by default 128
-    edge_neighbours : int, optional
-        The number of nearest points to the hull to select, by default 3 - used to better cover sparse parts of the patch
-    plot : bool, optional
-        Whether to plot the points and their neighbors, by default True
-    savefig : bool, optional
-        Whether to save the figure, by default False
-    output_dir : str, optional
-        The directory to save the figure, by default "./"
-    output_fname : str, optional
-        The filename for the saved figure, by default ""
-    key_name : str, optional
-        The key name for the final results in the uns attribute of the AnnData object, by default "ppa_result"
+    Parameters:
+    adata (AnnData): The annotated data matrix of shape n_obs x n_vars. Rows correspond to cells and columns to genes.
+    region_column (str): The name of the column in the DataFrame that contains the region information.
+    patch_column (str): The name of the column in the DataFrame that contains the patch information.
+    group (str): The group to perform the proximity analysis on.
+    min_cluster_size (int, optional): The minimum number of samples required to form a dense region. Default is 80.
+    x_column (str, optional): The name of the column in the DataFrame that contains the x-coordinate. Default is 'x'.
+    y_column (str, optional): The name of the column in the DataFrame that contains the y-coordinate. Default is 'y'.
+    radius (int, optional): The radius within which to identify points in proximity. Default is 128.
+    edge_neighbours (int, optional): The number of edge neighbours to consider. Default is 3.
+    plot (bool, optional): Whether to plot the patches. Default is True.
+    savefig (bool, optional): Whether to save the figure. Default is False.
+    output_dir (str, optional): The directory to save the figure in. Default is "./".
+    output_fname (str, optional): The filename to save the figure as. Default is "".
+    key_name (str, optional): The key name to store the results in the AnnData object. Default is 'ppa_result'.
 
-    Returns
-    -------
-    pandas.DataFrame
-        A dataframe containing all points within the radius of the selected points but from a different cluster.
+    Returns:
+    final_results (DataFrame): A DataFrame containing the results of the proximity analysis.
+    outlines_results (DataFrame): A DataFrame containing the outlines of the patches.
     """
+
     df = adata.obs
 
     for col in df.select_dtypes(["category"]).columns:
@@ -2574,57 +2643,67 @@ def patch_proximity_analysis(
 
     # list to store results for each region
     region_results = []
+    outlines = []
 
     for region in df[region_column].unique():
         df_region = df[df[region_column] == region].copy()
 
         df_community = df_region[df_region[patch_column] == group].copy()
 
-        apply_dbscan_clustering(df_community, min_samples=min_samples)
+        if df_community.shape[0] < min_cluster_size:
+            print(f"No {group} in {region}")
+            continue
 
-        # plot patches
-        if plot:
-            df_filtered = df_community[df_community["cluster"] != -1]
-            fig, ax = plt.subplots(figsize=(10, 10))
-            ax.scatter(
-                df_filtered["x"],
-                df_filtered["y"],
-                c=df_filtered["cluster"],
-                cmap="tab20",
-                alpha=0.5,
+        else:
+            apply_dbscan_clustering(df_community, min_cluster_size=min_cluster_size)
+
+            # plot patches
+            if plot:
+                df_filtered = df_community[df_community["cluster"] != -1]
+                fig, ax = plt.subplots(figsize=(10, 10))
+                ax.scatter(df_filtered["x"], df_filtered["y"], c=plot_color, alpha=0.5)
+                ax.set_title(f"HDBSCAN Clusters for {region}_{group}")
+                ax.set_xlabel(x_column)
+                ax.set_ylabel(y_column)
+                ax.grid(False)
+                ax.axis("equal")
+
+                if savefig:
+                    fig.savefig(
+                        output_dir
+                        + output_fname
+                        + "_"
+                        + str(region)
+                        + "_patch_proximity.pdf",
+                        bbox_inches="tight",
+                    )
+                else:
+                    plt.show()
+
+            results, hull_nearest_neighbors = identify_points_in_proximity(
+                df=df_community,
+                full_df=df_region,
+                cluster_column="cluster",
+                identification_column=patch_column,
+                x_column=x_column,
+                y_column=y_column,
+                radius=radius,
+                edge_neighbours=edge_neighbours,
+                plot=plot,
             )
-            ax.set_title(f"DBSCAN Clusters for {region}_{group}")
-            ax.set_xlabel(x_column)
-            ax.set_ylabel(y_column)
-            ax.grid(True)
-            ax.axis("equal")
-            if savefig:
-                fig.savefig(
-                    output_dir + output_fname + "_patch_proximity.pdf",
-                    bbox_inches="tight",
-                )
-            else:
-                plt.show()
 
-        results = identify_points_in_proximity(
-            df=df_community,
-            full_df=df_region,
-            cluster_column="cluster",
-            identification_column=patch_column,
-            x_column=x_column,
-            y_column=y_column,
-            radius=radius,
-            edge_neighbours=edge_neighbours,
-            plot=plot,
-        )
+            # add hull_nearest_neighbors to list
+            outlines.append(hull_nearest_neighbors)
 
-        print(f"Finished {region}_{group}")
+            print(f"Finished {region}_{group}")
 
-        # append to region_results
-        region_results.append(results)
+            # append to region_results
+            region_results.append(results)
 
     # Concatenate all results into a single DataFrame
     final_results = pd.concat(region_results)
+
+    outlines_results = pd.concat(outlines)
 
     # generate new column named unique_patch_ID that combines the region, group and patch ID
     final_results["unique_patch_ID"] = (
@@ -2638,7 +2717,148 @@ def patch_proximity_analysis(
 
     adata.uns[key_name] = final_results
 
-    return final_results
+    return final_results, outlines_results
+
+
+def stellar_get_tonsilbe_edge_index(pos, distance_thres):
+    """
+    Constructs edge indexes in one region based on pairwise distances and a distance threshold.
+
+    Parameters:
+    pos (array-like): An array-like object of shape (n_samples, n_features) representing the positions.
+    distance_thres (float): The distance threshold. Pairs of positions with distances less than this threshold will be considered as edges.
+
+    Returns:
+    edge_list (list): A list of lists where each inner list contains two indices representing an edge.
+    """
+    # construct edge indexes in one region
+    edge_list = []
+    dists = pairwise_distances(pos)
+    dists_mask = dists < distance_thres
+    np.fill_diagonal(dists_mask, 0)
+    edge_list = np.transpose(np.nonzero(dists_mask)).tolist()
+    return edge_list
+
+
+def adata_stellar(
+    adata_train,
+    adata_unannotated,
+    celltype_col="coarse_anno3",
+    x_col="x",
+    y_col="y",
+    sample_rate=0.5,
+    distance_thres=50,
+    epochs=50,
+    key_added="stellar_pred",
+    STELLAR_path="",
+):
+    """
+    Applies the STELLAR algorithm to the given annotated and unannotated data.
+
+    Parameters:
+    adata_train (AnnData): The annotated data.
+    adata_unannotated (AnnData): The unannotated data.
+    celltype_col (str, optional): The column name for cell types in the annotated data. Defaults to 'coarse_anno3'.
+    x_col (str, optional): The column name for x coordinates in the data. Defaults to 'x'.
+    y_col (str, optional): The column name for y coordinates in the data. Defaults to 'y'.
+    sample_rate (float, optional): The rate at which to sample the training data. Defaults to 0.5.
+    distance_thres (int, optional): The distance threshold for constructing edge indexes. Defaults to 50.
+    key_added (str, optional): The key to be added to the unannotated data's obs dataframe for the predicted results. Defaults to 'stellar_pred'.
+
+    Returns:
+    adata (AnnData): The unannotated data with the added key for the predicted results.
+    """
+
+    sys.path.append(str(STELLAR_path))
+    from datasets import GraphDataset
+    from STELLAR import STELLAR
+    from utils import prepare_save_dir
+
+    parser = argparse.ArgumentParser(description="STELLAR")
+    parser.add_argument(
+        "--seed", type=int, default=1, metavar="S", help="random seed (default: 1)"
+    )
+    parser.add_argument("--name", type=str, default="STELLAR")
+    parser.add_argument("--epochs", type=int, default=50)
+    parser.add_argument("--lr", type=float, default=1e-3)
+    parser.add_argument("--wd", type=float, default=5e-2)
+    parser.add_argument("--input-dim", type=int, default=26)
+    parser.add_argument("--num-heads", type=int, default=13)
+    parser.add_argument("--num-seed-class", type=int, default=3)
+    parser.add_argument("--sample-rate", type=float, default=0.5)
+    parser.add_argument(
+        "-b", "--batch-size", default=1, type=int, metavar="N", help="mini-batch size"
+    )
+    parser.add_argument("--distance_thres", default=50, type=int)
+    parser.add_argument("--savedir", type=str, default="./")
+    args = parser.parse_args(args=[])
+    args.cuda = torch.cuda.is_available()
+    args.device = torch.device("cuda" if args.cuda else "cpu")
+    args.epochs = 50
+
+    # prepare input data
+    print("Preparing input data")
+    train_df = adata_train.to_df()
+
+    # add to train_df
+    positions_celltype = adata_train.obs[[x_col, y_col, celltype_col]]
+
+    train_df = pd.concat([train_df, positions_celltype], axis=1)
+
+    train_df = train_df.sample(n=round(sample_rate * len(train_df)), random_state=1)
+
+    train_X = train_df.iloc[:, 0:-3].values
+    test_X = adata_unannotated.to_df().values
+
+    train_y = train_df[celltype_col].str.lower()
+    train_y
+
+    labeled_pos = train_df.iloc[
+        :, -3:-1
+    ].values  # x,y coordinates, indexes depend on specific datasets
+    unlabeled_pos = adata_unannotated.obs[[x_col, y_col]].values
+
+    cell_types = np.sort(list(set(train_y))).tolist()
+    cell_types
+
+    cell_type_dict = {}
+    inverse_dict = {}
+
+    for i, cell_type in enumerate(cell_types):
+        cell_type_dict[cell_type] = i
+        inverse_dict[i] = cell_type
+
+    train_y = np.array([cell_type_dict[x] for x in train_y])
+
+    labeled_edges = stellar_get_tonsilbe_edge_index(
+        labeled_pos, distance_thres=distance_thres
+    )
+    unlabeled_edges = stellar_get_tonsilbe_edge_index(
+        unlabeled_pos, distance_thres=distance_thres
+    )
+
+    # build dataset
+    print("Building dataset")
+    dataset = GraphDataset(train_X, train_y, test_X, labeled_edges, unlabeled_edges)
+
+    # run stellar
+    print("Running STELLAR")
+    stellar = STELLAR(args, dataset)
+    stellar.train()
+    _, results = stellar.pred()
+
+    results = results.astype("object")
+    for i in range(len(results)):
+        if results[i] in inverse_dict.keys():
+            results[i] = inverse_dict[results[i]]
+    adata_unannotated.obs[key_added] = pd.Categorical(results)
+
+    # make stellar_pred a string
+    adata_unannotated.obs["stellar_pred"] = adata_unannotated.obs[
+        "stellar_pred"
+    ].astype(str)
+
+    return adata_unannotated
 
 
 def ml_train(
@@ -2649,6 +2869,7 @@ def ml_train(
     model="svm",
     nan_policy_y="raise",
     showfig=True,
+    figsize=(10, 8),
 ):
     """
     Train a svm model on the provided data.
@@ -2713,6 +2934,7 @@ def ml_train(
         y_true=y_test, y_pred=svm_label, target_names=target_names, output_dict=True
     )
     if showfig:
+        plt.figure(figsize=figsize)
         sns.heatmap(pd.DataFrame(svm_eval).iloc[:-1, :].T, annot=True)
         plt.show()
 
@@ -2754,3 +2976,586 @@ def ml_predict(adata_val, svc, save_name="svm_pred", return_prob_mat=False):
         y_prob_val.columns = svc.classes_
         svm_label_val = y_prob_val.idxmax(axis=1, skipna=True)
         return svm_label_val
+
+
+class ImageProcessor:
+    """
+    A class used to process images and compute channel means and sums.
+
+    ...
+
+    Attributes
+    ----------
+    flatmasks : ndarray
+        2D numpy array containing masks for each cell.
+
+    Methods
+    -------
+    update_adjacency_value(adjacency_matrix, original, neighbor):
+        Updates the adjacency matrix based on the original and neighbor values.
+    update_adjacency_matrix(plane_mask_flattened, width, height, adjacency_matrix, index):
+        Updates the adjacency matrix based on the flattened plane mask.
+    compute_channel_means_sums_compensated(image):
+        Computes the channel means and sums for each cell and compensates them.
+    """
+
+    def __init__(self, flatmasks):
+        """
+        Constructs all the necessary attributes for the ImageProcessor object.
+
+        Parameters
+        ----------
+            flatmasks : ndarray
+                2D numpy array containing masks for each cell.
+        """
+        self.flatmasks = flatmasks
+
+    def update_adjacency_value(self, adjacency_matrix, original, neighbor):
+        # This function is copied from CellSeg
+        """
+        Updates the adjacency matrix based on the original and neighbor values.
+
+        Parameters
+        ----------
+            adjacency_matrix : ndarray
+                2D numpy array representing the adjacency matrix.
+            original : int
+                Original value.
+            neighbor : int
+                Neighbor value.
+
+        Returns
+        -------
+            bool
+                True if the original and neighbor values are different and not zero, False otherwise.
+        """
+        border = False
+
+        if original != 0 and original != neighbor:
+            border = True
+            if neighbor != 0:
+                adjacency_matrix[int(original - 1), int(neighbor - 1)] += 1
+        return border
+
+    def update_adjacency_matrix(
+        self, plane_mask_flattened, width, height, adjacency_matrix, index
+    ):
+        # This function is copied from CellSeg
+        """
+        Updates the adjacency matrix based on the flattened plane mask.
+
+        Parameters
+        ----------
+            plane_mask_flattened : ndarray
+                1D numpy array representing the flattened plane mask.
+            width : int
+                Width of the plane mask.
+            height : int
+                Height of the plane mask.
+            adjacency_matrix : ndarray
+                2D numpy array representing the adjacency matrix.
+            index : int
+                Index of the current cell in the flattened plane mask.
+        """
+        mod_value_width = index % width
+        origin_mask = plane_mask_flattened[index]
+        left, right, up, down = False, False, False, False
+
+        if mod_value_width != 0:
+            left = self.update_adjacency_value(
+                adjacency_matrix, origin_mask, plane_mask_flattened[index - 1]
+            )
+        if mod_value_width != width - 1:
+            right = self.update_adjacency_value(
+                adjacency_matrix, origin_mask, plane_mask_flattened[index + 1]
+            )
+        if index >= width:
+            up = self.update_adjacency_value(
+                adjacency_matrix, origin_mask, plane_mask_flattened[index - width]
+            )
+        if index <= len(plane_mask_flattened) - 1 - width:
+            down = self.update_adjacency_value(
+                adjacency_matrix, origin_mask, plane_mask_flattened[index + width]
+            )
+
+        if left or right or up or down:
+            adjacency_matrix[int(origin_mask - 1), int(origin_mask - 1)] += 1
+
+    def compute_channel_means_sums_compensated(self, image):
+        # This function is copied from CellSeg but modified to solve the least squares problem with torch instead of numpy
+        """
+        Computes the channel means and sums for each cell and compensates them.
+
+        Parameters
+        ----------
+            image : ndarray
+                3D numpy array representing the image.
+
+        Returns
+        -------
+            compensated_means : ndarray
+                2D numpy array representing the compensated means for each cell.
+            means : ndarray
+                2D numpy array representing the means for each cell.
+            channel_counts : ndarray
+                1D numpy array representing the counts for each cell.
+        """
+        height, width, n_channels = image.shape
+        mask_height, mask_width = self.flatmasks.shape
+        n_masks = len(np.unique(self.flatmasks)) - 1
+        channel_sums = np.zeros((n_masks, n_channels))
+        channel_counts = np.zeros((n_masks, n_channels))
+        if n_masks == 0:
+            return channel_sums, channel_sums, channel_counts
+
+        squashed_image = np.reshape(image, (height * width, n_channels))
+
+        # masklocs = np.nonzero(self.flatmasks)
+        # plane_mask = np.zeros((mask_height, mask_width), dtype = np.uint32)
+        # plane_mask[masklocs[0], masklocs[1]] = masklocs[2] + 1
+        # plane_mask = plane_mask.flatten()
+        plane_mask = self.flatmasks.flatten()
+
+        adjacency_matrix = np.zeros((n_masks, n_masks))
+        for i in range(len(plane_mask)):
+            self.update_adjacency_matrix(
+                plane_mask, mask_width, mask_height, adjacency_matrix, i
+            )
+
+            mask_val = plane_mask[i] - 1
+            if mask_val != -1:
+                channel_sums[mask_val.astype(np.int32)] += squashed_image[i]
+                channel_counts[mask_val.astype(np.int32)] += 1
+
+        # Normalize adjacency matrix
+        for i in range(n_masks):
+            adjacency_matrix[i] = adjacency_matrix[i] / (
+                max(adjacency_matrix[i, i], 1) * 2
+            )
+            adjacency_matrix[i, i] = 1
+
+        means = np.true_divide(
+            channel_sums,
+            channel_counts,
+            out=np.zeros_like(channel_sums, dtype="float"),
+            where=channel_counts != 0,
+        )
+        # Convert your numpy arrays to PyTorch tensors
+        adjacency_matrix_torch = torch.from_numpy(adjacency_matrix)
+        means_torch = torch.from_numpy(means)
+
+        # Solve the least squares problem
+        results_torch = torch.linalg.lstsq(adjacency_matrix_torch, means_torch).solution
+
+        # Convert the result back to a numpy array if needed
+        # Convert the result back to a numpy array if needed
+        results = results_torch.numpy()
+        compensated_means = np.maximum(results, np.zeros(results.shape))
+
+        return compensated_means, means, channel_counts[:, 0]
+
+
+def compensate_cell_matrix(df, image_dict, masks, overwrite=True):
+    """
+    Compensate cell matrix by computing channel means and sums.
+
+    Parameters
+    ----------
+    df : DataFrame
+        The DataFrame to which the compensated means will be added.
+    image_dict : dict
+        Dictionary containing images for each channel.
+    masks : ndarray
+        3D numpy array containing masks for each cell.
+    overwrite : bool, optional
+        If True, overwrite existing columns in df. If False, add new columns to df. Default is True.
+
+    Returns
+    -------
+    DataFrame
+        The DataFrame with added compensated means.
+
+    Notes
+    -----
+    The function computes the channel means and sums for each cell, compensates them, and adds them to the DataFrame.
+    The compensated means are added to the DataFrame with column names from the keys of the image_dict.
+    If overwrite is True, existing columns in the DataFrame are overwritten. If overwrite is False, new columns are added to the DataFrame.
+    """
+    masks = masks.squeeze()
+    image_list = [image_dict[channel_name] for channel_name in image_dict.keys()]
+
+    # Stack the 2D numpy arrays along the third dimension to create a 3D numpy array
+    image = np.stack(image_list, axis=-1)
+
+    # Now you can use `image` as the input for the function
+    processor = ImageProcessor(masks)
+    (
+        compensated_means,
+        means,
+        channel_counts,
+    ) = processor.compute_channel_means_sums_compensated(image)
+
+    # Get the keys
+    keys = list(image_dict.keys())
+
+    # Cycle over the keys
+    for i in range(len(keys)):
+        # Add the compensated_means to the DataFrame with column names from keys
+
+        if overwrite == True:
+            df[keys[i]] = compensated_means[:, i]
+        else:
+            df[keys[i] + "_compensated"] = compensated_means[:, i]
+
+    return df
+
+
+def masks_to_outlines_scikit_image(masks):
+    """get outlines of masks as a 0-1 array
+
+    Parameters
+    ----------------
+
+    masks: int, 2D or 3D array
+        size [Ly x Lx] or [Lz x Ly x Lx], 0=NO masks; 1,2,...=mask labels
+
+    Returns
+    ----------------
+
+    outlines: 2D or 3D array
+        size [Ly x Lx] or [Lz x Ly x Lx], True pixels are outlines
+
+    """
+    if masks.ndim > 3 or masks.ndim < 2:
+        raise ValueError(
+            "masks_to_outlines takes 2D or 3D array, not %dD array" % masks.ndim
+        )
+
+    if masks.ndim == 3:
+        outlines = np.zeros(masks.shape, bool)
+        for i in range(masks.shape[0]):
+            outlines[i] = find_boundaries(masks[i], mode="inner")
+        return outlines
+    else:
+        return find_boundaries(masks, mode="inner")
+
+
+def tm_viewer(
+    adata,
+    images_pickle_path,
+    directory,
+    region_column="unique_region",
+    region="",
+    xSelector="x",
+    ySelector="y",
+    color_by="celltype_fine",
+    keep_list=None,
+    include_masks=True,
+    open_viewer=True,
+    add_UMAP=True,
+):
+    segmented_matrix = adata.obs
+
+    with open(images_pickle_path, "rb") as f:
+        seg_output = pickle.load(f)
+
+    image_dict = seg_output["image_dict"]
+    masks = seg_output["masks"]
+
+    if keep_list == None:
+        keep_list = [region_column, xSelector, ySelector, color_by]
+
+    print("Preparing TissUUmaps input...")
+
+    cache_dir = pathlib.Path(directory) / region
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    # only keep columns in keep_list
+    segmented_matrix = segmented_matrix[keep_list]
+
+    if add_UMAP == True:
+        # add UMAP coordinates to segmented_matrix
+        segmented_matrix["UMAP_1"] = adata.obsm["X_umap"][:, 0]
+        segmented_matrix["UMAP_2"] = adata.obsm["X_umap"][:, 1]
+
+    csv_paths = []
+    # separate matrix by region and save every region as single csv file
+    region_matrix = segmented_matrix.loc[segmented_matrix[region_column] == region]
+
+    region_matrix.to_csv(cache_dir / (region + ".csv"))
+    csv_paths.append(cache_dir / (region + ".csv"))
+
+    # generate subdirectory for images
+    image_dir = cache_dir / "images"
+    image_dir.mkdir(parents=True, exist_ok=True)
+
+    image_list = []
+    # save every image as tif file in image directory from image_dict. name by key in image_dict
+    for key, image in image_dict.items():
+        file_path = os.path.join(image_dir, f"{key}.tif")
+        imsave(file_path, image, check_contrast=False)
+        image_list.append(file_path)
+
+    if include_masks == True:
+        # select first item from image_dict as reference image
+        reference_image = list(image_dict.values())[0]
+
+        # make reference image black by setting all values to 0
+        reference_image = np.zeros_like(reference_image)
+
+        # make the reference image rgb. Add empty channels
+        if len(reference_image.shape) == 2:
+            reference_image = np.expand_dims(reference_image, axis=-1)
+            reference_image = np.repeat(reference_image, 3, axis=-1)
+
+        # remove last dimension from masks
+        masks_3d = np.squeeze(masks)
+        outlines = masks_to_outlines_scikit_image(masks_3d)
+
+        reference_image[outlines == True] = [255, 0, 0]
+
+        file_path = os.path.join(image_dir, "masks.jpg")
+
+        # save black pixel as transparent
+        reference_image = reference_image.astype(np.uint8)
+
+        imsave(file_path, reference_image)
+        image_list.append(file_path)
+
+    if open_viewer == True:
+        print("Opening TissUUmaps viewer...")
+        tj.loaddata(
+            images=image_list,
+            csvFiles=[str(p) for p in csv_paths],
+            xSelector=xSelector,
+            ySelector=ySelector,
+            keySelector=color_by,
+            nameSelector=color_by,
+            colorSelector=color_by,
+            piechartSelector=None,
+            shapeSelector=None,
+            scaleSelector=None,
+            fixedShape=None,
+            scaleFactor=1,
+            colormap=None,
+            compositeMode="source-over",
+            boundingBox=None,
+            port=5100,
+            host="localhost",
+            height=900,
+            tmapFilename=region + "_project",
+            plugins=[
+                "Plot_Histogram",
+                "Points2Regions",
+                "Spot_Inspector",
+                "Feature_Space",
+                "ClassQC",
+            ],
+        )
+
+    return image_list, csv_paths
+
+
+def install_gpu_leiden(CUDA="12"):
+    """
+    Install the necessary packages for GPU-accelerated Leiden clustering.
+
+    Parameters
+    ----------
+    CUDA : str, optional
+        The version of CUDA to use for the installation. Options are '11' and '12'. Default is '12'.
+
+    Returns
+    -------
+    None
+
+    Notes
+    -----
+    This function runs a series of pip install commands to install the necessary packages. The specific packages and versions installed depend on the CUDA
+    version. The function prints the output and any errors from each command.
+    """
+    if platform.system() != "Linux":
+        print("This feature is currently only supported on Linux.")
+
+    else:
+        print("installing rapids_singlecell")
+        # Define the commands to run
+        if CUDA == "11":
+            commands = [
+                "pip install rapids-singlecell==0.9.5",
+                "pip install --extra-index-url=https://pypi.nvidia.com cudf-cu11==24.2.* dask-cudf-cu11==24.2.* cuml-cu11==24.2.* cugraph-cu11==24.2.* cuspatial-cu11==24.2.* cuproj-cu11==24.2.* cuxfilter-cu11==24.2.* cucim-cu11==24.2.* pylibraft-cu11==24.2.* raft-dask-cu11==24.2.*",
+                "pip install protobuf==3.20",
+            ]
+        else:
+            commands = [
+                "pip install rapids-singlecell==0.9.5",
+                "pip install --extra-index-url=https://pypi.nvidia.com cudf-cu12==24.2.* dask-cudf-cu12==24.2.* cuml-cu12==24.2.* cugraph-cu12==24.2.* cuspatial-cu12==24.2.* cuproj-cu12==24.2.* cuxfilter-cu12==24.2.* cucim-cu12==24.2.* pylibraft-cu12==24.2.* raft-dask-cu12==24.2.*",
+                "pip install protobuf==3.20",
+            ]
+
+        # Run each command
+        for command in commands:
+            process = subprocess.Popen(
+                command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            )
+            stdout, stderr = process.communicate()
+
+            # Print the output and error, if any
+            if stdout:
+                print(f"Output:\n{stdout.decode()}")
+            if stderr:
+                print(f"Error:\n{stderr.decode()}")
+
+
+def anndata_to_GPU(
+    adata: AnnData,
+    layer: str | None = None,
+    convert_all: bool = False,
+) -> AnnData:
+    """
+    Transfers matrices and arrays to the GPU
+
+    Parameters
+    ----------
+    adata
+        AnnData object
+
+    layer
+        Layer to use as input instead of `X`. If `None`, `X` is used.
+
+    convert_all
+        If True, move all supported arrays and matrices on the GPU
+
+    Returns
+    -------
+    Returns an updated copy with data on GPU
+    """
+
+    adata_gpu = adata.copy()
+
+    if convert_all:
+        anndata_to_GPU(adata_gpu)
+        if adata_gpu.layers:
+            for key in adata_gpu.layers.keys():
+                anndata_to_GPU(adata_gpu, layer=key)
+    else:
+        X = _get_obs_rep(adata_gpu, layer=layer)
+        if isspmatrix_csr_cpu(X):
+            X = csr_matrix_gpu(X)
+        elif isspmatrix_csc_cpu(X):
+            X = csc_matrix_gpu(X)
+        elif isinstance(X, np.ndarray):
+            # Convert to CuPy array only when necessary for GPU computations
+            X_gpu = cp.asarray(X)
+            X = X_gpu
+        else:
+            error = layer if layer else "X"
+            warnings.warn(f"{error} not supported for GPU conversion", Warning)
+
+        _set_obs_rep(adata_gpu, X, layer=layer)
+
+    return adata_gpu
+
+
+def anndata_to_CPU(
+    adata: AnnData,
+    layer: str | None = None,
+    convert_all: bool = False,
+    copy: bool = False,
+) -> AnnData | None:
+    """
+    Transfers matrices and arrays from the GPU
+
+    Parameters
+    ----------
+    adata
+        AnnData object
+
+    layer
+        Layer to use as input instead of `X`. If `None`, `X` is used.
+
+    convert_all
+        If True, move all GPU based arrays and matrices to the host memory
+
+    copy
+        Whether to return a copy or update `adata`.
+
+    Returns
+    -------
+    Updates `adata` inplace or returns an updated copy
+    """
+
+    if copy:
+        adata = adata.copy()
+
+    if convert_all:
+        anndata_to_CPU(adata)
+        if adata.layers:
+            for key in adata.layers.keys():
+                anndata_to_CPU(adata, layer=key)
+    else:
+        X = _get_obs_rep(adata, layer=layer)
+        if isspmatrix_csr_gpu(X):
+            X = X.get()
+        elif isspmatrix_csc_gpu(X):
+            X = X.get()
+        elif isinstance(X, cp.ndarray):
+            X = X.get()
+        else:
+            pass
+
+        _set_obs_rep(adata, X, layer=layer)
+
+    if copy:
+        return adata
+
+
+def install_stellar(CUDA=12):
+    if CUDA == 12:
+        subprocess.run(["pip3", "install", "torch"], check=True)
+        subprocess.run(["pip", "install", "torch_geometric"], check=True)
+        subprocess.run(
+            [
+                "pip",
+                "install",
+                "pyg_lib",
+                "torch_scatter",
+                "torch_sparse",
+                "torch_cluster",
+                "torch_spline_conv",
+                "-f",
+                "https://data.pyg.org/whl/torch-2.3.0+cu121.html",
+            ],
+            check=True,
+        )
+    elif CUDA == 11.8:
+        subprocess.run(
+            [
+                "pip3",
+                "install",
+                "torch",
+                "--index-url",
+                "https://download.pytorch.org/whl/cu118",
+            ],
+            check=True,
+        )
+        subprocess.run(["pip", "install", "torch_geometric"], check=True)
+        subprocess.run(
+            [
+                "pip",
+                "install",
+                "pyg_lib",
+                "torch_scatter",
+                "torch_sparse",
+                "torch_cluster",
+                "torch_spline_conv",
+                "-f",
+                "https://data.pyg.org/whl/torch-2.3.0+cu118.html",
+            ],
+            check=True,
+        )
+    else:
+        print("Please choose between CUDA 12 or 11.8")
+        print(
+            "If neither is working for you check the installation guide at: https://pytorch.org/get-started/locally/ and https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html"
+        )

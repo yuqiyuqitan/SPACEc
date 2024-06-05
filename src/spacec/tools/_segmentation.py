@@ -3,6 +3,7 @@ import pathlib
 import shutil
 import sys
 
+import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -15,10 +16,13 @@ from skimage.measure import regionprops_table
 from tensorflow.keras.models import load_model
 from tqdm import tqdm
 
-from .._shared.segmentation import combine_channels, format_CODEX
+from .._shared.segmentation import (
+    combine_channels,
+    create_multichannel_tiff,
+    format_CODEX,
+)
 
 
-# perform cell segmentation
 def cell_segmentation(
     file_name,
     channel_file,
@@ -26,22 +30,22 @@ def cell_segmentation(
     output_fname="",
     seg_method="mesmer",
     nuclei_channel="DAPI",
-    technology="Phenocycler",  # CODEX or Phenocycler --> This depends on the machine you are using and the resulting file format (see documentation above)
+    input_format="Multichannel",  # CODEX or Multichannel --> This depends on the machine you are using and the resulting file format (see documentation above)
     membrane_channel_list=None,
     size_cutoff=0,  # quantificaition
     compartment="whole-cell",  # mesmer # segment whole cells or nuclei only
     plot_predictions=True,  # mesmer # plot segmentation results
-    model="tissuenet",  # cellpose
+    model="cyto3",  # cellpose
     use_gpu=True,  # cellpose
     cytoplasm_channel_list=None,  # celpose
-    pretrained_model=True,  # cellpose
     diameter=None,  # cellpose
     save_mask_as_png=False,  # cellpose
     model_path="./models",
+    resize_factor=1,
+    custom_model=False,
 ):
     """
     Perform cell segmentation on an image.
-
     Parameters
     ----------
     file_name : str
@@ -56,8 +60,8 @@ def cell_segmentation(
         The segmentation method to use. Options are 'mesmer' and 'cellpose'. Default is 'mesmer'.
     nuclei_channel : str
         The name of the nuclei channel. Default is 'DAPI'.
-    technology : str
-        The technology used to generate the image. Options are 'CODEX' and 'Phenocycler'. Default is 'Phenocycler'.
+    input_format : str
+        The input_format used to generate the image. Options are 'CODEX' and 'Multichannel'. Default is 'Multichannel'.
     membrane_channel_list : list of str, optional
         The names of the membrane channels.
     size_cutoff : int, optional
@@ -72,42 +76,69 @@ def cell_segmentation(
         Whether to use GPU for segmentation. Default is True. This only applies to Cellpose.
     cytoplasm_channel_list : list of str, optional
         The names of the cytoplasm channels.
-    pretrained_model : bool, optional
-        Whether to use a pretrained model for segmentation. Default is True. This only applies to Cellpose. Set to false to supply the model path as model parameter.
     diameter : int, optional
         The diameter of the cells. Default is None - if set to None the diameter is automatically defined. This only applies to Cellpose.
     save_mask_as_png : bool, optional
         Whether to save the segmentation mask as a PNG file. Default is False.
     model_path : str, optional
         The path to the model. Default is './models'.
-
     Returns
     -------
     dict
         A dictionary containing the original image ('img'), the segmentation masks ('masks'), and the image dictionary ('image_dict').
-
     """
     print("Create image channels!")
-    # Load the image
-    img = skimage.io.imread(file_name)
 
-    # Read channels and store as list
-    with open(channel_file, "r") as f:
-        channel_names = f.read().splitlines()
+    # check input format
+    if input_format not in ["CODEX", "Multichannel", "Channels"]:
+        sys.exit(
+            "Please provide a valid input format (Multichannel, Channels or CODEX)!"
+        )
 
-    # Function reads channels and stores them as a dictionary (storing as a dictionary allows to select specific channels by name)
-    image_dict = format_CODEX(
-        image=img,
-        channel_names=channel_names,  # file with list of channel names (see channelnames.txt)
-        technology=technology,
-    )
-
+    if input_format != "Channels":
+        # Load the image
+        img = skimage.io.imread(file_name)
+        # Read channels and store as list
+        with open(channel_file, "r") as f:
+            channel_names = f.read().splitlines()
+        # Function reads channels and stores them as a dictionary (storing as a dictionary allows to select specific channels by name)
+        image_dict = format_CODEX(
+            image=img,
+            channel_names=channel_names,  # file with list of channel names (see channelnames.txt)
+            input_format=input_format,
+        )
+    else:
+        image_dict = format_CODEX(
+            image=file_name,
+            channel_names=None,  # file with list of channel names (see channelnames.txt)
+            input_format=input_format,
+        )
+        channel_names = list(image_dict.keys())
     # Generate image for segmentation
     if membrane_channel_list is not None:
         image_dict = combine_channels(
             image_dict, membrane_channel_list, new_channel_name="segmentation_channel"
         )  # combine channels for better segmentation. In this example we combine channels to get a membrane outline for all cells in the image
-
+    segmentation_channels = [
+        nuclei_channel,
+        "segmentation_channel",
+    ]  # replace with your actual channel names
+    segmentation_image_dict = {
+        channel: image_dict[channel]
+        for channel in segmentation_channels
+        if channel in image_dict
+    }
+    # Iterate over the dictionary
+    for channel, img in segmentation_image_dict.items():
+        # Calculate the new dimensions
+        new_width = int(img.shape[1] * resize_factor)
+        new_height = int(img.shape[0] * resize_factor)
+        # Resize the image
+        resized_img = cv2.resize(
+            img, (new_width, new_height), interpolation=cv2.INTER_AREA
+        )
+        # Replace the original image with the resized image in the dictionary
+        segmentation_image_dict[channel] = resized_img
     if seg_method == "mesmer":
         print("Segmenting with Mesmer!")
         if membrane_channel_list is None:
@@ -117,42 +148,50 @@ def cell_segmentation(
             sys.exit("Please provide any membrane or cytoplasm channel!")
         else:
             masks = mesmer_segmentation(
-                nuclei_image=image_dict[nuclei_channel],
-                membrane_image=image_dict["segmentation_channel"],
+                nuclei_image=segmentation_image_dict[nuclei_channel],
+                membrane_image=segmentation_image_dict["segmentation_channel"],
                 plot_predictions=plot_predictions,  # plot segmentation results
                 compartment=compartment,
                 model_path=model_path,
             )  # segment whole cells or nuclei only
-
     else:
         print("Segmenting with Cellpose!")
         if membrane_channel_list is None:
             masks, flows, styles, input_image, rgb_channels = cellpose_segmentation(
-                image_dict=image_dict,
+                image_dict=segmentation_image_dict,
                 output_dir=output_dir,
                 membrane_channel=None,
                 cytoplasm_channel=cytoplasm_channel_list,
                 nucleus_channel=nuclei_channel,
                 use_gpu=use_gpu,
                 model=model,
-                pretrained_model=pretrained_model,
+                custom_model=custom_model,
                 diameter=diameter,
                 save_mask_as_png=save_mask_as_png,
             )
         else:
             masks, flows, styles, input_image, rgb_channels = cellpose_segmentation(
-                image_dict=image_dict,
+                image_dict=segmentation_image_dict,
                 output_dir=output_dir,
                 membrane_channel="segmentation_channel",
                 cytoplasm_channel=cytoplasm_channel_list,
                 nucleus_channel=nuclei_channel,
                 use_gpu=use_gpu,
                 model=model,
-                pretrained_model=pretrained_model,
+                custom_model=custom_model,
                 diameter=diameter,
                 save_mask_as_png=save_mask_as_png,
             )
-
+    # Remove single-dimensional entries from the shape of segmentation_masks
+    masks = masks.squeeze()
+    # Get the original dimensions of any one of the images
+    original_height, original_width = image_dict[
+        nuclei_channel
+    ].shape  # or any other channel
+    # Resize the masks back to the original size
+    masks = cv2.resize(
+        masks, (original_width, original_height), interpolation=cv2.INTER_NEAREST
+    )
     print("Quantifying features after segmentation!")
     extract_features(
         image_dict=image_dict,  # image dictionary
@@ -164,9 +203,7 @@ def cell_segmentation(
         ),  # output path to store results as csv
         size_cutoff=size_cutoff,
     )  # size cutoff for segmentation masks (default = 0)
-
     print("Done!")
-
     return {"img": img, "masks": masks, "image_dict": image_dict}
 
 
@@ -263,8 +300,8 @@ def cellpose_segmentation(
     cytoplasm_channel=None,
     nucleus_channel=None,
     use_gpu=True,
-    model="nuclei",
-    pretrained_model=False,
+    model="cyto3",
+    custom_model=False,
     diameter=None,
     save_mask_as_png=False,
 ):
@@ -349,7 +386,7 @@ def cellpose_segmentation(
         output_dir=output_dir,
         use_gpu=use_gpu,
         model=model,
-        pretrained_model=pretrained_model,
+        custom_model=custom_model,
         diameter=diameter,
         rgb_channels=rgb_channels,
         save_mask_as_png=save_mask_as_png,
@@ -426,7 +463,7 @@ def run_cellpose(
     output_dir,
     use_gpu=True,
     model="nuclei",
-    pretrained_model=False,
+    custom_model=False,
     diameter=None,
     rgb_channels=[0, 0],
     save_mask_as_png=False,
@@ -467,21 +504,18 @@ def run_cellpose(
     # channels = [0,0] # IF YOU HAVE GRAYSCALE
     # channels = [2,3] # IF YOU HAVE G=cytoplasm and B=nucleus
     # channels = [2,1] # IF YOU HAVE G=cytoplasm and R=nucleus
-    if pretrained_model == True:
-        custom_model = models.CellposeModel(
-            gpu=use_gpu, pretrained_model=model
-        )  # setup custom model
-        masks, flows, styles = custom_model.eval(
-            image, diameter=diameter, channels=rgb_channels, resample=False
-        )  # run model
 
+    if custom_model == True:
+        model_to_use = models.CellposeModel(model_type=model, gpu=use_gpu)
     else:
-        cellpose_model = models.Cellpose(
-            gpu=use_gpu, model_type=model
-        )  # setup default model
-        masks, flows, styles = cellpose_model.eval(
-            image, diameter=diameter, channels=rgb_channels
-        )  # run model
+        model_to_use = models.Cellpose(
+            model_type=model,
+            gpu=use_gpu,
+        )
+    masks, flows, styles, diams = model_to_use.eval(
+        image, diameter=diameter, channels=rgb_channels
+    )
+    print("diameter set to: " + str(diams))
 
     if save_mask_as_png == True:
         filename = output_dir + "/segmentation.png"

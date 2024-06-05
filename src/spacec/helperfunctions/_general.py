@@ -2,15 +2,20 @@
 import os
 import random
 import time
+import warnings
 from functools import reduce
+from typing import TYPE_CHECKING
 
+import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import scanpy as sc
 import scipy as sp
 import seaborn as sns
+import tensorflow as tf
 import tifffile as tiff
+from cellpose.core import use_gpu
 from scipy.spatial.distance import cdist
 from scipy.stats import pearsonr
 from sklearn.cross_decomposition import CCA
@@ -1030,3 +1035,29 @@ def hf_annotate_cor_plot(x, y, **kws):
     r, p = sp.stats.pearsonr(data[x], data[y])
     ax = plt.gca()
     ax.text(0.5, 0.8, f"r={r:.2f}, p={p:.2g}", transform=ax.transAxes, fontsize=14)
+
+
+def is_dark(color):
+    """
+    Determines if a color is dark based on its RGB values.
+
+    Parameters:
+    color (str): The color to check. This can be any valid color string accepted by mcolors.to_rgb().
+
+    Returns:
+    bool: True if the color is dark, False otherwise. A color is considered dark if its brightness is less than 0.5.
+    """
+    r, g, b = mcolors.to_rgb(color)
+    brightness = (r * 299 + g * 587 + b * 114) / 1000
+    return brightness < 0.5
+
+
+def check_for_gpu():
+    if tf.config.list_physical_devices("GPU"):
+        print("GPU is available to Tensorflow")
+    else:
+        print("GPU is not available to Tensorflow")
+
+    use_GPU = use_gpu()
+    yn = ["GPU is not available to Pytorch", "GPU is available to Pytorch"]
+    print(f"{yn[use_GPU]}")

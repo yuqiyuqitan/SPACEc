@@ -24,7 +24,7 @@ def test_4_cellular_neighborhood_analysis():
         output_path = pathlib.Path(output_dir)
 
         # Loading the denoise/filtered anndata from notebook 3 [cell type or cluster annotation is necessary for the step]
-        adata = sc.read(processed_path / "adata_nn_demo_annotated.h5ad")
+        adata = sc.read(processed_path / "adata_nn_2000.h5ad")
         adata
 
         # compute for CNs
@@ -32,12 +32,24 @@ def test_4_cellular_neighborhood_analysis():
         adata = sp.tl.neighborhood_analysis(
             adata,
             unique_region="unique_region",
-            cluster_col="celltype_fine",
+            cluster_col="cell_type",
             X="x",
             Y="y",
             k=20,  # k nearest neighbors
             n_neighborhoods=6,  # number of CNs
             elbow=False,
+        )
+
+        print("test elbow plot")
+        adata = sp.tl.neighborhood_analysis(
+            adata,
+            unique_region="unique_region",
+            cluster_col="cell_type",
+            X="x",
+            Y="y",
+            k=5,  # k nearest neighbors
+            n_neighborhoods=6,  # number of CNs
+            elbow=True,
         )
 
         # to better visualize the CN, we choose a CN palette
@@ -54,10 +66,9 @@ def test_4_cellular_neighborhood_analysis():
         # plot CN to see what cell types are enriched per CN so that we can annotate them better
         sp.pl.cn_exp_heatmap(
             adata,
-            cluster_col="celltype_fine",
+            cluster_col="cell_type",
             cn_col="CN_k20_n6",
-            palette=cn_palette,
-            figsize=(10, 8),
+            palette=None,
             savefig=False,
             output_dir=output_path,
             rand_seed=1,
@@ -71,7 +82,7 @@ def test_4_cellular_neighborhood_analysis():
             unique_region="unique_region",
             X="x",
             Y="y",
-            palette=cn_palette,
+            palette=None,
             savefig=False,
             output_dir=output_path,
         )
@@ -87,7 +98,7 @@ def test_4_cellular_neighborhood_analysis():
             5: "Epithelium",
         }
 
-        adata.obs["CN_k20_n6_annot"] = (
+        adata.obs["CN_k20_n6_annot_test"] = (
             adata.obs["CN_k20_n6"].map(neighborhood_annotation).astype("category")
         )
 
@@ -100,11 +111,10 @@ def test_4_cellular_neighborhood_analysis():
         # replotting with CN annotation
         sp.pl.cn_exp_heatmap(
             adata,
-            cluster_col="celltype",
+            cluster_col="cell_type",
             cn_col="CN_k20_n6_annot",
-            palette=cn_annt_palette,  # if None, there is randomly generated in the code
+            palette=None,  # if None, there is randomly generated in the code
             savefig=True,
-            figsize=(12, 10),
             output_fname="",
             output_dir=output_path,
         )
@@ -125,9 +135,9 @@ def test_4_cellular_neighborhood_analysis():
         # #### tonsil
 
         # %%
-        cnmap_dict_tonsil = sp.tl.cn_map(
+        cnmap_dict_tonsil = sp.tl.build_cn_map(
             adata=adata_tonsil,  # adata object
-            cn_col="CN_k20_n6",  # column with CNs
+            cn_col="CN_k20_n6_annot",  # column with CNs
             palette=None,  # color dictionary
             unique_region="region_num",  # column with unique regions
             k=70,  # number of neighbors
@@ -142,7 +152,7 @@ def test_4_cellular_neighborhood_analysis():
         sp.pl.cn_map(
             cnmap_dict=cnmap_dict_tonsil,
             adata=adata_tonsil,
-            cn_col="CN_k20_n6",
+            cn_col="CN_k20_n6_annot",
             palette=None,
             figsize=(40, 20),
             savefig=False,
@@ -154,9 +164,9 @@ def test_4_cellular_neighborhood_analysis():
         # ### tonsillitis
 
         # %%
-        cnmap_dict_tonsillitis = sp.tl.cn_map(
+        cnmap_dict_tonsillitis = sp.tl.build_cn_map(
             adata=adata_tonsillitis,  # adata object
-            cn_col="CN_k20_n6",  # column with CNs
+            cn_col="CN_k20_n6_annot",  # column with CNs
             palette=None,  # color dictionary
             unique_region="region_num",  # column with unique regions
             k=70,  # number of neighbors
@@ -170,12 +180,46 @@ def test_4_cellular_neighborhood_analysis():
         sp.pl.cn_map(
             cnmap_dict=cnmap_dict_tonsillitis,
             adata=adata_tonsillitis,
-            cn_col="CN_k20_n6",
+            cn_col="CN_k20_n6_annot",
             palette=None,
             figsize=(40, 20),
             savefig=False,
             output_fname="",
             output_dir=output_path,
+        )
+
+        sp.pl.BC_projection(
+            adata=adata_tonsil,
+            cnmap_dict=cnmap_dict_tonsil,  # dictionary from the previous step
+            cn_col="CN_k20_n6_annot",  # column with CNs
+            plot_list=[
+                "Germinal Center",
+                "Marginal Zone",
+                "Marginal Zone B-DC-Enriched",
+            ],  # list of CNs to plot (three for the corners)
+            cn_col_annt="CN_k20_n6_annot",  # column with CNs used to color the plot
+            palette=None,  # color dictionary
+            figsize=(5, 5),  # figure size
+            rand_seed=1,  # random seed for reproducibility
+            n_num=None,  # number of neighbors
+            threshold=0.5,
+        )  # threshold for percentage of cells in CN
+
+        sp.pl.BC_projection(
+            adata=adata_tonsillitis,
+            cnmap_dict=cnmap_dict_tonsillitis,
+            cn_col="CN_k20_n6_annot",
+            plot_list=[
+                "Germinal Center",
+                "Marginal Zone",
+                "Marginal Zone B-DC-Enriched",
+            ],
+            cn_col_annt="CN_k20_n6_annot",
+            palette=None,
+            figsize=(5, 5),
+            rand_seed=1,
+            n_num=None,
+            threshold=0.5,
         )
 
 
