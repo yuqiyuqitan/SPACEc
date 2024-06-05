@@ -18,19 +18,20 @@ def test_7_TissUUmaps():
 
     adata = sc.read(processed_path / "adata_nn_demo_annotated_cn.h5ad")
     adata
-    
 
     image_list, csv_paths = sp.tl.tm_viewer(
         adata,
-        images_pickle_path= processed_path / 'seg_output_tonsil1.pickle',
-        directory = processed_path / "cache",
-        region_column = "unique_region",
-        region = "reg001",
-        xSelector = "y",
-        ySelector = "x",
-        color_by = "celltype",
-        keep_list = None,
-        open_viewer=True)
+        images_pickle_path=processed_path / "seg_output_tonsil1.pickle",
+        directory=processed_path / "cache",
+        region_column="unique_region",
+        region="reg001",
+        xSelector="y",
+        ySelector="x",
+        color_by="celltype",
+        keep_list=None,
+        open_viewer=True,
+    )
+
 
 if __name__ == "__main__":
     test_7_TissUUmaps()

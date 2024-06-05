@@ -54,16 +54,20 @@ def test_cell_segmentation():
         seg_output_cellpose = sp.tl.cell_segmentation(
             file_name=data_path / "raw/tonsil/1/reg010_X01_Y01_Z01.tif",
             channel_file=data_path / "raw/tonsil/channelnames.txt",
-            output_dir = output_dir,
-            output_fname = 'tonsil2',
-            seg_method ='cellpose', # cellpose or mesmer
-            model='cyto3', # cellpose model
-            diameter=28, # average cell diameter (in pixels). If set to None, it will be automatically estimated.
-            nuclei_channel = 'DAPI',
-            membrane_channel_list = ["CD45", "betaCatenin"], #default is None #default is None; if provide more than one channel, then they will be combined
-            input_format ='Multichannel', # Phenocycler or codex
-            resize_factor=1, # default is 1; if the image is too large, lower the value. Lower values will speed up the segmentation but may reduce the accuracy.
-            size_cutoff = 0) 
+            output_dir=output_dir,
+            output_fname="tonsil2",
+            seg_method="cellpose",  # cellpose or mesmer
+            model="cyto3",  # cellpose model
+            diameter=28,  # average cell diameter (in pixels). If set to None, it will be automatically estimated.
+            nuclei_channel="DAPI",
+            membrane_channel_list=[
+                "CD45",
+                "betaCatenin",
+            ],  # default is None #default is None; if provide more than one channel, then they will be combined
+            input_format="Multichannel",  # Phenocycler or codex
+            resize_factor=1,  # default is 1; if the image is too large, lower the value. Lower values will speed up the segmentation but may reduce the accuracy.
+            size_cutoff=0,
+        )
 
         print("Show Masks Mesmer")
         overlay_data1, rgb_images1 = sp.pl.show_masks(
@@ -78,7 +82,7 @@ def test_cell_segmentation():
             tilesize=300,  # number of subsamples and tilesize
             rand_seed=1,
         )
-        
+
         print("Show Masks Cellpose")
         overlay_data1, rgb_images1 = sp.pl.show_masks(
             seg_output=seg_output_cellpose,
@@ -97,7 +101,7 @@ def test_cell_segmentation():
 
         import pickle
 
-        with open(output_dir + 'seg_output_tonsil1.pickle', 'wb') as f:
+        with open(output_dir + "seg_output_tonsil1.pickle", "wb") as f:
             pickle.dump(seg_output1, f)
 
         # #Save the overlay of the data

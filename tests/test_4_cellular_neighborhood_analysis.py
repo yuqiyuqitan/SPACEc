@@ -40,7 +40,7 @@ def test_4_cellular_neighborhood_analysis():
             elbow=False,
         )
 
-        print('test elbow plot')
+        print("test elbow plot")
         adata = sp.tl.neighborhood_analysis(
             adata,
             unique_region="unique_region",
@@ -51,7 +51,7 @@ def test_4_cellular_neighborhood_analysis():
             n_neighborhoods=6,  # number of CNs
             elbow=True,
         )
-        
+
         # to better visualize the CN, we choose a CN palette
         # but if you set palette = None in the following function, it will randomly generate a palette for you
         cn_palette = {
@@ -188,27 +188,40 @@ def test_4_cellular_neighborhood_analysis():
             output_dir=output_path,
         )
 
-        sp.pl.BC_projection(adata=adata_tonsil,
-            cnmap_dict = cnmap_dict_tonsil, # dictionary from the previous step
-            cn_col = "CN_k20_n6_annot", # column with CNs
-            plot_list = ['Germinal Center', 'Marginal Zone','Marginal Zone B-DC-Enriched'], # list of CNs to plot (three for the corners)
-            cn_col_annt = "CN_k20_n6_annot", # column with CNs used to color the plot
-            palette = None, # color dictionary
-            figsize=(5, 5), # figure size
-            rand_seed = 1, # random seed for reproducibility
-            n_num = None, # number of neighbors
-            threshold = 0.5) # threshold for percentage of cells in CN
+        sp.pl.BC_projection(
+            adata=adata_tonsil,
+            cnmap_dict=cnmap_dict_tonsil,  # dictionary from the previous step
+            cn_col="CN_k20_n6_annot",  # column with CNs
+            plot_list=[
+                "Germinal Center",
+                "Marginal Zone",
+                "Marginal Zone B-DC-Enriched",
+            ],  # list of CNs to plot (three for the corners)
+            cn_col_annt="CN_k20_n6_annot",  # column with CNs used to color the plot
+            palette=None,  # color dictionary
+            figsize=(5, 5),  # figure size
+            rand_seed=1,  # random seed for reproducibility
+            n_num=None,  # number of neighbors
+            threshold=0.5,
+        )  # threshold for percentage of cells in CN
 
-        sp.pl.BC_projection(adata=adata_tonsillitis,
-            cnmap_dict = cnmap_dict_tonsillitis,
-            cn_col = "CN_k20_n6_annot",
-            plot_list = ['Germinal Center', 'Marginal Zone','Marginal Zone B-DC-Enriched'],
-            cn_col_annt = "CN_k20_n6_annot",
-            palette = None,
+        sp.pl.BC_projection(
+            adata=adata_tonsillitis,
+            cnmap_dict=cnmap_dict_tonsillitis,
+            cn_col="CN_k20_n6_annot",
+            plot_list=[
+                "Germinal Center",
+                "Marginal Zone",
+                "Marginal Zone B-DC-Enriched",
+            ],
+            cn_col_annt="CN_k20_n6_annot",
+            palette=None,
             figsize=(5, 5),
-            rand_seed = 1,
-            n_num = None,
-            threshold = 0.5)
+            rand_seed=1,
+            n_num=None,
+            threshold=0.5,
+        )
+
 
 if __name__ == "__main__":
     test_4_cellular_neighborhood_analysis()

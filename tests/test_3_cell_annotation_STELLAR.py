@@ -7,18 +7,17 @@ TEST_DIR = pathlib.Path(__file__).parent
 def test_3_cell_annotation_STELLAR():
     # import standard packages
 
-    #import standard packages
+    # import standard packages
     import os
+    import sys
     from pathlib import Path
-    import pandas as pd
+
+    import anndata
     import matplotlib.pyplot as plt
+    import pandas as pd
     import scanpy as sc
     import seaborn as sns
-    import sys
-    import os
     from git import Repo
-    import anndata
-
 
     # %%
     import spacec as sp
@@ -51,26 +50,28 @@ def test_3_cell_annotation_STELLAR():
 
         np.isnan(adata_train.X).sum()
 
-        root_path = TEST_DIR # replace with your path
+        root_path = TEST_DIR  # replace with your path
 
         # STELLAR path
-        STELLAR_path = Path(root_path / 'example_data/STELLAR/')
+        STELLAR_path = Path(root_path / "example_data/STELLAR/")
 
         # Test if the path exists, if not create it
         if not STELLAR_path.exists():
             STELLAR_path.mkdir(exist_ok=True, parents=True)
-            repo_url = 'https://github.com/snap-stanford/stellar.git'
+            repo_url = "https://github.com/snap-stanford/stellar.git"
             Repo.clone_from(repo_url, STELLAR_path)
 
-        adata_new = sp.tl.adata_stellar(adata_train, 
-               adata_val, 
-               celltype_col = "cell_type", 
-               x_col = 'x', 
-               y_col = 'y', 
-               sample_rate = 0.5, 
-               distance_thres = 50,
-               STELLAR_path = STELLAR_path)
-        
+        adata_new = sp.tl.adata_stellar(
+            adata_train,
+            adata_val,
+            celltype_col="cell_type",
+            x_col="x",
+            y_col="y",
+            sample_rate=0.5,
+            distance_thres=50,
+            STELLAR_path=STELLAR_path,
+        )
+
         sp.pl.catplot(
             adata_new,
             color="stellar_pred",  # specify group column name here (e.g. celltype_fine)
