@@ -3816,6 +3816,34 @@ def cn_map(
     output_dir="./",
     rand_seed=1,
 ):
+    """
+    Generates a CNMap plot using the provided data and parameters.
+
+    Parameters
+    ----------
+    adata : anndata.AnnData
+        Annotated data matrix.
+    cnmap_dict : dict
+        Dictionary containing graph, tops, e0, e1, and simp_freqs.
+    cn_col : str
+        Column name in adata to be used for color coding.
+    palette : dict, optional
+        Color palette to use for the plot. If None, a random color palette is generated.
+    figsize : tuple, optional
+        Size of the figure. Defaults to (40, 20).
+    savefig : bool, optional
+        Whether to save the figure or not. Defaults to False.
+    output_fname : str, optional
+        The filename for the saved figure. Required if savefig is True. Defaults to "".
+    output_dir : str, optional
+        The directory where the figure will be saved. Defaults to "./".
+    rand_seed : int, optional
+        Seed for random number generator. Defaults to 1.
+
+    Returns
+    -------
+    None
+    """
     graph = cnmap_dict["g"]
     tops = cnmap_dict["tops"]
     e0 = cnmap_dict["e0"]
@@ -3854,6 +3882,28 @@ def cn_map(
             c=col,
             zorder=-1,
         )
+        # Dummy scatter plots for legend
+        freqs = simp_freqs * 10000
+        max_size = max(freqs)
+        sizes = [round(max_size)/4, round(max_size)/2, round(max_size)]  # Replace with the sizes you want in the legend
+        labels = [str(round(max_size/100)/4) + '%', str(round(max_size/100)/2) + '%', str(round(max_size/100)) + '%']  # Replace with the labels you want in the legend
+
+        # Add legend
+        legend_elements = [plt.Line2D([0], [0], marker='o', color='w', label=label,
+                                    markerfacecolor='black', markersize=size**0.5) 
+                        for size, label in zip(sizes, labels)]
+
+        # Add first legend
+        legend1 = plt.legend(handles=legend_elements, 
+                             loc='lower right', 
+                             title='Total frequency', 
+                             title_fontsize = 30, 
+                             fontsize=30, 
+                             handlelength=6, 
+                             handletextpad=1, 
+                             bbox_to_anchor=(0.0, -0.15, 1.0, 0.102))
+
+        
         if n in tops:
             plt.text(
                 pos[n][0],
@@ -3903,10 +3953,11 @@ def cn_map(
     ]
 
     # Add legend to bottom of plot
+    plt.gca().add_artist(legend1)
     plt.legend(
         handles=legend_patches,
         bbox_to_anchor=(0.0, -0.15, 1.0, 0.102),
-        loc="lower center",
+        loc="lower left",
         ncol=3,
         borderaxespad=0.0,
         fontsize=35,
@@ -3918,6 +3969,7 @@ def cn_map(
         plt.savefig(output_dir + output_fname + "_CNMap.pdf", bbox_inches="tight")
     else:
         plt.show()
+
 
 
 def coordinates_on_image(
