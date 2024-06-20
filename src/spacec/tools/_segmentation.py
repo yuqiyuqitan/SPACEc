@@ -142,10 +142,13 @@ def cell_segmentation(
     if seg_method == "mesmer":
         print("Segmenting with Mesmer!")
         if membrane_channel_list is None:
-            print(
-                "Mesmer expects two-channel images as input, where the first channel must be a nuclear channel (e.g. DAPI) and the second channel must be a membrane or cytoplasmic channel (e.g. E-Cadherin)."
-            )
-            sys.exit("Please provide any membrane or cytoplasm channel!")
+            masks = mesmer_segmentation(
+                nuclei_image=segmentation_image_dict[nuclei_channel],
+                membrane_image=None,
+                plot_predictions=plot_predictions,  # plot segmentation results
+                compartment="nuclear",
+                model_path=model_path,
+            )  # segment whole cells or nuclei only
         else:
             masks = mesmer_segmentation(
                 nuclei_image=segmentation_image_dict[nuclei_channel],
@@ -622,7 +625,13 @@ def mesmer_segmentation(
 
     # Create a combined image stack
     # Assumes nuclei_image and membrane_image are numpy arrays of the same shape
-    combined_image = np.stack([nuclei_image, membrane_image], axis=-1)
+    if membrane_image is None:
+        # generate empty membrane image
+        print("No membrane image provided. Nuclear segmentation only.")
+        membrane_image = np.zeros_like(nuclei_image)
+        combined_image = np.stack([nuclei_image, membrane_image], axis=-1)
+    else:
+        combined_image = np.stack([nuclei_image, membrane_image], axis=-1)
 
     # Add an extra dimension to make it compatible with Mesmer's input requirements
     # Changes shape from (height, width, channels) to (1, height, width, channels)
