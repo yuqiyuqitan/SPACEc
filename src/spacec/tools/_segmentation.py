@@ -23,13 +23,6 @@ from .._shared.segmentation import (
     format_CODEX,
 )
 
-gpus = tf.config.list_physical_devices('GPU') 
-
-if gpus:
-    print("GPU(s) available")
-    for gpu in gpus:
-       tf.config.experimental.set_memory_growth(gpu,True)
-
 
 def cell_segmentation(
     file_name,
@@ -98,6 +91,14 @@ def cell_segmentation(
     dict
         A dictionary containing the original image ('img'), the segmentation masks ('masks'), and the image dictionary ('image_dict').
     """
+    if use_gpu == True:
+        gpus = tf.config.list_physical_devices('GPU') 
+
+        if gpus:
+            print("GPU(s) available")
+            for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu,True)
+
     print("Create image channels!")
 
     # check input format
