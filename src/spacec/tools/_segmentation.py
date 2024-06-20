@@ -14,6 +14,7 @@ from deepcell.applications import Mesmer
 from deepcell.utils.plot_utils import create_rgb_image, make_outline_overlay
 from skimage.measure import regionprops_table
 from tensorflow.keras.models import load_model
+import tensorflow as tf
 from tqdm import tqdm
 
 from .._shared.segmentation import (
@@ -22,6 +23,12 @@ from .._shared.segmentation import (
     format_CODEX,
 )
 
+gpus = tf.config.list_physical_devices('GPU') 
+
+if gpus:
+    print("GPU(s) available")
+    for gpu in gpus:
+       tf.config.experimental.set_memory_growth(gpu,True)
 
 def cell_segmentation(
     file_name,
