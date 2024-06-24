@@ -228,7 +228,7 @@ def cell_segmentation(
             )
             
             # Create binary masks
-            binary_masks_nuclei = masks_nuc > 0
+            binary_masks_nuclei = masks_nuclei > 0
             binary_masks_whole_cell = masks_whole_cell > 0
 
             # Subtract the binary nuclei mask from the binary whole cell mask
