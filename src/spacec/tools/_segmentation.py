@@ -97,7 +97,7 @@ def cell_segmentation(
         if gpus:
             print("GPU(s) available")
             for gpu in gpus:
-            tf.config.experimental.set_memory_growth(gpu,True)
+                tf.config.experimental.set_memory_growth(gpu,True)
 
     print("Create image channels!")
 
