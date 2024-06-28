@@ -90,4 +90,3 @@ pytest
 ## General outline of SPACEc analysis
 
 ![SPACEc](https://github.com/yuqiyuqitan/SPACEc/tree/master/docs/overview.png?raw=true "")
-
