@@ -1,4 +1,4 @@
-#SPatial Analysis for CodEX data (SPACEc)
+# SPatial Analysis for CodEX data (SPACEc)
 
 ## Installation notes
 
@@ -29,6 +29,8 @@ pip install spacec
 # conda install tensorflow=2.10.0
 # and always import spacec first before importing other packages
 ```
+
+Example tonsil data on [dryad](https://datadryad.org/stash/share/OXTHu8fAybiINGD1S3tIVUIcUiG4nOsjjeWmrvJV-dQ)
 
 ### Install additional features
 #### GPU accelerated clustering
