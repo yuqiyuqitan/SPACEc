@@ -13,9 +13,13 @@ from .._shared.segmentation import combine_channels, format_CODEX
 def segmentation_ch(
     file_name,  # image for segmentation
     channel_file,  # all channels used for staining
-    output_dir,  
+<<<<<<< Updated upstream
+    output_dir,  #
+=======
+    output_dir,
     savefig=False,  # new
     output_fname="",  # new
+>>>>>>> Stashed changes
     extra_seg_ch_list=None,  # channels used for membrane segmentation
     nuclei_channel="DAPI",
     input_format="Multichannel",  # CODEX or Phenocycler --> This depends on the machine you are using and the resulting file format (see documentation above)
@@ -70,7 +74,10 @@ def segmentation_ch(
     ax[1].imshow(image_dict["segmentation_channel"])
     ax[0].set_title("nuclei")
     ax[1].set_title("membrane")
-    
+<<<<<<< Updated upstream
+    plt.show()
+=======
+
     # save or plot figure
     if savefig:
         plt.savefig(
@@ -82,6 +89,7 @@ def segmentation_ch(
         )
     else:
         plt.show()
+>>>>>>> Stashed changes
 
 
 def show_masks(

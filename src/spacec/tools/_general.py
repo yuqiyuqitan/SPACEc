@@ -2403,31 +2403,6 @@ def plot_selected_neighbors_with_shapes(
     plot=True,
     identification_column="community",
 ):
-    """
-    Plot points and identify points within a specified radius of selected points, 
-    highlighting points from different clusters with distinct shapes.
-
-    Parameters
-    ----------
-    full_df : pandas.DataFrame
-        The full dataset containing all points.
-    selected_df : pandas.DataFrame
-        The dataset containing selected points to be analyzed.
-    target_df : pandas.DataFrame
-        The dataset from which neighbors are to be identified.
-    radius : float
-        The radius within which to identify neighboring points.
-    plot : bool, optional
-        Whether to plot the results. The default is True.
-    identification_column : str, optional
-        The column name used to identify different clusters. The default is "community".
-
-    Returns
-    -------
-    pandas.DataFrame
-        A DataFrame containing points within the specified radius from the selected points,
-        excluding points from the same cluster as the selected point.
-    """
     # Get unique clusters from the full DataFrame
     unique_clusters = full_df[identification_column].unique()
 
@@ -2516,6 +2491,7 @@ def plot_selected_neighbors_with_shapes(
 
     return all_in_circle_diff_cluster
 
+
 def process_cluster(args):
     (
         df,
@@ -2539,45 +2515,7 @@ def process_cluster(args):
         points[:, :2],
         length_threshold=concave_hull_length_threshold,
     )
-    """
-    Processes a single cluster by computing its concave hull, identifying nearest neighbors of the hull points,
-    and plotting selected neighbors within a specified radius, highlighting points from different clusters.
 
-    Parameters
-    ----------
-    args : tuple
-        A tuple containing the following parameters:
-        df : pandas.DataFrame
-            The DataFrame containing the data points.
-        cluster : int or str
-            The cluster identifier to process.
-        cluster_column : str
-            The column name in `df` that contains cluster identifiers.
-        x_column : str
-            The column name in `df` that contains the x-coordinates.
-        y_column : str
-            The column name in `df` that contains the y-coordinates.
-        concave_hull_length_threshold : float
-            The length threshold for the concave hull computation.
-        edge_neighbours : int
-            The number of neighbors to consider for each edge point of the hull.
-        full_df : pandas.DataFrame
-            The full DataFrame containing all points, used for neighbor identification.
-        radius : float
-            The radius within which to identify neighboring points.
-        plot : bool
-            Whether to plot the results.
-        identification_column : str
-            The column name used to identify different clusters.
-
-    Returns
-    -------
-    tuple
-        A tuple containing two pandas.DataFrames:
-        - The first DataFrame contains points within the specified radius from the hull points,
-          excluding points from the same cluster.
-        - The second DataFrame contains the nearest neighbors of the hull points.
-    """
     # Get hull points from the DataFrame
     hull_points = pd.DataFrame(points[idxes], columns=["x", "y"])
 
@@ -2602,6 +2540,7 @@ def process_cluster(args):
 
     return prox_points, hull_nearest_neighbors
 
+
 def identify_points_in_proximity(
     df,
     full_df,
@@ -2614,41 +2553,6 @@ def identify_points_in_proximity(
     plot=True,
     concave_hull_length_threshold=50,
 ):
-    """
-    Identify points within a specified proximity and generate outlines based on clusters.
-
-    Parameters
-    ----------
-    df : DataFrame
-        The DataFrame containing the data points to be analyzed.
-    full_df : DataFrame
-        The full DataFrame from which `df` is derived, used for additional context or data not present in `df`.
-    identification_column : str
-        The name of the column in `df` used to uniquely identify each point.
-    cluster_column : str, optional
-        The name of the column in `df` that contains cluster identifiers. Default is "cluster".
-    x_column : str, optional
-        The name of the column in `df` that contains the x coordinates of each point. Default is "x".
-    y_column : str, optional
-        The name of the column in `df` that contains the y coordinates of each point. Default is "y".
-    radius : int, optional
-        The radius within which to identify points in proximity. Default is 200.
-    edge_neighbours : int, optional
-        The minimum number of neighbors a point must have to be considered an edge point. Default is 3.
-    plot : bool, optional
-        Whether to plot the results. Default is True.
-    concave_hull_length_threshold : int, optional
-        The threshold length used when generating the concave hull. Points with a greater length will not be included. Default is 50.
-
-    Returns
-    -------
-    tuple of DataFrame
-        A tuple containing two DataFrames. The first DataFrame contains the result of the proximity analysis, including the identified points and their respective cluster identifiers. The second DataFrame contains the outlines of the clusters identified in the analysis.
-
-    Notes
-    -----
-    This function utilizes multiprocessing to parallelize the analysis of clusters, aiming to improve performance on systems with multiple CPU cores.
-    """
     num_processes = max(
         1, os.cpu_count() - 2
     )  # Use all available CPUs minus 2, but at least 1
@@ -3349,49 +3253,7 @@ def tm_viewer(
     include_masks=True,
     open_viewer=True,
     add_UMAP=True,
-    ):
-    """
-    Prepares and visualizes tissue microscopy data using TissUUmaps.
-
-    Parameters
-    ----------
-    adata : AnnData
-        Annotated data matrix from scanpy, with observations (cells) as rows and variables (genes) as columns.
-    images_pickle_path : str
-        Path to the pickle file containing segmented images and masks.
-    directory : str
-        Directory path where the images and csv will be cashed.
-    region_column : str, optional
-        Column name in `adata.obs` that specifies the region, by default "unique_region".
-    region : str, optional
-        Specific region to process, by default "" processes all regions.
-    xSelector : str, optional
-        Column name to use as the x-coordinate for visualization, by default "x".
-    ySelector : str, optional
-        Column name to use as the y-coordinate for visualization, by default "y".
-    color_by : str, optional
-        Column name to color cells by in the visualization, by default "celltype_fine".
-    keep_list : list of str, optional
-        List of column names to keep from `adata.obs`, by default None keeps [region_column, xSelector, ySelector, color_by].
-    include_masks : bool, optional
-        Whether to include cell masks in the visualization, by default True.
-    open_viewer : bool, optional
-        Whether to automatically open the TissUUmaps viewer, by default True.
-    add_UMAP : bool, optional
-        Whether to add UMAP coordinates to the output, by default True.
-
-    Returns
-    -------
-    tuple
-        A tuple containing two elements:
-        - A list of paths to the saved image files.
-        - A list of paths to the saved CSV files containing the data for visualization.
-
-    Notes
-    -----
-    This function requires the `scanpy` library for handling `adata`, and the `TissUUmaps` library for visualization.
-    It assumes that the `images_pickle_path` file contains a dictionary with keys "image_dict" and "masks" pointing to the respective data structures.
-    """
+):
     segmented_matrix = adata.obs
 
     with open(images_pickle_path, "rb") as f:
@@ -3405,10 +3267,6 @@ def tm_viewer(
 
     print("Preparing TissUUmaps input...")
 
-    if directory == "":
-        print("No directory specified. Using current working directory.")
-        directory = os.getcwd()
-    
     cache_dir = pathlib.Path(directory) / region
     cache_dir.mkdir(parents=True, exist_ok=True)
 
@@ -3653,30 +3511,6 @@ def anndata_to_CPU(
 
 
 def install_stellar(CUDA=12):
-    """
-    Installs PyTorch and PyTorch Geometric along with their dependencies for a specific CUDA version.
-
-    This function automates the installation of PyTorch, PyTorch Geometric, and related libraries
-    (torch_scatter, torch_sparse, torch_cluster, torch_spline_conv) optimized for the specified CUDA version.
-    It uses pip for installation, ensuring compatibility with the CUDA version provided.
-
-    Parameters
-    ----------
-    CUDA : float, optional
-        The CUDA version for which the libraries should be installed. Supported values are 12 and 11.8.
-        Defaults to 12.
-
-    Raises
-    ------
-    subprocess.CalledProcessError
-        If any of the pip installation commands fail, this error is raised, indicating the failure of the installation process.
-
-    Notes
-    -----
-    - The function checks the CUDA version and selects the appropriate PyTorch and PyTorch Geometric wheels for installation.
-    - It is assumed that pip and pip3 are available in the system's PATH.
-    - The function prints a message if an unsupported CUDA version is provided, directing the user to the official installation guides.
-    """
     if CUDA == 12:
         subprocess.run(["pip3", "install", "torch"], check=True)
         subprocess.run(["pip", "install", "torch_geometric"], check=True)
