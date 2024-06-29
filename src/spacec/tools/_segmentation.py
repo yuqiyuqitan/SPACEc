@@ -14,6 +14,7 @@ from deepcell.applications import Mesmer
 from deepcell.utils.plot_utils import create_rgb_image, make_outline_overlay
 from skimage.measure import regionprops_table
 from tensorflow.keras.models import load_model
+import tensorflow as tf
 from tqdm import tqdm
 
 from .._shared.segmentation import (
@@ -43,6 +44,7 @@ def cell_segmentation(
     model_path="./models",
     resize_factor=1,
     custom_model=False,
+    differentiate_nucleus_cytoplasm=False, # experimental
 ):
     """
     Perform cell segmentation on an image.
@@ -82,11 +84,21 @@ def cell_segmentation(
         Whether to save the segmentation mask as a PNG file. Default is False.
     model_path : str, optional
         The path to the model. Default is './models'.
+    differentiate_nucleus_cytoplasm : bool, optional
+        Whether to differentiate between nucleus and cytoplasm. Default is False.
     Returns
     -------
     dict
         A dictionary containing the original image ('img'), the segmentation masks ('masks'), and the image dictionary ('image_dict').
     """
+    if use_gpu == True:
+        gpus = tf.config.list_physical_devices('GPU') 
+
+        if gpus:
+            print("GPU(s) available")
+            for gpu in gpus:
+                tf.config.experimental.set_memory_growth(gpu,True)
+
     print("Create image channels!")
 
     # check input format
@@ -139,72 +151,242 @@ def cell_segmentation(
         )
         # Replace the original image with the resized image in the dictionary
         segmentation_image_dict[channel] = resized_img
-    if seg_method == "mesmer":
-        print("Segmenting with Mesmer!")
-        if membrane_channel_list is None:
-            print(
-                "Mesmer expects two-channel images as input, where the first channel must be a nuclear channel (e.g. DAPI) and the second channel must be a membrane or cytoplasmic channel (e.g. E-Cadherin)."
-            )
-            sys.exit("Please provide any membrane or cytoplasm channel!")
+        
+    if differentiate_nucleus_cytoplasm == True:
+        if membrane_channel_list == None:
+            print("Provide membrane channel for differentiation between nucleus and cytoplasm")
+            return
         else:
-            masks = mesmer_segmentation(
-                nuclei_image=segmentation_image_dict[nuclei_channel],
-                membrane_image=segmentation_image_dict["segmentation_channel"],
-                plot_predictions=plot_predictions,  # plot segmentation results
-                compartment=compartment,
-                model_path=model_path,
-            )  # segment whole cells or nuclei only
+            if seg_method == "mesmer":
+                print("Segmenting with Mesmer!")
+                
+                masks_nuclei = mesmer_segmentation(
+                        nuclei_image=segmentation_image_dict[nuclei_channel],
+                        membrane_image=None,
+                        plot_predictions=plot_predictions,  # plot segmentation results
+                        compartment="nuclear",
+                        model_path=model_path,
+                    )  # segment whole cells or nuclei only
+
+                masks_whole_cell = mesmer_segmentation(
+                        nuclei_image=segmentation_image_dict[nuclei_channel],
+                        membrane_image=segmentation_image_dict["segmentation_channel"],
+                        plot_predictions=plot_predictions,  # plot segmentation results
+                        compartment=compartment,
+                        model_path=model_path,
+                    )  # segment whole cells or nuclei only
+            else:
+                print("Segmenting with Cellpose!")
+                
+                masks_nuclei, flows, styles, input_image, rgb_channels = cellpose_segmentation(
+                        image_dict=segmentation_image_dict,
+                        output_dir=output_dir,
+                        membrane_channel=None,
+                        cytoplasm_channel=cytoplasm_channel_list,
+                        nucleus_channel=nuclei_channel,
+                        use_gpu=use_gpu,
+                        model=model,
+                        custom_model=custom_model,
+                        diameter=diameter,
+                        save_mask_as_png=save_mask_as_png,
+                    )
+                
+                masks_whole_cell, flows, styles, input_image, rgb_channels = cellpose_segmentation(
+                        image_dict=segmentation_image_dict,
+                        output_dir=output_dir,
+                        membrane_channel="segmentation_channel",
+                        cytoplasm_channel=cytoplasm_channel_list,
+                        nucleus_channel=nuclei_channel,
+                        use_gpu=use_gpu,
+                        model=model,
+                        custom_model=custom_model,
+                        diameter=diameter,
+                        save_mask_as_png=save_mask_as_png,
+                    )
+            
+            
+            # Remove single-dimensional entries from the shape of segmentation_masks
+            masks_whole_cell = masks_whole_cell.squeeze()
+            # Get the original dimensions of any one of the images
+            original_height, original_width = image_dict[
+                nuclei_channel
+            ].shape  # or any other channel
+            # Resize the masks back to the original size
+            masks_whole_cell = cv2.resize(
+                masks_whole_cell, (original_width, original_height), interpolation=cv2.INTER_NEAREST
+            )
+
+            # Remove single-dimensional entries from the shape of segmentation_masks
+            masks_nuclei = masks_nuclei.squeeze()
+            # Get the original dimensions of any one of the images
+            original_height, original_width = image_dict[
+                nuclei_channel
+            ].shape  # or any other channel
+            # Resize the masks back to the original size
+            masks_nuclei = cv2.resize(
+                masks_nuclei, (original_width, original_height), interpolation=cv2.INTER_NEAREST
+            )
+            
+            # Create binary masks
+            binary_masks_nuclei = masks_nuclei > 0
+            binary_masks_whole_cell = masks_whole_cell > 0
+
+            # Subtract the binary nuclei mask from the binary whole cell mask
+            binary_masks_cytoplasm = binary_masks_whole_cell & ~binary_masks_nuclei
+
+            # Now, if you want to get a labeled mask for the cytoplasm, you can use a function like `label` from `scipy.ndimage`
+            from scipy.ndimage import label
+            masks_cytoplasm, num_labels = label(binary_masks_cytoplasm)
+               
+            print("Quantifying features after segmentation!")
+            print("Quantifying features nuclei")            
+            nuc= extract_features(
+                    image_dict=image_dict,  # image dictionary
+                    segmentation_masks=masks_nuclei,  # segmentation masks generated by cellpose
+                    channels_to_quantify=channel_names,  # list of channels to quantify (here: all channels)
+                    output_file=pathlib.Path(output_dir)
+                    / (
+                        output_fname + "_" + seg_method + "_nuclei_result.csv"
+                    ),  # output path to store results as csv
+                    size_cutoff=size_cutoff,
+                )  # size cutoff for segmentation masks (default = 0)
+            print("Quantifying features cytoplasm")      
+            cyto= extract_features(
+                    image_dict=image_dict,  # image dictionary
+                    segmentation_masks=masks_cytoplasm,  # segmentation masks generated by cellpose
+                    channels_to_quantify=channel_names,  # list of channels to quantify (here: all channels)
+                    output_file=pathlib.Path(output_dir)
+                    / (
+                        output_fname + "_" + seg_method + "_cytoplasm_result.csv"
+                    ),  # output path to store results as csv
+                    size_cutoff=size_cutoff,
+                )  # size cutoff for segmentation masks (default = 0)
+            
+            print("Quantifying features whole cell")    
+            whole= extract_features(
+                    image_dict=image_dict,  # image dictionary
+                    segmentation_masks=masks_whole_cell,  # segmentation masks generated by cellpose
+                    channels_to_quantify=channel_names,  # list of channels to quantify (here: all channels)
+                    output_file=pathlib.Path(output_dir)
+                    / (
+                        output_fname + "_" + seg_method + "_whole_cell_result.csv"
+                    ),  # output path to store results as csv
+                    size_cutoff=size_cutoff,
+                )  # size cutoff for segmentation masks (default = 0)
+            print("Done!")
+            
+            
+            # remove 
+            out = ["x",
+            "y",
+            "eccentricity",
+            "perimeter",
+            "convex_area",
+            "area",
+            "axis_major_length",
+            "axis_minor_length",
+            "label",]
+            
+            # keep metadata
+            whole_meta = whole[out]
+            
+            # remove from nuc
+            nuc = nuc.drop(out, axis=1)
+            # add whole metadata to cyto
+            nuc_save = pd.concat([nuc, whole_meta], axis=1)
+            nuc_save.to_csv(output_dir + output_fname + "_" + seg_method + "_nuclei_intensities_result.csv")
+            # remove from cyto
+            cyto = cyto.drop(out, axis=1)
+            # add whole metadata to cyto
+            cyto_save = pd.concat([cyto, whole_meta], axis=1)
+            cyto_save.to_csv(output_dir + output_fname + "_" + seg_method + "_cytoplasm_intensities_result.csv")
+            
+            
+            whole.to_csv(output_dir + output_fname + "_" + seg_method + "_whole_cell_intensities_result.csv")
+            whole = whole.drop(out, axis=1)
+            
+            # add identifier to each column name 
+            nuc.columns = [str(col) + '_nuc' for col in nuc.columns]
+            cyto.columns = [str(col) + '_cyto' for col in cyto.columns]
+            whole.columns = [str(col) + '_whole' for col in whole.columns]
+            
+            # combine the dataframes and save as csv
+            result = pd.concat([nuc, cyto, whole, whole_meta], axis=1)
+            result = result.loc[:, ~result.columns.str.contains('Unnamed: 0')]
+            result.to_csv(output_dir + output_fname + "_" + seg_method + "_segmentation_results_combined.csv")
+            
+            return {"img": img, "masks": masks_whole_cell, "image_dict": image_dict, "masks_cytoplasm": masks_cytoplasm, "masks_nuclei": masks_nuclei,}
+                
     else:
-        print("Segmenting with Cellpose!")
-        if membrane_channel_list is None:
-            masks, flows, styles, input_image, rgb_channels = cellpose_segmentation(
-                image_dict=segmentation_image_dict,
-                output_dir=output_dir,
-                membrane_channel=None,
-                cytoplasm_channel=cytoplasm_channel_list,
-                nucleus_channel=nuclei_channel,
-                use_gpu=use_gpu,
-                model=model,
-                custom_model=custom_model,
-                diameter=diameter,
-                save_mask_as_png=save_mask_as_png,
-            )
+        if seg_method == "mesmer":
+            print("Segmenting with Mesmer!")
+            if membrane_channel_list is None:
+                masks = mesmer_segmentation(
+                    nuclei_image=segmentation_image_dict[nuclei_channel],
+                    membrane_image=None,
+                    plot_predictions=plot_predictions,  # plot segmentation results
+                    compartment="nuclear",
+                    model_path=model_path,
+                )  # segment whole cells or nuclei only
+            else:
+                masks = mesmer_segmentation(
+                    nuclei_image=segmentation_image_dict[nuclei_channel],
+                    membrane_image=segmentation_image_dict["segmentation_channel"],
+                    plot_predictions=plot_predictions,  # plot segmentation results
+                    compartment=compartment,
+                    model_path=model_path,
+                )  # segment whole cells or nuclei only
         else:
-            masks, flows, styles, input_image, rgb_channels = cellpose_segmentation(
-                image_dict=segmentation_image_dict,
-                output_dir=output_dir,
-                membrane_channel="segmentation_channel",
-                cytoplasm_channel=cytoplasm_channel_list,
-                nucleus_channel=nuclei_channel,
-                use_gpu=use_gpu,
-                model=model,
-                custom_model=custom_model,
-                diameter=diameter,
-                save_mask_as_png=save_mask_as_png,
-            )
-    # Remove single-dimensional entries from the shape of segmentation_masks
-    masks = masks.squeeze()
-    # Get the original dimensions of any one of the images
-    original_height, original_width = image_dict[
-        nuclei_channel
-    ].shape  # or any other channel
-    # Resize the masks back to the original size
-    masks = cv2.resize(
-        masks, (original_width, original_height), interpolation=cv2.INTER_NEAREST
-    )
-    print("Quantifying features after segmentation!")
-    extract_features(
-        image_dict=image_dict,  # image dictionary
-        segmentation_masks=masks,  # segmentation masks generated by cellpose
-        channels_to_quantify=channel_names,  # list of channels to quantify (here: all channels)
-        output_file=pathlib.Path(output_dir)
-        / (
-            output_fname + "_" + seg_method + "_result.csv"
-        ),  # output path to store results as csv
-        size_cutoff=size_cutoff,
-    )  # size cutoff for segmentation masks (default = 0)
-    print("Done!")
-    return {"img": img, "masks": masks, "image_dict": image_dict}
+            print("Segmenting with Cellpose!")
+            if membrane_channel_list is None:
+                masks, flows, styles, input_image, rgb_channels = cellpose_segmentation(
+                    image_dict=segmentation_image_dict,
+                    output_dir=output_dir,
+                    membrane_channel=None,
+                    cytoplasm_channel=cytoplasm_channel_list,
+                    nucleus_channel=nuclei_channel,
+                    use_gpu=use_gpu,
+                    model=model,
+                    custom_model=custom_model,
+                    diameter=diameter,
+                    save_mask_as_png=save_mask_as_png,
+                )
+            else:
+                masks, flows, styles, input_image, rgb_channels = cellpose_segmentation(
+                    image_dict=segmentation_image_dict,
+                    output_dir=output_dir,
+                    membrane_channel="segmentation_channel",
+                    cytoplasm_channel=cytoplasm_channel_list,
+                    nucleus_channel=nuclei_channel,
+                    use_gpu=use_gpu,
+                    model=model,
+                    custom_model=custom_model,
+                    diameter=diameter,
+                    save_mask_as_png=save_mask_as_png,
+                )
+        # Remove single-dimensional entries from the shape of segmentation_masks
+        masks = masks.squeeze()
+        # Get the original dimensions of any one of the images
+        original_height, original_width = image_dict[
+            nuclei_channel
+        ].shape  # or any other channel
+        # Resize the masks back to the original size
+        masks = cv2.resize(
+            masks, (original_width, original_height), interpolation=cv2.INTER_NEAREST
+        )
+        print("Quantifying features after segmentation!")
+        extract_features(
+            image_dict=image_dict,  # image dictionary
+            segmentation_masks=masks,  # segmentation masks generated by cellpose
+            channels_to_quantify=channel_names,  # list of channels to quantify (here: all channels)
+            output_file=pathlib.Path(output_dir)
+            / (
+                output_fname + "_" + seg_method + "_result.csv"
+            ),  # output path to store results as csv
+            size_cutoff=size_cutoff,
+        )  # size cutoff for segmentation masks (default = 0)
+        print("Done!")
+        return {"img": img, "masks": masks, "image_dict": image_dict}
 
 
 def extract_features(
@@ -291,6 +473,8 @@ def extract_features(
 
     # Export to CSV
     markers.to_csv(output_file)
+    
+    return markers
 
 
 def cellpose_segmentation(
@@ -622,7 +806,13 @@ def mesmer_segmentation(
 
     # Create a combined image stack
     # Assumes nuclei_image and membrane_image are numpy arrays of the same shape
-    combined_image = np.stack([nuclei_image, membrane_image], axis=-1)
+    if membrane_image is None:
+        # generate empty membrane image
+        print("No membrane image provided. Nuclear segmentation only.")
+        membrane_image = np.zeros_like(nuclei_image)
+        combined_image = np.stack([nuclei_image, membrane_image], axis=-1)
+    else:
+        combined_image = np.stack([nuclei_image, membrane_image], axis=-1)
 
     # Add an extra dimension to make it compatible with Mesmer's input requirements
     # Changes shape from (height, width, channels) to (1, height, width, channels)
