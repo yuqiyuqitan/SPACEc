@@ -9,12 +9,12 @@ import numpy as np
 import pandas as pd
 import requests
 import skimage.io
+import tensorflow as tf
 from cellpose import io, models
 from deepcell.applications import Mesmer
 from deepcell.utils.plot_utils import create_rgb_image, make_outline_overlay
 from skimage.measure import regionprops_table
 from tensorflow.keras.models import load_model
-import tensorflow as tf
 from tqdm import tqdm
 
 from .._shared.segmentation import (
@@ -180,34 +180,42 @@ def cell_segmentation(
             else:
                 print("Segmenting with Cellpose!")
 
-                masks_nuclei, flows, styles, input_image, rgb_channels = (
-                    cellpose_segmentation(
-                        image_dict=segmentation_image_dict,
-                        output_dir=output_dir,
-                        membrane_channel=None,
-                        cytoplasm_channel=cytoplasm_channel_list,
-                        nucleus_channel=nuclei_channel,
-                        use_gpu=use_gpu,
-                        model=model,
-                        custom_model=custom_model,
-                        diameter=diameter,
-                        save_mask_as_png=save_mask_as_png,
-                    )
+                (
+                    masks_nuclei,
+                    flows,
+                    styles,
+                    input_image,
+                    rgb_channels,
+                ) = cellpose_segmentation(
+                    image_dict=segmentation_image_dict,
+                    output_dir=output_dir,
+                    membrane_channel=None,
+                    cytoplasm_channel=cytoplasm_channel_list,
+                    nucleus_channel=nuclei_channel,
+                    use_gpu=use_gpu,
+                    model=model,
+                    custom_model=custom_model,
+                    diameter=diameter,
+                    save_mask_as_png=save_mask_as_png,
                 )
 
-                masks_whole_cell, flows, styles, input_image, rgb_channels = (
-                    cellpose_segmentation(
-                        image_dict=segmentation_image_dict,
-                        output_dir=output_dir,
-                        membrane_channel="segmentation_channel",
-                        cytoplasm_channel=cytoplasm_channel_list,
-                        nucleus_channel=nuclei_channel,
-                        use_gpu=use_gpu,
-                        model=model,
-                        custom_model=custom_model,
-                        diameter=diameter,
-                        save_mask_as_png=save_mask_as_png,
-                    )
+                (
+                    masks_whole_cell,
+                    flows,
+                    styles,
+                    input_image,
+                    rgb_channels,
+                ) = cellpose_segmentation(
+                    image_dict=segmentation_image_dict,
+                    output_dir=output_dir,
+                    membrane_channel="segmentation_channel",
+                    cytoplasm_channel=cytoplasm_channel_list,
+                    nucleus_channel=nuclei_channel,
+                    use_gpu=use_gpu,
+                    model=model,
+                    custom_model=custom_model,
+                    diameter=diameter,
+                    save_mask_as_png=save_mask_as_png,
                 )
 
             # Remove single-dimensional entries from the shape of segmentation_masks
