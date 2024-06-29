@@ -13,7 +13,7 @@ from .._shared.segmentation import combine_channels, format_CODEX
 def segmentation_ch(
     file_name,  # image for segmentation
     channel_file,  # all channels used for staining
-    output_dir,  
+    output_dir,
     savefig=False,  # new
     output_fname="",  # new
     extra_seg_ch_list=None,  # channels used for membrane segmentation
@@ -70,7 +70,7 @@ def segmentation_ch(
     ax[1].imshow(image_dict["segmentation_channel"])
     ax[0].set_title("nuclei")
     ax[1].set_title("membrane")
-    
+
     # save or plot figure
     if savefig:
         plt.savefig(

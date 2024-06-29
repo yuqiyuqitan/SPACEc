@@ -75,7 +75,7 @@ def combine_channels(image_dict, channel_list, new_channel_name):
     # Create empty image
     new_image = np.zeros(
         (image_dict[channel_list[0]].shape[0], image_dict[channel_list[0]].shape[1]),
-        dtype=bit_depth
+        dtype=bit_depth,
     )
 
     # Add channels to image as maximum projection
@@ -118,10 +118,10 @@ def format_CODEX(
     Returns
     -------
     dict
-        Dictionary with channel names as keys and images as values. If `stack` is True and `input_format` is "CODEX", 
+        Dictionary with channel names as keys and images as values. If `stack` is True and `input_format` is "CODEX",
         also returns a stacked image as a numpy array.
     """
-    
+
     if input_format == "CODEX":
         total_images = number_cycles * images_per_cycle
         image_list = [None] * total_images  # pre-allocated list

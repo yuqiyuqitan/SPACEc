@@ -3885,25 +3885,43 @@ def cn_map(
         # Dummy scatter plots for legend
         freqs = simp_freqs * 10000
         max_size = max(freqs)
-        sizes = [round(max_size)/4, round(max_size)/2, round(max_size)]  # Replace with the sizes you want in the legend
-        labels = [str(round(max_size/100)/4) + '%', str(round(max_size/100)/2) + '%', str(round(max_size/100)) + '%']  # Replace with the labels you want in the legend
+        sizes = [
+            round(max_size) / 4,
+            round(max_size) / 2,
+            round(max_size),
+        ]  # Replace with the sizes you want in the legend
+        labels = [
+            str(round(max_size / 100) / 4) + "%",
+            str(round(max_size / 100) / 2) + "%",
+            str(round(max_size / 100)) + "%",
+        ]  # Replace with the labels you want in the legend
 
         # Add legend
-        legend_elements = [plt.Line2D([0], [0], marker='o', color='w', label=label,
-                                    markerfacecolor='black', markersize=size**0.5) 
-                        for size, label in zip(sizes, labels)]
+        legend_elements = [
+            plt.Line2D(
+                [0],
+                [0],
+                marker="o",
+                color="w",
+                label=label,
+                markerfacecolor="black",
+                markersize=size**0.5,
+            )
+            for size, label in zip(sizes, labels)
+        ]
 
         # Add first legend
-        legend1 = plt.legend(handles=legend_elements, 
-                             loc='lower right', 
-                             title='Total frequency', 
-                             title_fontsize = 30, 
-                             fontsize=30, 
-                             handlelength=6, 
-                             handletextpad=1, 
-                             bbox_to_anchor=(0.0, -0.15, 1.0, 0.102))
+        legend1 = plt.legend(
+            handles=legend_elements,
+            loc="lower right",
+            title="Total frequency",
+            title_fontsize=30,
+            fontsize=30,
+            handlelength=6,
+            handletextpad=1,
+            bbox_to_anchor=(0.0, -0.15, 1.0, 0.102),
+        )
 
-        
         if n in tops:
             plt.text(
                 pos[n][0],
@@ -3969,7 +3987,6 @@ def cn_map(
         plt.savefig(output_dir + output_fname + "_CNMap.pdf", bbox_inches="tight")
     else:
         plt.show()
-
 
 
 def coordinates_on_image(
