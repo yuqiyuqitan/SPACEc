@@ -5,6 +5,23 @@ from skimage import io
 
 
 def create_multichannel_tiff(input_dir, output_dir, output_filename):
+    """
+    Create a multi-channel TIFF image from individual TIFF files.
+
+    Parameters
+    ----------
+    input_dir : str
+        Directory containing the input TIFF files.
+    output_dir : str
+        Directory to save the output TIFF file.
+    output_filename : str
+        Name of the output TIFF file.
+
+    Returns
+    -------
+    list of str
+        List of channel names.
+    """
     # Get a list of all TIFF files in the input directory
     tiff_files = [f for f in os.listdir(input_dir) if f.endswith((".tiff", ".tif"))]
 
@@ -35,17 +52,35 @@ def create_multichannel_tiff(input_dir, output_dir, output_filename):
 
 # combine multiple channels in one image and add as new image to image_dict with the name segmentation_channel
 def combine_channels(image_dict, channel_list, new_channel_name):
+    """
+    Combine multiple channels into a single channel.
+
+    Parameters
+    ----------
+    image_dict : dict
+        Dictionary with channel names as keys and images as values.
+    channel_list : list of str
+        List of channel names to combine.
+    new_channel_name : str
+        Name of the new channel.
+
+    Returns
+    -------
+    dict
+        Updated dictionary with the new channel added.
+    """
+    # Determine bit depth of input images
+    bit_depth = image_dict[channel_list[0]].dtype
+
     # Create empty image
     new_image = np.zeros(
-        (image_dict[channel_list[0]].shape[0], image_dict[channel_list[0]].shape[1])
+        (image_dict[channel_list[0]].shape[0], image_dict[channel_list[0]].shape[1]),
+        dtype=bit_depth,
     )
 
     # Add channels to image as maximum projection
     for channel in channel_list:
         new_image = np.maximum(new_image, image_dict[channel])
-
-    # generate greyscale image
-    new_image = np.uint8(new_image)
 
     # Add image to image_dict
     image_dict[new_channel_name] = new_image
@@ -62,6 +97,31 @@ def format_CODEX(
     stack=True,
     input_format="Multichannel",
 ):
+    """
+    Format images based on the input format.
+
+    Parameters
+    ----------
+    image : ndarray or str
+        Input image or directory containing images.
+    channel_names : list of str, optional
+        List of channel names.
+    number_cycles : int, optional
+        Number of cycles in the CODEX format.
+    images_per_cycle : int, optional
+        Number of images per cycle in the CODEX format.
+    stack : bool, default=True
+        If True, stack the images in the list.
+    input_format : str, default="Multichannel"
+        Format of the input images. Options are "CODEX", "Multichannel", and "Channels".
+
+    Returns
+    -------
+    dict
+        Dictionary with channel names as keys and images as values. If `stack` is True and `input_format` is "CODEX",
+        also returns a stacked image as a numpy array.
+    """
+
     if input_format == "CODEX":
         total_images = number_cycles * images_per_cycle
         image_list = [None] * total_images  # pre-allocated list

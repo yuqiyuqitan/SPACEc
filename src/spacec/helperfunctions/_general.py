@@ -1053,6 +1053,18 @@ def is_dark(color):
 
 
 def check_for_gpu():
+    """
+    Check if a GPU is available for use by TensorFlow and PyTorch.
+
+    This function checks if a GPU is available for use by TensorFlow and PyTorch.
+    It prints a message indicating whether a GPU is available for each library,
+    and returns a boolean indicating whether a GPU is available for PyTorch.
+
+    Returns
+    -------
+    bool
+        True if a GPU is available for PyTorch, False otherwise.
+    """
     if tf.config.list_physical_devices("GPU"):
         print("GPU is available to Tensorflow")
     else:
@@ -1061,3 +1073,4 @@ def check_for_gpu():
     use_GPU = use_gpu()
     yn = ["GPU is not available to Pytorch", "GPU is available to Pytorch"]
     print(f"{yn[use_GPU]}")
+    return use_GPU
