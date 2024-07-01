@@ -37,11 +37,11 @@ If you run into an installation issue or want to run SPACEc in a containerized e
 
 ```bash
 #Run CPU version:
-docker pull tkempchen/spacec:cpu  
+docker pull tkempchen/spacec:cpu
 docker run -p 8888:8888 -p 5100:5100 spacec:cpu
 
 #Or run GPU version:
-docker pull tkempchen/spacec:gpu  
+docker pull tkempchen/spacec:gpu
 docker run --gpus all -p 8888:8888 -p 5100:5100 spacec:gpu
 ```
 
@@ -88,4 +88,3 @@ pip install pyg_lib torch_scatter torch_sparse torch_cluster torch_spline_conv -
 ## General outline of SPACEc analysis
 
 ![SPACEc](https://raw.githubusercontent.com/yuqiyuqitan/SPACEc/master/docs/overview.png)
-
