@@ -10,14 +10,24 @@ We generally recommend to use a `conda` environment. It makes installing require
 
 ```bash
 # setup `conda` repository
-conda create -n spacec python==3.9
+conda create -n spacec
 conda activate spacec
+
+# on Apple M1/M2: make sure things run in an x64 environment
+# note: certain algorithms (e.g., clustering) might be very slow on Apple M1/M2 
+# conda config --env --set subdir osx-64
+
+# install Python
+conda install python==3.9
 
 # install `graphviz`
 conda install graphviz
 
 # install 'libvips' - only on Mac and Linux
 conda install -c conda-forge libvips pyvips openslide-python
+
+# on Apple M1/M2
+# pip install numpy==1. werkzeug==2.3.6
 
 # install `SPACEc` from pypi
 pip install spacec
@@ -27,7 +37,7 @@ pip install spacec
 
 # on Apple M1/M2
 # conda install tensorflow=2.10.0
-# and always import spacec first before importing other packages
+# IMPORTANT: always import spacec first before importing any other packages
 ```
 
 Example tonsil data on [dryad](https://datadryad.org/stash/share/OXTHu8fAybiINGD1S3tIVUIcUiG4nOsjjeWmrvJV-dQ)
@@ -75,6 +85,10 @@ pip install pyg_lib torch_scatter torch_sparse torch_cluster torch_spline_conv -
 
 ```bash
 pip install pytest pytest-cov
+
+# Note: before you run `pytest` you might have to deactivate and activate the conda environment first
+# conda deactivate; conda activate spacec
+
 pytest
 ```
 
