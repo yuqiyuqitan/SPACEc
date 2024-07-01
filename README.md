@@ -32,6 +32,21 @@ pip install spacec
 
 Example tonsil data on [dryad](https://datadryad.org/stash/share/OXTHu8fAybiINGD1S3tIVUIcUiG4nOsjjeWmrvJV-dQ)
 
+### Docker
+If you run into installation issue or don't want to deal with installation issue, we have created a docker environment for you to use SPACEc so that you don't have to instll from sratch.
+SPACEc Docker image: https://hub.docker.com/repository/docker/tkempchen/spacec/general
+
+```bash
+# pull the SPACEc docker image
+docker pull tkempchen/spacec:cpu #(or gpu) 
+
+#Run CPU version: 
+docker run -p 8888:8888 -p 5100:5100 spacec:cpu
+
+#Or run GPU version: 
+docker run --gpus all -p 8888:8888 -p 5100:5100 spacec:gpu
+```
+
 ### Install additional features
 #### GPU accelerated clustering
 NOTE: This module is based on Nvidia `RAPIDS` that is currently only available on linux! If you run SPACEc on a Windows machine you need to run SPACEc in WSL to take advantage of this module. For further information read the offical RAPIDS documentation:
@@ -71,24 +86,8 @@ pip install torch_geometric
 pip install pyg_lib torch_scatter torch_sparse torch_cluster torch_spline_conv -f https://data.pyg.org/whl/torch-2.3.0+cu121.html
 ```
 
-### Run tests.
-
-```bash
-pip install pytest pytest-cov
-pytest
-```
-
-
-```bash
-# conda create -n sap python==3.8.0
-# pip install deepcell cellpose
-
-# conda install glob2 matplotlib numpy pandas scanpy seaborn scipy networkx tensorly statsmodels scikit-learn yellowbrick joblib tifffile tensorflow
-# conda install anaconda::graphviz
-# conda install -c conda-forge scikit-image
-# pip install leidenalg concave-hull==0.0.6
-```
 
 ## General outline of SPACEc analysis
 
-![SPACEc](https://github.com/yuqiyuqitan/SPACEc/tree/master/docs/overview.png?raw=true "")
+![SPACEc](https://raw.githubusercontent.com/yuqiyuqitan/SPACEc/master/docs/overview.png)
+
