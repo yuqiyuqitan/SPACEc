@@ -33,17 +33,15 @@ pip install spacec
 Example tonsil data on [dryad](https://datadryad.org/stash/share/OXTHu8fAybiINGD1S3tIVUIcUiG4nOsjjeWmrvJV-dQ)
 
 ### Docker
-If you run into installation issue or don't want to deal with installation issue, we have created a docker environment for you to use SPACEc so that you don't have to instll from sratch.
-SPACEc Docker image: https://hub.docker.com/repository/docker/tkempchen/spacec/general
+If you run into an installation issue or want to run SPACEc in a containerized environment, we have created a Docker image for you to use SPACEc so that you don't have to install manually. You can find the SPACEc Docker image here: https://hub.docker.com/repository/docker/tkempchen/spacec/general
 
 ```bash
-# pull the SPACEc docker image
-docker pull tkempchen/spacec:cpu #(or gpu) 
-
-#Run CPU version: 
+#Run CPU version:
+docker pull tkempchen/spacec:cpu  
 docker run -p 8888:8888 -p 5100:5100 spacec:cpu
 
-#Or run GPU version: 
+#Or run GPU version:
+docker pull tkempchen/spacec:gpu  
 docker run --gpus all -p 8888:8888 -p 5100:5100 spacec:gpu
 ```
 
