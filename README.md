@@ -14,7 +14,7 @@ conda create -n spacec
 conda activate spacec
 
 # on Apple M1/M2: make sure things run in an x64 environment
-# note: certain algorithms (e.g., clustering) might be very slow on Apple M1/M2 
+# note: certain algorithms (e.g., clustering) might be very slow on Apple M1/M2
 # conda config --env --set subdir osx-64
 
 # install Python
