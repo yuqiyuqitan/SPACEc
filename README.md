@@ -1,5 +1,8 @@
 # SPatial Analysis for CodEX data (SPACEc)
 
+[![Documentation Status](https://readthedocs.org/projects/spacec/badge/?version=latest)](https://spacec.readthedocs.io/en/latest/?badge=latest)
+![example workflow](https://github.com/yuqiyuqitan/SPACEc/actions/workflows/ci.yml/badge.svg)
+
 ## Installation notes
 
 **Note**: Due to some dependencies, we currently only support Python up to `3.9`.
