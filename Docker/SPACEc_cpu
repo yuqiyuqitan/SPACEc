@@ -1,5 +1,5 @@
-# Start from a base CUDA image
-FROM ubuntu:20.04
+# Start from a base image
+FROM debian:bullseye-slim
 
 # Update the package list
 RUN apt-get update && \
@@ -41,15 +41,17 @@ RUN conda run pip install spacec
 RUN conda run pip install "TissUUmaps" && \
     conda install libxml2=2.9.10 && \
     conda run pip install torch_geometric && \
-    conda run pip install pyg_lib torch_scatter torch_sparse torch_cluster torch_spline_conv -f https://data.pyg.org/whl/torch-2.3.0+cu121.html && \
+    conda run pip install pyg_lib torch_scatter torch_sparse torch_cluster torch_spline_conv -f https://data.pyg.org/whl/torch-2.3.0+cu121.html
 
 
 # Copy notebooks into a new directory in the Docker image
 COPY notebooks /notebooks
-COPY example_data /example_data
 
 # Set the new directory as the working directory
 WORKDIR /notebooks
+
+# Clean up to reduce image size
+RUN conda clean -afy
 
 # Expose Jupyter port
 EXPOSE 8888

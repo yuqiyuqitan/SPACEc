@@ -49,7 +49,6 @@ RUN conda run pip install "TissUUmaps" && \
 
 # Copy notebooks into a new directory in the Docker image
 COPY notebooks /notebooks
-COPY example_data /example_data
 
 # Set the new directory as the working directory
 WORKDIR /notebooks
