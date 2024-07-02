@@ -27,7 +27,7 @@ conda install graphviz
 conda install -c conda-forge libvips pyvips openslide-python
 
 # on Apple M1/M2
-# pip install numpy==1. werkzeug==2.3.6
+# pip install numpy==1.23.5 werkzeug==2.3.8
 
 # install `SPACEc` from pypi
 pip install spacec
