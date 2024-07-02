@@ -5,7 +5,7 @@
 
 ## Installation notes
 
-**Note**: Due to some dependencies, we currently only support Python up to `3.9`.
+**Note**: We currently only support Python==`3.9`. We are currently working on adding support for Macs with M1 and M2 chips following a recent update to some of our dependencies. Stay tuned for further updates!
 
 We generally recommend to use a `conda` environment. It makes installing requirements like `graphviz` a lot easier.
 
@@ -36,7 +36,7 @@ pip install spacec
 Example tonsil data on [dryad](https://datadryad.org/stash/share/OXTHu8fAybiINGD1S3tIVUIcUiG4nOsjjeWmrvJV-dQ)
 
 ### Docker
-If you run into an installation issue or want to run SPACEc in a containerized environment, we have created a Docker image for you to use SPACEc so that you don't have to install manually. You can find the SPACEc Docker image here: https://hub.docker.com/repository/docker/tkempchen/spacec/general
+If you run into an installation issue or want to run SPACEc in a containerized environment, we have created a Docker image for you to use SPACEc so that you don't have to install manually. You can find the SPACEc Docker image here: https://hub.docker.com/r/tkempchen/spacec
 
 ```bash
 #Run CPU version:
@@ -86,7 +86,6 @@ pip install torch_geometric
 
 pip install pyg_lib torch_scatter torch_sparse torch_cluster torch_spline_conv -f https://data.pyg.org/whl/torch-2.3.0+cu121.html
 ```
-
 
 ## General outline of SPACEc analysis
 
