@@ -3,6 +3,9 @@
 [![Documentation Status](https://readthedocs.org/projects/spacec/badge/?version=latest)](https://spacec.readthedocs.io/en/latest/?badge=latest)
 ![example workflow](https://github.com/yuqiyuqitan/SPACEc/actions/workflows/ci.yml/badge.svg)
 
+[Preprint](https://doi.org/10.1101/2024.06.29.601349): more detailed explanation on each steps in Supplementary Notes 2 (p13-24).
+[Tutorial](https://spacec.readthedocs.io/en/latest/?badge=latest)
+
 ## Installation notes
 
 **Note**: We currently only support Python==`3.9`. We are currently working on adding support for Macs with M1 and M2 chips following a recent update to some of our dependencies. Stay tuned for further updates!
