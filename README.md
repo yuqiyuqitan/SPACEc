@@ -14,29 +14,88 @@ We generally recommend to use a `conda` environment. It makes installing require
 
 ### Install
 
+<details><summary>Linux</summary>
+
 ```bash
 # setup `conda` repository
-conda create -n spacec python==3.9
+conda create -n spacec
 conda activate spacec
+
+# install Python
+conda install python==3.9
 
 # install `graphviz`
 conda install graphviz
 
-# install 'libvips' - only on Mac and Linux
+# install 'libvips'; Mac and Linux specific
 conda install -c conda-forge libvips pyvips openslide-python
 
 # install `SPACEc` from pypi
 pip install spacec
-
-# install `SPACEc` from cloned repo
-#pip install -e .
-
-# on Apple M1/M2
-# conda install tensorflow=2.10.0
-# and always import spacec first before importing other packages
 ```
 
-Example tonsil data on [dryad](https://datadryad.org/stash/share/OXTHu8fAybiINGD1S3tIVUIcUiG4nOsjjeWmrvJV-dQ)
+* ⚠️ **IMPORTANT**: always import `spacec` first before importing any other packages
+* **Example tonsil data** on [dryad](https://datadryad.org/stash/share/OXTHu8fAybiINGD1S3tIVUIcUiG4nOsjjeWmrvJV-dQ)
+
+</details>
+
+
+<details><summary>Apple M1/M2</summary>
+
+```bash
+# setup `conda` repository
+conda create -n spacec
+conda activate spacec
+
+# set environment; Apple specific
+conda config --env --set subdir osx-64
+
+# install Python
+conda install python==3.9
+
+# install `graphviz`
+conda install graphviz
+
+# install 'libvips'; Mac and Linux specific
+conda install -c conda-forge libvips pyvips openslide-python
+
+# requirements not automatically installed otherwise; Apple specific
+pip install numpy==1.26.4 werkzeug==2.3.8
+
+# install `SPACEc` from pypi
+pip install spacec
+
+# reinstall tensorflow; Apple specific
+conda install tensorflow=2.10.0
+```
+
+* ⚠️ **IMPORTANT**: always import `spacec` first before importing any other packages
+* **Example tonsil data** on [dryad](https://datadryad.org/stash/share/OXTHu8fAybiINGD1S3tIVUIcUiG4nOsjjeWmrvJV-dQ)
+
+</details>
+
+<details><summary>Windows</summary>
+
+```bash
+# setup `conda` repository
+conda create -n spacec
+conda activate spacec
+
+# install Python
+conda install python==3.9
+
+# install `graphviz`
+conda install graphviz
+
+# install `SPACEc` from pypi
+pip install spacec
+```
+
+* ⚠️ **IMPORTANT**: always import `spacec` first before importing any other packages
+* **Example tonsil data** on [dryad](https://datadryad.org/stash/share/OXTHu8fAybiINGD1S3tIVUIcUiG4nOsjjeWmrvJV-dQ)
+
+</details>
+
 
 ### Docker
 If you run into an installation issue or want to run SPACEc in a containerized environment, we have created a Docker image for you to use SPACEc so that you don't have to install manually. You can find the SPACEc Docker image here: https://hub.docker.com/r/tkempchen/spacec
@@ -88,6 +147,17 @@ pip install torch
 pip install torch_geometric
 
 pip install pyg_lib torch_scatter torch_sparse torch_cluster torch_spline_conv -f https://data.pyg.org/whl/torch-2.3.0+cu121.html
+```
+
+### Run tests.
+
+```bash
+pip install pytest pytest-cov
+
+# Note: before you run `pytest` you might have to deactivate and activate the conda environment first
+# conda deactivate; conda activate spacec
+
+pytest
 ```
 
 ## General outline of SPACEc analysis
