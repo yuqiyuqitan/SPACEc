@@ -1,8 +1,14 @@
 # SPatial Analysis for CodEX data (SPACEc)
 
+[![Documentation Status](https://readthedocs.org/projects/spacec/badge/?version=latest)](https://spacec.readthedocs.io/en/latest/?badge=latest)
+![example workflow](https://github.com/yuqiyuqitan/SPACEc/actions/workflows/ci.yml/badge.svg)
+
+[Preprint](https://doi.org/10.1101/2024.06.29.601349): more detailed explanation on each steps in Supplementary Notes 2 (p13-24).
+[Tutorial](https://spacec.readthedocs.io/en/latest/?badge=latest)
+
 ## Installation notes
 
-**Note**: Due to some dependencies, we currently only support Python up to `3.9`.
+**Note**: We currently only support Python==`3.9`. We are currently working on adding support for Macs with M1 and M2 chips following a recent update to some of our dependencies. Stay tuned for further updates!
 
 We generally recommend to use a `conda` environment. It makes installing requirements like `graphviz` a lot easier.
 
@@ -87,6 +93,19 @@ pip install spacec
 * **Example tonsil data** on [dryad](https://datadryad.org/stash/share/OXTHu8fAybiINGD1S3tIVUIcUiG4nOsjjeWmrvJV-dQ)
 
 
+### Docker
+If you run into an installation issue or want to run SPACEc in a containerized environment, we have created a Docker image for you to use SPACEc so that you don't have to install manually. You can find the SPACEc Docker image here: https://hub.docker.com/r/tkempchen/spacec
+
+```bash
+#Run CPU version:
+docker pull tkempchen/spacec:cpu
+docker run -p 8888:8888 -p 5100:5100 spacec:cpu
+
+#Or run GPU version:
+docker pull tkempchen/spacec:gpu
+docker run --gpus all -p 8888:8888 -p 5100:5100 spacec:gpu
+```
+
 ### Install additional features
 #### GPU accelerated clustering
 NOTE: This module is based on Nvidia `RAPIDS` that is currently only available on linux! If you run SPACEc on a Windows machine you need to run SPACEc in WSL to take advantage of this module. For further information read the offical RAPIDS documentation:
@@ -137,17 +156,6 @@ pip install pytest pytest-cov
 pytest
 ```
 
-
-```bash
-# conda create -n sap python==3.8.0
-# pip install deepcell cellpose
-
-# conda install glob2 matplotlib numpy pandas scanpy seaborn scipy networkx tensorly statsmodels scikit-learn yellowbrick joblib tifffile tensorflow
-# conda install anaconda::graphviz
-# conda install -c conda-forge scikit-image
-# pip install leidenalg concave-hull==0.0.6
-```
-
 ## General outline of SPACEc analysis
 
-![SPACEc](https://github.com/yuqiyuqitan/SPACEc/tree/master/docs/overview.png?raw=true "")
+![SPACEc](https://raw.githubusercontent.com/yuqiyuqitan/SPACEc/master/docs/overview.png)
