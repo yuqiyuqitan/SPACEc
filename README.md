@@ -34,6 +34,9 @@ conda install -c conda-forge libvips pyvips openslide-python
 pip install spacec
 ```
 
+* ⚠️ **IMPORTANT**: always import `spacec` first before importing any other packages
+* **Example tonsil data** on [dryad](https://datadryad.org/stash/share/OXTHu8fAybiINGD1S3tIVUIcUiG4nOsjjeWmrvJV-dQ)
+
 </details>
 
 
@@ -66,6 +69,9 @@ pip install spacec
 conda install tensorflow=2.10.0
 ```
 
+* ⚠️ **IMPORTANT**: always import `spacec` first before importing any other packages
+* **Example tonsil data** on [dryad](https://datadryad.org/stash/share/OXTHu8fAybiINGD1S3tIVUIcUiG4nOsjjeWmrvJV-dQ)
+
 </details>
 
 <details><summary>Windows</summary>
@@ -85,10 +91,10 @@ conda install graphviz
 pip install spacec
 ```
 
-</details>
-
 * ⚠️ **IMPORTANT**: always import `spacec` first before importing any other packages
 * **Example tonsil data** on [dryad](https://datadryad.org/stash/share/OXTHu8fAybiINGD1S3tIVUIcUiG4nOsjjeWmrvJV-dQ)
+
+</details>
 
 
 ### Docker
