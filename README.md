@@ -87,8 +87,6 @@ pip install spacec
 
 </details>
 
-&nbsp;
-
 * ⚠️ **IMPORTANT**: always import `spacec` first before importing any other packages
 * **Example tonsil data** on [dryad](https://datadryad.org/stash/share/OXTHu8fAybiINGD1S3tIVUIcUiG4nOsjjeWmrvJV-dQ)
 
