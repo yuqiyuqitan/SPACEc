@@ -8,14 +8,12 @@ We generally recommend to use a `conda` environment. It makes installing require
 
 ### Install
 
+<details><summary>Linux</summary>
+
 ```bash
 # setup `conda` repository
 conda create -n spacec
 conda activate spacec
-
-# on Apple M1/M2: make sure things run in an x64 environment
-# note: certain algorithms (e.g., clustering) might be very slow on Apple M1/M2
-# conda config --env --set subdir osx-64
 
 # install Python
 conda install python==3.9
@@ -23,24 +21,71 @@ conda install python==3.9
 # install `graphviz`
 conda install graphviz
 
-# install 'libvips' - only on Mac and Linux
+# install 'libvips'; Mac and Linux specific
 conda install -c conda-forge libvips pyvips openslide-python
 
-# on Apple M1/M2
-# pip install numpy==1. werkzeug==2.3.6
+# install `SPACEc` from pypi
+pip install spacec
+```
+
+</details>
+
+
+<details><summary>Apple M1/M2</summary>
+
+```bash
+# setup `conda` repository
+conda create -n spacec
+conda activate spacec
+
+# set environment; Apple specific
+conda config --env --set subdir osx-64
+
+# install Python
+conda install python==3.9
+
+# install `graphviz`
+conda install graphviz
+
+# install 'libvips'; Mac and Linux specific
+conda install -c conda-forge libvips pyvips openslide-python
+
+# requirements not automatically installed otherwise; Apple specific
+pip install numpy==1.26.4 werkzeug==2.3.8
 
 # install `SPACEc` from pypi
 pip install spacec
 
-# install `SPACEc` from cloned repo
-#pip install -e .
-
-# on Apple M1/M2
-# conda install tensorflow=2.10.0
-# IMPORTANT: always import spacec first before importing any other packages
+# reinstall tensorflow; Apple specific
+conda install tensorflow=2.10.0
 ```
 
-Example tonsil data on [dryad](https://datadryad.org/stash/share/OXTHu8fAybiINGD1S3tIVUIcUiG4nOsjjeWmrvJV-dQ)
+</details>
+
+<details><summary>Windows</summary>
+
+```bash
+# setup `conda` repository
+conda create -n spacec
+conda activate spacec
+
+# install Python
+conda install python==3.9
+
+# install `graphviz`
+conda install graphviz
+
+# install `SPACEc` from pypi
+pip install spacec
+```
+
+</details>
+
+&nbsp;
+
+* ⚠️ **IMPORTANT**: always import `spacec` first before importing any other packages
+* **Example tonsil data** on [dryad](https://datadryad.org/stash/share/OXTHu8fAybiINGD1S3tIVUIcUiG4nOsjjeWmrvJV-dQ)
+
 
 ### Install additional features
 #### GPU accelerated clustering
