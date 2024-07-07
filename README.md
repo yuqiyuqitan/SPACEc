@@ -8,7 +8,7 @@
 
 ## Installation notes
 
-**Note**: We currently only support Python==`3.9`. We are currently working on adding support for Macs with M1 and M2 chips following a recent update to some of our dependencies. Stay tuned for further updates!
+**Note**: We currently only support Python==`3.9`.
 
 We generally recommend to use a `conda` environment. It makes installing requirements like `graphviz` a lot easier.
 
