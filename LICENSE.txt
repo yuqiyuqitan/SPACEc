@@ -1,4 +1,4 @@
-Academic Software License Agreement (10/7/2024)
+Academic Software License Agreement (2024/07/10)
 
 STANFORD ACADEMIC SOFTWARE LICENSE AGREEMENT FOR "SPACEc: A Streamlined, Interactive Python Workflow for Multiplexed Image Processing and Analysis"
 
