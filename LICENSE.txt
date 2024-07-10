@@ -1,21 +1,25 @@
-The MIT License (MIT)
+Academic Software License Agreement (10/7/2024)
 
-Copyright (c) 2023 yuqiyuqitan
+STANFORD ACADEMIC SOFTWARE LICENSE AGREEMENT FOR "SPACEc: A Streamlined, Interactive Python Workflow for Multiplexed Image Processing and Analysis"
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+1.	This is a legal agreement (“Agreement”) between ______________________ (“RECIPIENT” or “you”), and THE BOARD OF TRUSTEES OF THE LELAND STANFORD JUNIOR UNIVERSITY (“STANFORD”).  Stanfordhave assignments to “Integrative Matching and Analysis of Cells across single-cell multi-omics datasets with overlapping and non-overlapping features” (“Software”) which was developed in the laboratory of Professor Garry Nolan at Stanford.
+2.	By accepting, receiving, and using Software, including any accompanying information, materials or manuals you are agreeing to be bound by the terms of this Agreement.  If you do not agree to the terms of this Agreement, promptly return the Software to STANFORD.
+3.	STANFORD grant to RECIPIENT a royalty-free, nonexclusive, and nontransferable license to use the Software furnished hereunder, upon the terms and conditions set out below.
+4.	RECIPIENT acknowledges that the Software is a research tool still in the development stage and that it is being supplied as is, without any accompanying services, support or improvements from STANFORD.  STANFORD MAKE NO REPRESENTATIONS AND EXTENDS NO WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED OTHER THAN SET OUT IN THIS AGREEMENT.
+5.	STANFORD do not grant any licenses under any STANFORD patent or patent application by this Agreement.
+6.	RECIPIENT agrees to use the Software solely for internal academic non-commercial purposes and shall not distribute or transfer it to another location or to any other person without prior written permission from STANFORD. In particular, no article in this license grants commercial use rights to RECIPIENT.
+7.	RECIPIENT agrees not to reverse engineer, reverse assemble, reverse compile decompile, disassemble, or otherwise attempt to re-create the source code for the Software. RECIPIENT acknowledges that any programs created based on the Software will be considered a derivative of Software and owned by STANFORD.
+8.	RECIPIENT may NOT make modifications to the Software or integrate Software into RECIPIENT’s own software.
+9.	RECIPIENT may not further distribute Software without express written permission of STANFORD. If permission to transfer the Software is given, RECIPIENT warrants that RECIPIENT will not remove or export any part of the Software from the United States except in full compliance with all United States export regulations and other applicable laws.
+10.	RECIPIENT will use the Software in compliance with all applicable laws, policies and regulations including, but not limited to, any approvals, informed consent and patient confidentiality principles.
+11.	RECIPIENT will indemnify, hold harmless, and defend STANFORD against any claim of any kind arising out of or related to the exercise of any rights granted under this Agreement or the breach of this Agreement by RECIPIENT.
+12.	Title and copyright to the Software and any derivatives and any associated documentation shall at all times remain with STANFORD, and RECIPIENT agrees to preserve same.
+13.	If RECIPIENT plans to publish any peer reviewed papers, abstracts, or similar publications, RECIPIENT agrees to acknowledge Software and its creators in a manner consistent with academic (industry) practice.
+14.	This agreement may be terminated by either party upon thirty (30) days written notice to the other party.  In the event of termination, RECIPIENT shall destroy or return immediately all Software and all copies thereof to STANFORDupon STANFORD’request.
+15.	The parties to this document agree that a copy of the original signature (including an electronic copy) may be used for any and all purposes for which the original signature may have been used.  The parties further waive any right to challenge the admissibility or authenticity of this document in a court of law based solely on the absence of an original signature.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+RECIPIENT
+Signature ___________________________________________________
+Name ________________________________________________________
+Title _______________________________________________________
+Date ________________________________________________________
