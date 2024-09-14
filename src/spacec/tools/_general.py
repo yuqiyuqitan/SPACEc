@@ -44,7 +44,6 @@ import pickle
 import time
 from builtins import range
 from itertools import combinations
-from multiprocessing import Pool
 from typing import TYPE_CHECKING
 
 import anndata
@@ -78,10 +77,12 @@ from sklearn.cross_decomposition import CCA
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report, f1_score, pairwise_distances
 from sklearn.model_selection import train_test_split
-from sklearn.neighbors import NearestNeighbors
 from sklearn.svm import SVC
 from tqdm import tqdm
 from yellowbrick.cluster import KElbowVisualizer
+from multiprocessing import Pool
+from sklearn.neighbors import NearestNeighbors
+
 
 if TYPE_CHECKING:
     from anndata import AnnData
@@ -2352,7 +2353,7 @@ def filter_interactions(
 
 # Function for patch identification
 ## Adjust clustering parameter to get the desired number of clusters
-def apply_dbscan_clustering(df, min_cluster_size=10):
+def apply_dbscan_clustering(df, x_column, y_column, min_cluster_size=10):
     """
     Apply DBSCAN clustering to a dataframe and update the cluster labels in the original dataframe.
 
@@ -2381,7 +2382,7 @@ def apply_dbscan_clustering(df, min_cluster_size=10):
         cluster_selection_method="eom",
         allow_single_cluster=False,
     )
-    labels = hdbscan.fit_predict(df[["x", "y"]])
+    labels = hdbscan.fit_predict(df[[x_column, y_column]])
 
     # Number of clusters in labels, ignoring noise if present.
     n_clusters_ = len(set(labels)) - (1 if -1 in labels else 0)
@@ -2400,6 +2401,8 @@ def plot_selected_neighbors_with_shapes(
     selected_df,
     target_df,
     radius,
+    x_column="x",
+    y_column="y",
     plot=True,
     identification_column="community",
 ):
@@ -2413,7 +2416,7 @@ def plot_selected_neighbors_with_shapes(
     for _, row in selected_df.iterrows():
         # Calculate distances from each point in the target DataFrame to the selected point
         distances = np.linalg.norm(
-            target_df[["x", "y"]].values - np.array([row["x"], row["y"]]), axis=1
+            target_df[[x_column, y_column]].values - np.array([row[x_column], row[y_column]]), axis=1
         )
 
         # Identify points within the circle and from a different cluster
@@ -2427,8 +2430,8 @@ def plot_selected_neighbors_with_shapes(
         # Plot the points with a different shape if plot is True
         if plot:
             plt.scatter(
-                in_circle_diff_cluster["x"],
-                in_circle_diff_cluster["y"],
+                in_circle_diff_cluster[x_column],
+                in_circle_diff_cluster[y_column],
                 facecolors="none",
                 edgecolors="#DC0000B2",
                 marker="*",
@@ -2445,8 +2448,8 @@ def plot_selected_neighbors_with_shapes(
     # Plot selected points in yellow and draw circles around them if plot is True
     if plot:
         plt.scatter(
-            selected_df["x"],
-            selected_df["y"],
+            selected_df[x_column],
+            selected_df[y_column],
             color="#3C5488B2",
             label="Boarder cells",
             s=100,
@@ -2455,7 +2458,7 @@ def plot_selected_neighbors_with_shapes(
         )
         for _, row in selected_df.iterrows():
             circle = plt.Circle(
-                (row["x"], row["y"]),
+                (row[x_column], row[y_column]),
                 radius,
                 color="#3C5488B2",
                 fill=False,
@@ -2493,19 +2496,7 @@ def plot_selected_neighbors_with_shapes(
 
 
 def process_cluster(args):
-    (
-        df,
-        cluster,
-        cluster_column,
-        x_column,
-        y_column,
-        concave_hull_length_threshold,
-        edge_neighbours,
-        full_df,
-        radius,
-        plot,
-        identification_column,
-    ) = args
+    df, cluster, cluster_column, x_column, y_column, concave_hull_length_threshold, edge_neighbours, full_df, radius, plot, identification_column = args
     # Filter DataFrame for the current cluster
     subset = df.loc[df[cluster_column] == cluster]
     points = subset[[x_column, y_column]].values
@@ -2517,65 +2508,31 @@ def process_cluster(args):
     )
 
     # Get hull points from the DataFrame
-    hull_points = pd.DataFrame(points[idxes], columns=["x", "y"])
+    hull_points = pd.DataFrame(points[idxes], columns=[x_column, y_column])
 
     # Find nearest neighbors of hull points in the original DataFrame
     nbrs = NearestNeighbors(n_neighbors=edge_neighbours).fit(df[[x_column, y_column]])
-    distances, indices = nbrs.kneighbors(hull_points[["x", "y"]])
+    distances, indices = nbrs.kneighbors(hull_points[[x_column, y_column]])
 
     hull_nearest_neighbors = df.iloc[indices.flatten()]
 
     # Plot selected neighbors and get the DataFrame with different clusters in the circle
-    prox_points = plot_selected_neighbors_with_shapes(
-        full_df=full_df,
-        selected_df=hull_nearest_neighbors,
-        target_df=full_df,
-        radius=radius,
-        plot=plot,
-        identification_column=identification_column,
-    )
+    prox_points = plot_selected_neighbors_with_shapes(full_df=full_df, \
+                                                      selected_df=hull_nearest_neighbors, target_df=full_df, \
+                                                      radius=radius, plot=plot, identification_column=identification_column,
+                                                      x_column = x_column, y_column = y_column)
 
     # Add a 'patch_id' column to identify the cluster
-    prox_points["patch_id"] = cluster
+    prox_points['patch_id'] = cluster
 
     return prox_points, hull_nearest_neighbors
 
-
-def identify_points_in_proximity(
-    df,
-    full_df,
-    identification_column,
-    cluster_column="cluster",
-    x_column="x",
-    y_column="y",
-    radius=200,
-    edge_neighbours=3,
-    plot=True,
-    concave_hull_length_threshold=50,
-):
-    num_processes = max(
-        1, os.cpu_count() - 2
-    )  # Use all available CPUs minus 2, but at least 1
+def identify_points_in_proximity(df, full_df, identification_column, cluster_column="cluster",\
+                                 x_column='x', y_column='y', radius=200, edge_neighbours=3, plot=True, concave_hull_length_threshold=50):
+    
+    num_processes = max(1, os.cpu_count() - 2)  # Use all available CPUs minus 2, but at least 1
     with Pool(processes=num_processes) as pool:
-        results = pool.map(
-            process_cluster,
-            [
-                (
-                    df,
-                    cluster,
-                    cluster_column,
-                    x_column,
-                    y_column,
-                    concave_hull_length_threshold,
-                    edge_neighbours,
-                    full_df,
-                    radius,
-                    plot,
-                    identification_column,
-                )
-                for cluster in set(df[cluster_column]) - {-1}
-            ],
-        )
+        results = pool.map(process_cluster, [(df, cluster, cluster_column, x_column, y_column, concave_hull_length_threshold, edge_neighbours, full_df, radius, plot, identification_column) for cluster in set(df[cluster_column]) - {-1}])
 
     # Unpack the results
     result_list, outline_list = zip(*results)
@@ -2584,12 +2541,12 @@ def identify_points_in_proximity(
     if len(result_list) > 0:
         result = pd.concat(result_list)
     else:
-        result = pd.DataFrame(columns=["x", "y", "patch_id", identification_column])
+        result = pd.DataFrame(columns=[x_column, y_column, 'patch_id', identification_column])
 
     if len(outline_list) > 0:
         outlines = pd.concat(outline_list)
     else:
-        outlines = pd.DataFrame(columns=["x", "y", "patch_id", identification_column])
+        outlines = pd.DataFrame(columns=[x_column, y_column, 'patch_id', identification_column])
 
     return result, outlines
 
@@ -2650,18 +2607,20 @@ def patch_proximity_analysis(
 
         df_community = df_region[df_region[patch_column] == group].copy()
 
-        if df_community.shape[0] < min_cluster_size:
+        if  df_community.shape[0] < min_cluster_size:
             print(f"No {group} in {region}")
-            continue
-
+            continue   
+        
         else:
-            apply_dbscan_clustering(df_community, min_cluster_size=min_cluster_size)
+            print(f"Processing {region}_{group}")
+            print('applying HDBSCAN clustering')
+            apply_dbscan_clustering(df_community, x_column, y_column, min_cluster_size=min_cluster_size)
 
             # plot patches
             if plot:
                 df_filtered = df_community[df_community["cluster"] != -1]
                 fig, ax = plt.subplots(figsize=(10, 10))
-                ax.scatter(df_filtered["x"], df_filtered["y"], c=plot_color, alpha=0.5)
+                ax.scatter(df_filtered[x_column], df_filtered[y_column], c=plot_color, alpha=0.5)
                 ax.set_title(f"HDBSCAN Clusters for {region}_{group}")
                 ax.set_xlabel(x_column)
                 ax.set_ylabel(y_column)
@@ -2679,7 +2638,7 @@ def patch_proximity_analysis(
                     )
                 else:
                     plt.show()
-
+            print('identifying points in proximity')
             results, hull_nearest_neighbors = identify_points_in_proximity(
                 df=df_community,
                 full_df=df_region,
@@ -2699,8 +2658,9 @@ def patch_proximity_analysis(
 
             # append to region_results
             region_results.append(results)
-
+        
     # Concatenate all results into a single DataFrame
+    print('preparing final results')
     final_results = pd.concat(region_results)
 
     outlines_results = pd.concat(outlines)
@@ -2748,7 +2708,6 @@ def adata_stellar(
     y_col="y",
     sample_rate=0.5,
     distance_thres=50,
-    epochs=50,
     key_added="stellar_pred",
     STELLAR_path="",
 ):
@@ -2794,7 +2753,6 @@ def adata_stellar(
     args = parser.parse_args(args=[])
     args.cuda = torch.cuda.is_available()
     args.device = torch.device("cuda" if args.cuda else "cpu")
-    args.epochs = 50
 
     # prepare input data
     print("Preparing input data")
