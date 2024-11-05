@@ -3445,6 +3445,7 @@ def cn_exp_heatmap(
     row_clus=True,
     col_clus=True,
     rand_seed=1,
+    figsize=(10, 5),
 ):
     """
     Create a heatmap of expression data, clustered by rows and columns.
@@ -3527,7 +3528,7 @@ def cn_exp_heatmap(
         vmin=-3,
         vmax=3,
         cmap="bwr",
-        figsize=(10, 5),
+        figsize=figsize,
         row_colors=[neigh_data.reindex(fc_2.index)["color"]],
         cbar_pos=(0.03, 0.06, 0.03, 0.1),
     )
