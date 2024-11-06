@@ -2313,9 +2313,13 @@ def identify_interactions(
     return distance_pvals
 
 
-def filter_interactions(
-    distance_pvals, pvalue=0.05, logfold_group_abs=0.1, comparison="condition"
-):
+def filter_interactions(adata, 
+                        triangulation_key,
+                        min_cell_type_percentage=1, 
+                        pvalue=0.05, 
+                        logfold_group_abs=0.1, 
+                        comparison="condition"
+):   
     """
     Filters interactions based on p-value, logfold change, and other conditions.
 
@@ -2337,6 +2341,41 @@ def filter_interactions(
     distance_pvals_sig_sub : pandas.DataFrame
         Subset of the original DataFrame containing only significant interactions based on the specified conditions.
     """
+    
+    distance_pvals = adata.uns[triangulation_key]["distance_pvals"]
+    
+    cell_type_percentages_df = adata_cell_percentages(adata)
+    
+    # identify cell types with less than 1% of the total cells
+    cell_type_percentages_df[cell_type_percentages_df['percentage'] < min_cell_type_percentage]
+
+    # print the names of the cell types with less than 1% of the total cells
+    print('Cell types with less than '+str(min_cell_type_percentage) + '% of the total cells:')
+    remove = cell_type_percentages_df[cell_type_percentages_df['percentage'] < min_cell_type_percentage]['cell_type'].values
+
+    # remove rows from distance_pvals that contain cell types with less than 1% of the total cells in column celltype1 or celltype2
+    distance_pvals = distance_pvals[
+    ~distance_pvals['celltype1'].isin(remove) &
+    ~distance_pvals['celltype2'].isin(remove)]
+    
+    # Create a set to track seen pairs
+    seen_pairs = set()
+
+    # Function to generate a sorted tuple of celltype1, celltype2, and condition
+    def sorted_pair(row):
+        return tuple(sorted([row['celltype1'], row['celltype2']])) + (row[comparison],)
+
+    # Iterate through the DataFrame and keep only one copy of each pair
+    filtered_rows = []
+    for idx, row in distance_pvals.iterrows():
+        pair = sorted_pair(row)
+        if pair not in seen_pairs:
+            seen_pairs.add(pair)
+            filtered_rows.append(row)
+
+    # Create a new DataFrame with the filtered rows
+    distance_pvals = pd.DataFrame(filtered_rows)
+    
     # calculate absolute logfold difference
     distance_pvals["logfold_group_abs"] = distance_pvals["logfold_group"].abs()
 
