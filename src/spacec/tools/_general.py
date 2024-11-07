@@ -2148,7 +2148,6 @@ def identify_interactions(
     cell_type,
     region,
     comparison,
-    adata_keyname=None,
     min_observed=10,
     distance_threshold=128,
     num_cores=None,
@@ -2221,7 +2220,7 @@ def identify_interactions(
     )
     if key_name is None:
         triDist_keyname = "triDist"
-    adata.uns["triDist_keyname"] = triangulation_distances
+    adata.uns[triDist_keyname] = triangulation_distances
     print("Save triangulation distances output to anndata.uns " + triDist_keyname)
 
     print("Permuting data labels to obtain the randomly distributed distances!")
@@ -2295,26 +2294,45 @@ def identify_interactions(
     # drop na from distance_pvals
     # distance_pvals = distance_pvals.dropna()
 
+
     # append result to adata
-    if adata_keyname is None:
-        adata_keyname = "triangulation_" + str(num_iterations)
         
-        # create dictionary for the results
-        triangulation_distances_dict = {
+    # create dictionary for the results
+    triangulation_distances_dict = {
             "distance_pvals": distance_pvals,
             "triangulation_distances_observed": iterated_triangulation_distances_long,
             "triangulation_distances_iterated": triangulation_distances_long,
         }
-        adata.uns[adata_keyname] = triangulation_distances_dict
-        print(
-            "Save iterative triangulation distance output to anndata.uns " + adata_keyname
-        )
 
-    return distance_pvals
+    return distance_pvals, triangulation_distances_dict
 
+def adata_cell_percentages(adata, column_percentage = 'cell_type'):
+    """
+    Calculate the percentage of each cell type in an AnnData object.
 
-def filter_interactions(adata, 
-                        triangulation_key,
+    Parameters:
+    adata (AnnData): An AnnData object containing single-cell data.
+    column_percentage (str): The column name in adata.obs that contains cell type information. Default is 'cell_type'.
+
+    Returns:
+    DataFrame: A pandas DataFrame with two columns: the specified column name and 'percentage', representing the percentage of each cell type.
+    """
+    # Assuming 'adata' is an AnnData object and 'cell_type' is the column with cell type information
+    cell_type_counts = adata.obs[column_percentage].value_counts()
+    total_cells = len(adata)
+    cell_type_percentages = (cell_type_counts / total_cells) * 100
+
+    # Convert to DataFrame for better readability
+    cell_type_percentages_df = pd.DataFrame({
+        column_percentage: cell_type_counts.index,
+        'percentage': cell_type_percentages.values
+    })
+
+    return cell_type_percentages_df
+
+def filter_interactions(adata,
+                        triangulation_distances_dict,
+                        cell_type_column="cell_type",
                         min_cell_type_percentage=1, 
                         pvalue=0.05, 
                         logfold_group_abs=0.1, 
@@ -2325,8 +2343,14 @@ def filter_interactions(adata,
 
     Parameters
     ----------
-    distance_pvals : pandas.DataFrame
-        DataFrame containing p-values, logfold changes, and interactions for each comparison.
+    adata : AnnData
+        An AnnData object containing single-cell data.
+    triangulation_distances_dict : dict
+        Dictionary containing distance-related data, including a DataFrame with p-values and logfold changes.
+    cell_type_column : str, optional
+        The column name in adata.obs that contains cell type information. Defaults to "cell_type".
+    min_cell_type_percentage : float, optional
+        The minimum percentage of total cells a cell type must have to be considered. Defaults to 1.
     pvalue : float, optional
         The maximum p-value to consider for significance. Defaults to 0.05.
     logfold_group_abs : float, optional
@@ -2342,16 +2366,16 @@ def filter_interactions(adata,
         Subset of the original DataFrame containing only significant interactions based on the specified conditions.
     """
     
-    distance_pvals = adata.uns[triangulation_key]["distance_pvals"]
+    distance_pvals = triangulation_distances_dict["distance_pvals"]
     
-    cell_type_percentages_df = adata_cell_percentages(adata)
+    cell_type_percentages_df = adata_cell_percentages(adata, column_percentage = cell_type_column)
     
     # identify cell types with less than 1% of the total cells
     cell_type_percentages_df[cell_type_percentages_df['percentage'] < min_cell_type_percentage]
 
     # print the names of the cell types with less than 1% of the total cells
     print('Cell types with less than '+str(min_cell_type_percentage) + '% of the total cells:')
-    remove = cell_type_percentages_df[cell_type_percentages_df['percentage'] < min_cell_type_percentage]['cell_type'].values
+    remove = cell_type_percentages_df[cell_type_percentages_df['percentage'] < min_cell_type_percentage][cell_type_column].values
 
     # remove rows from distance_pvals that contain cell types with less than 1% of the total cells in column celltype1 or celltype2
     distance_pvals = distance_pvals[
