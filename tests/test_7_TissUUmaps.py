@@ -34,7 +34,7 @@ def test_7_TissUUmaps():
         keep_list=None,
         open_viewer=True,
     )
-    
+
     csv_paths = sp.tl.tm_viewer_catplot(
         adata,
         directory=processed_path / "cache",
@@ -45,6 +45,7 @@ def test_7_TissUUmaps():
         keep_list=None,
         open_viewer=True,
     )
+
 
 if __name__ == "__main__":
     test_7_TissUUmaps()

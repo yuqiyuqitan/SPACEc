@@ -82,8 +82,7 @@ def test_3_clustering():
         ]
 
         # interative clustering
-        sp.tl.launch_interactive_clustering(adata=adata, 
-                                      output_dir=output_path)
+        sp.tl.launch_interactive_clustering(adata=adata, output_dir="output_path")
 
         # clustering
         adata = sp.tl.clustering(

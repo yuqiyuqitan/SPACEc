@@ -7,16 +7,19 @@ TEST_DIR = pathlib.Path(__file__).parent
 def test_cell_segmentation():
     import matplotlib
 
+    import spacec as sp
+
     matplotlib.use("Agg")
 
     data_path = TEST_DIR / "data"
+
+    gpu = sp.hf.check_for_gpu()
 
     with TemporaryDirectory() as output_dir:
         # output_dir = pathlib.Path("tests/_out")
         # output_dir.mkdir(exist_ok=True, parents=True)
 
         print("Segmentation CH")
-        import spacec as sp
 
         sp.pl.segmentation_ch(
             # image for segmentation
@@ -67,6 +70,7 @@ def test_cell_segmentation():
             input_format="Multichannel",  # Phenocycler or codex
             resize_factor=1,  # default is 1; if the image is too large, lower the value. Lower values will speed up the segmentation but may reduce the accuracy.
             size_cutoff=0,
+            use_gpu=gpu,
         )
 
         print("Show Masks Mesmer")
