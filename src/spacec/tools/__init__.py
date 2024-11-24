@@ -9,9 +9,9 @@ from ._general import (
     ml_train,
     neighborhood_analysis,
     patch_proximity_analysis,
+    remove_rare_cell_types,
     tm_viewer,
     tm_viewer_catplot,
-    remove_rare_cell_types,
 )
 from ._qptiff_converter import label_tissue, save_labelled_tissue
 from ._segmentation import cell_segmentation

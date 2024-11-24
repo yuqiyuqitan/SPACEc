@@ -43,12 +43,19 @@ def test_5_distance_permutation_analysis():
 
         distance_pvals.head()
 
+        distance_pvals_filt = sp.tl.remove_rare_cell_types(
+            adata,
+            distance_pvals,
+            cell_type_column="cell_type",
+            min_cell_type_percentage=1,
+        )
+
         # %%
         # Identify significant cell-cell interactions
         # dist_table_filt is a simplified table used for plotting
         # dist_data_filt contains the filtered raw data with more information about the pairs
         dist_table_filt, dist_data_filt = sp.tl.filter_interactions(
-            distance_pvals=distance_pvals,
+            distance_pvals=distance_pvals_filt,
             pvalue=0.05,
             logfold_group_abs=0.1,
             comparison="condition",

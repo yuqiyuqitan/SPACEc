@@ -1672,24 +1672,22 @@ def remove_rare_cell_types(
     )
 
     # Identify cell types with less than the specified percentage of the total cells
-    cell_type_percentages_df[
-        cell_type_percentages_df["percentage"] < min_cell_type_percentage
-    ]
-
-    # Print the names of the cell types with less than the specified percentage of the total cells
-    print(
-        "Cell types with less than "
-        + str(min_cell_type_percentage)
-        + "% of the total cells:"
-    )
-    remove = cell_type_percentages_df[
+    rare_cell_types = cell_type_percentages_df[
         cell_type_percentages_df["percentage"] < min_cell_type_percentage
     ][cell_type_column].values
 
-    # Remove rows from distance_pvals that contain cell types with less than the specified percentage of the total cells in column celltype1 or celltype2
+    # Print the names of the cell types with less than the specified percentage of the total cells
+    print(
+        "Cell types that belong to less than "
+        + str(min_cell_type_percentage)
+        + "% of total cells:"
+    )
+    print(rare_cell_types)
+
+    # Remove rows from distance_pvals that contain rare cell types in column celltype1 or celltype2
     distance_pvals = distance_pvals[
-        ~distance_pvals["celltype1"].isin(remove)
-        & ~distance_pvals["celltype2"].isin(remove)
+        ~distance_pvals["celltype1"].isin(rare_cell_types)
+        & ~distance_pvals["celltype2"].isin(rare_cell_types)
     ]
 
     return distance_pvals
