@@ -3287,7 +3287,7 @@ def launch_interactive_clustering(adata=None, output_dir=None):
             output_area.object = "**Clustering in progress...**"
             # Run clustering
             try:
-                adata = sp.tl.clustering(
+                adata = clustering(
                     adata,
                     clustering=clustering_method.value,
                     marker_list=marker_list,

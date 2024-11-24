@@ -27,7 +27,7 @@ def test_5_distance_permutation_analysis():
         # ## 5.1 Identify potential interactions
 
         # %%
-        distance_pvals = sp.tl.identify_interactions(
+        distance_pvals, triangulation_distances_dict = sp.tl.identify_interactions(
             adata=adata,  # AnnData object
             cellid="index",  # column that contains the cell id (set index if the cell id is the index of the dataframe)
             x_pos="x",  # x coordinate column
