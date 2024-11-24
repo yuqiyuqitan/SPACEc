@@ -82,6 +82,7 @@ from sklearn.neighbors import NearestNeighbors
 from sklearn.svm import SVC
 from tqdm import tqdm
 from yellowbrick.cluster import KElbowVisualizer
+import panel as pn
 
 if TYPE_CHECKING:
     from anndata import AnnData
@@ -2154,6 +2155,7 @@ def identify_interactions(
     num_iterations=1000,
     key_name=None,
     correct_dtype=False,
+    aggregate_per_cell=True,
 ):
     """
     Identify interactions between cell types based on their spatial distances.
@@ -2241,16 +2243,26 @@ def identify_interactions(
     triangulation_distances_long = add_missing_columns(
         triangulation_distances, metadata, shared_column=region
     )
-
-    observed_distances = (
-        triangulation_distances_long.query("distance <= @distance_threshold")
-        .groupby(["celltype1_index", "celltype2_index", "celltype1", "celltype2", comparison, region])
-        .agg(mean_per_cell=("distance", "mean"))
-        .reset_index()
-        .groupby(["celltype1", "celltype2", comparison])
-        .agg(observed=("mean_per_cell", list), observed_mean=("mean_per_cell", "mean"))
-        .reset_index()
-    )
+    if aggregate_per_cell == True:
+        observed_distances = (
+            triangulation_distances_long.query("distance <= @distance_threshold")
+            .groupby(["celltype1_index", "celltype1", "celltype2", comparison, region])
+            .agg(mean_per_cell=("distance", "mean"))
+            .reset_index()
+            .groupby(["celltype1", "celltype2", comparison])
+            .agg(observed=("mean_per_cell", list), observed_mean=("mean_per_cell", "mean"))
+            .reset_index()
+        )
+    else:
+        observed_distances = (
+            triangulation_distances_long.query("distance <= @distance_threshold")
+            .groupby(["celltype1_index", "celltype2_index", "celltype1", "celltype2", comparison, region])
+            .agg(mean_per_cell=("distance", "mean"))
+            .reset_index()
+            .groupby(["celltype1", "celltype2", comparison])
+            .agg(observed=("mean_per_cell", list), observed_mean=("mean_per_cell", "mean"))
+            .reset_index()
+        )
 
     # Reformat expected dataset
     iterated_triangulation_distances_long = add_missing_columns(
@@ -2330,27 +2342,17 @@ def adata_cell_percentages(adata, column_percentage = 'cell_type'):
 
     return cell_type_percentages_df
 
-def filter_interactions(adata,
-                        triangulation_distances_dict,
-                        cell_type_column="cell_type",
-                        min_cell_type_percentage=1, 
-                        pvalue=0.05, 
-                        logfold_group_abs=0.1, 
-                        comparison="condition"
-):   
+
+def filter_interactions(
+    distance_pvals, pvalue=0.05, logfold_group_abs=0.1, comparison="condition"
+):
     """
     Filters interactions based on p-value, logfold change, and other conditions.
 
     Parameters
     ----------
-    adata : AnnData
-        An AnnData object containing single-cell data.
-    triangulation_distances_dict : dict
-        Dictionary containing distance-related data, including a DataFrame with p-values and logfold changes.
-    cell_type_column : str, optional
-        The column name in adata.obs that contains cell type information. Defaults to "cell_type".
-    min_cell_type_percentage : float, optional
-        The minimum percentage of total cells a cell type must have to be considered. Defaults to 1.
+    distance_pvals : pandas.DataFrame
+        DataFrame containing p-values, logfold changes, and interactions for each comparison.
     pvalue : float, optional
         The maximum p-value to consider for significance. Defaults to 0.05.
     logfold_group_abs : float, optional
@@ -2365,41 +2367,6 @@ def filter_interactions(adata,
     distance_pvals_sig_sub : pandas.DataFrame
         Subset of the original DataFrame containing only significant interactions based on the specified conditions.
     """
-    
-    distance_pvals = triangulation_distances_dict["distance_pvals"]
-    
-    cell_type_percentages_df = adata_cell_percentages(adata, column_percentage = cell_type_column)
-    
-    # identify cell types with less than 1% of the total cells
-    cell_type_percentages_df[cell_type_percentages_df['percentage'] < min_cell_type_percentage]
-
-    # print the names of the cell types with less than 1% of the total cells
-    print('Cell types with less than '+str(min_cell_type_percentage) + '% of the total cells:')
-    remove = cell_type_percentages_df[cell_type_percentages_df['percentage'] < min_cell_type_percentage][cell_type_column].values
-
-    # remove rows from distance_pvals that contain cell types with less than 1% of the total cells in column celltype1 or celltype2
-    distance_pvals = distance_pvals[
-    ~distance_pvals['celltype1'].isin(remove) &
-    ~distance_pvals['celltype2'].isin(remove)]
-    
-    # Create a set to track seen pairs
-    seen_pairs = set()
-
-    # Function to generate a sorted tuple of celltype1, celltype2, and condition
-    def sorted_pair(row):
-        return tuple(sorted([row['celltype1'], row['celltype2']])) + (row[comparison],)
-
-    # Iterate through the DataFrame and keep only one copy of each pair
-    filtered_rows = []
-    for idx, row in distance_pvals.iterrows():
-        pair = sorted_pair(row)
-        if pair not in seen_pairs:
-            seen_pairs.add(pair)
-            filtered_rows.append(row)
-
-    # Create a new DataFrame with the filtered rows
-    distance_pvals = pd.DataFrame(filtered_rows)
-    
     # calculate absolute logfold difference
     distance_pvals["logfold_group_abs"] = distance_pvals["logfold_group"].abs()
 
@@ -2440,6 +2407,44 @@ def filter_interactions(adata,
 
     return dist_table, distance_pvals_sig_sub
 
+def remove_rare_cell_types(adata,
+                           distance_pvals,
+                           cell_type_column="cell_type",
+                           min_cell_type_percentage=1):
+    """
+    Remove cell types with a percentage lower than the specified threshold from the distance_pvals DataFrame.
+
+    Parameters
+    ----------
+    adata : AnnData
+        Annotated data matrix.
+    distance_pvals : DataFrame
+        DataFrame containing distance p-values with columns 'celltype1' and 'celltype2'.
+    cell_type_column : str, optional
+        Column name in adata containing cell type information, by default "cell_type".
+    min_cell_type_percentage : float, optional
+        Minimum percentage threshold for cell types to be retained, by default 1.
+
+    Returns
+    -------
+    DataFrame
+        Filtered distance_pvals DataFrame with rare cell types removed.
+    """
+    cell_type_percentages_df = adata_cell_percentages(adata, column_percentage=cell_type_column)
+    
+    # Identify cell types with less than the specified percentage of the total cells
+    cell_type_percentages_df[cell_type_percentages_df['percentage'] < min_cell_type_percentage]
+
+    # Print the names of the cell types with less than the specified percentage of the total cells
+    print('Cell types with less than ' + str(min_cell_type_percentage) + '% of the total cells:')
+    remove = cell_type_percentages_df[cell_type_percentages_df['percentage'] < min_cell_type_percentage][cell_type_column].values
+
+    # Remove rows from distance_pvals that contain cell types with less than the specified percentage of the total cells in column celltype1 or celltype2
+    distance_pvals = distance_pvals[
+        ~distance_pvals['celltype1'].isin(remove) &
+        ~distance_pvals['celltype2'].isin(remove)]
+    
+    return distance_pvals
 
 # Function for patch identification
 ## Adjust clustering parameter to get the desired number of clusters
@@ -3557,7 +3562,7 @@ def anndata_to_CPU(
 
 def install_stellar(CUDA=12):
     if CUDA == 12:
-        subprocess.run(["pip3", "install", "torch"], check=True)
+        subprocess.run(["pip", "install", "torch"], check=True)
         subprocess.run(["pip", "install", "torch_geometric"], check=True)
         subprocess.run(
             [
@@ -3604,3 +3609,390 @@ def install_stellar(CUDA=12):
         print(
             "If neither is working for you check the installation guide at: https://pytorch.org/get-started/locally/ and https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html"
         )
+
+def launch_interactive_clustering(adata=None, output_dir=None):
+    """
+    Launch an interactive clustering application for single-cell data analysis.
+
+    Parameters
+    ----------
+    adata : AnnData, optional
+        An AnnData object containing single-cell data. If provided, the data will be loaded automatically.
+    output_dir : str, optional
+        The directory where the annotated AnnData object will be saved. Required if `adata` is provided.
+
+    Returns
+    -------
+    main_layout : panel.layout.Row
+        The main layout of the interactive clustering application.
+
+    Raises
+    ------
+    ValueError
+        If `adata` is provided but `output_dir` is not specified, or if `output_dir` is not a string.
+    """
+    warnings.filterwarnings('ignore')
+    pn.extension('deckgl', design='bootstrap', theme='default', template='bootstrap')
+    pn.state.template.config.raw_css.append("""
+    #main {
+    padding: 0;
+    }""")
+
+    # check if output_dir is provided if adata is provided
+    if adata is not None and not output_dir:
+        raise ValueError("Please provide an output directory to save the annotated AnnData object.")
+        # exit the function if output_dir is not provided
+        return
+        
+    else:
+        # check if output_dir is a string
+        if output_dir and not isinstance(output_dir, str):
+            raise ValueError("output_dir must be a string.")
+        
+        # check if output directory exists and create if not:
+        if output_dir and not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+    
+    # Define the app
+    def create_clustering_app():
+        
+        # Callback to load data
+        def load_data(event=None):
+            if adata is not None:
+                adata_container['adata'] = adata
+                marker_list_input.options = list(adata.var_names)
+                output_area.object = "**AnnData object loaded successfully.**"
+                return
+            if not input_path.value or not os.path.isfile(input_path.value):
+                output_area.object = "**Please enter a valid AnnData file path.**"
+                return
+            loaded_adata = sc.read_h5ad(input_path.value)
+            adata_container['adata'] = loaded_adata
+            marker_list_input.options = list(loaded_adata.var_names)
+            output_area.object = "**AnnData file loaded successfully.**"
+
+        # Callback to run clustering
+        def run_clustering(event):
+            adata = adata_container.get('adata', None)
+            if adata is None:
+                output_area.object = "**Please load an AnnData file first.**"
+                return
+            marker_list = list(marker_list_input.value) if marker_list_input.value else None
+            key_added = key_added_input.value if key_added_input.value else clustering_method.value + '_' + str(resolution.value)
+            # Start loading indicator
+            loading_indicator.active = True
+            output_area.object = "**Clustering in progress...**"
+            # Run clustering
+            try:
+                adata = sp.tl.clustering(
+                    adata,
+                    clustering=clustering_method.value,
+                    marker_list=marker_list,
+                    resolution=resolution.value,
+                    n_neighbors=n_neighbors.value,
+                    reclustering=reclustering.value,
+                    key_added=key_added,
+                    key_filter=None,
+                    subset_cluster=None,
+                    seed=42,
+                    fs_xdim=fs_xdim.value,
+                    fs_ydim=fs_ydim.value,
+                    fs_rlen=fs_rlen.value
+                )
+                
+                adata_container['adata'] = adata
+                output_area.object = "**Clustering completed.**"
+                # Automatically generate visualization
+                key_to_visualize = key_added
+                tabs = []
+                sc.pl.umap(adata, color=[key_to_visualize], show=False)
+                umap_fig = plt.gcf()
+                plt.close()
+                tabs.append(('UMAP', pn.pane.Matplotlib(umap_fig, dpi=100)))
+                if marker_list:
+                    sc.pl.dotplot(adata, marker_list, groupby=key_to_visualize, dendrogram=True, show=False)
+                    dotplot_fig = plt.gcf()
+                    plt.close()
+                    tabs.append(('Dotplot', pn.pane.Matplotlib(dotplot_fig, dpi=100)))
+                # Generate histogram plot
+                cluster_counts = adata.obs[key_to_visualize].value_counts()
+                cluster_counts.sort_index(inplace=True)
+                cluster_counts.plot(kind='bar')
+                plt.xlabel('Cluster')
+                plt.ylabel('Number of Cells')
+                plt.title(f'Cluster Counts for {key_to_visualize}')
+                hist_fig = plt.gcf()
+                plt.close()
+                tabs.append(('Histogram', pn.pane.Matplotlib(hist_fig, dpi=100)))
+                # Add new tabs to visualization area
+                for name, pane in tabs:
+                    visualization_area.append((name, pane))
+                # Update cluster annotations
+                clusters = adata.obs[key_to_visualize].unique().astype(str)
+                annotations_df = pd.DataFrame({'Cluster': clusters, 'Annotation': ['']*len(clusters)})
+                cluster_annotation.value = annotations_df
+            except Exception as e:
+                output_area.object = f"**Error during clustering: {e}**"
+            finally:
+                # Stop loading indicator
+                loading_indicator.active = False
+
+        # Callback to run subclustering
+        def run_subclustering(event):
+            adata = adata_container.get('adata', None)
+            if adata is None:
+                output_area.object = "**Please run clustering first.**"
+                return
+            if not subcluster_key.value or not subcluster_values.value:
+                output_area.object = "**Please provide subcluster key and values.**"
+                return
+            clusters = [c.strip() for c in subcluster_values.value.split(',')]
+            key_added = subcluster_key.value + '_subcluster'
+            # Start loading indicator for subclustering
+            loading_indicator_subcluster.active = True
+            output_area.object = "**Subclustering in progress...**"
+            try:
+                sc.tl.leiden(
+                    adata,
+                    seed=seed.value,
+                    restrict_to=(subcluster_key.value, clusters),
+                    resolution=subcluster_resolution.value,
+                    key_added=key_added
+                )
+                adata_container['adata'] = adata
+                output_area.object = "**Subclustering completed.**"
+                # Update visualization
+                tabs = []
+                sc.pl.umap(adata, color=[key_added], show=False)
+                umap_fig = plt.gcf()
+                plt.close()
+                tabs.append(('UMAP_Sub', pn.pane.Matplotlib(umap_fig, dpi=100)))
+                marker_list = list(marker_list_input.value) if marker_list_input.value else None
+                if marker_list:
+                    sc.pl.dotplot(adata, marker_list, groupby=key_added, dendrogram=True, show=False)
+                    dotplot_fig = plt.gcf()
+                    plt.close()
+                    tabs.append(('Dotplot_Sub', pn.pane.Matplotlib(dotplot_fig, dpi=100)))
+                # Generate histogram plot
+                cluster_counts = adata.obs[key_added].value_counts()
+                cluster_counts.sort_index(inplace=True)
+                cluster_counts.plot(kind='bar')
+                plt.xlabel('Subcluster')
+                plt.ylabel('Number of Cells')
+                plt.title(f'Subcluster Counts for {key_added}')
+                hist_fig = plt.gcf()
+                plt.close()
+                tabs.append(('Histogram_Sub', pn.pane.Matplotlib(hist_fig, dpi=100)))
+                # Add new tabs to visualization area
+                for name, pane in tabs:
+                    visualization_area.append((name, pane))
+                # Update cluster annotations
+                clusters = adata.obs[key_added].unique().astype(str)
+                annotations_df = pd.DataFrame({'Cluster': clusters, 'Annotation': ['']*len(clusters)})
+                cluster_annotation.value = annotations_df
+            except Exception as e:
+                output_area.object = f"**Error during subclustering: {e}**"
+            finally:
+                # Stop loading indicator for subclustering
+                loading_indicator_subcluster.active = False
+
+        # Callback to save annotations
+        def save_annotations(event):
+            adata = adata_container.get('adata', None)
+            if adata is None:
+                output_area.object = "**No AnnData object to annotate.**"
+                return
+            annotation_dict = dict(zip(cluster_annotation.value['Cluster'], cluster_annotation.value['Annotation']))
+            key_to_annotate = key_added_input.value if key_added_input.value else clustering_method.value + '_' + str(resolution.value)
+            adata.obs['cell_type'] = adata.obs[key_to_annotate].astype(str).map(annotation_dict).astype('category')
+            output_area.object = "**Annotations saved to AnnData object.**"
+
+        def save_adata(event):
+            adata = adata_container.get('adata', None)
+            if adata is None:
+                output_area.object = "**No AnnData object to save.**"
+                return
+            if not output_dir_widget.value:
+                output_area.object = "**Please specify an output directory.**"
+                return
+            os.makedirs(output_dir_widget.value, exist_ok=True)
+            output_filepath = os.path.join(output_dir_widget.value, 'adata_annotated.h5ad')
+            adata.write(output_filepath)
+            output_area.object = f"**AnnData saved to {output_filepath}.**"
+
+        # Callback to run spatial visualization
+        def run_spatial_visualization(event):
+            adata = adata_container.get('adata', None)
+            if adata is None:
+                output_area.object = "**Please load an AnnData file first.**"
+                return
+            try:
+                sp.pl.catplot(
+                    adata, 
+                    color=spatial_color.value, 
+                    unique_region=spatial_unique_region.value, 
+                    X=spatial_x.value, 
+                    Y=spatial_y.value, 
+                    n_columns=spatial_n_columns.value, 
+                    palette=spatial_palette.value, 
+                    savefig=spatial_savefig.value, 
+                    output_fname=spatial_output_fname.value, 
+                    output_dir=output_dir_widget.value, 
+                    figsize=spatial_figsize.value, 
+                    size=spatial_size.value
+                )
+                spatial_fig = plt.gcf()
+                plt.close()
+                # Add new tab to visualization area
+                visualization_area.append(('Spatial Visualization', pn.pane.Matplotlib(spatial_fig, dpi=100)))
+                output_area.object = "**Spatial visualization completed.**"
+            except Exception as e:
+                output_area.object = f"**Error during spatial visualization: {e}**"
+        
+        # File paths
+        input_path = pn.widgets.TextInput(name='AnnData File Path', placeholder='Enter path to .h5ad file')
+        output_dir_widget = pn.widgets.TextInput(name='Output Directory', placeholder='Enter output directory path', value=output_dir if output_dir else '')
+        load_data_button = pn.widgets.Button(name='Load Data', button_type='primary')
+
+        # Clustering parameters
+        clustering_method = pn.widgets.Select(name='Clustering Method', options=["leiden", "louvain", "flowSOM", "leiden_gpu"])
+        resolution = pn.widgets.FloatInput(name='Resolution', value=1.0)
+        n_neighbors = pn.widgets.IntInput(name='Number of Neighbors', value=10)
+        reclustering = pn.widgets.Checkbox(name='Reclustering', value=False)
+        seed = pn.widgets.IntInput(name='Random Seed', value=42)
+        key_added_input = pn.widgets.TextInput(name='Key Added', placeholder='Enter key to add to AnnData.obs', value='')
+        marker_list_input = pn.widgets.MultiChoice(name='Marker List', options=[], width=950)
+
+        # Subclustering parameters
+        subcluster_key = pn.widgets.TextInput(name='Subcluster Key', placeholder='Enter key to filter on (e.g., "leiden_1")')
+        subcluster_values = pn.widgets.TextInput(name='Subcluster Values', placeholder='Enter clusters to subset (comma-separated)')
+        subcluster_resolution = pn.widgets.FloatInput(name='Subcluster Resolution', value=0.3)
+        subcluster_button = pn.widgets.Button(name='Run Subclustering', button_type='primary')
+
+        # Cluster annotation
+        cluster_annotation = pn.widgets.DataFrame(pd.DataFrame(columns=['Cluster', 'Annotation']), name='Cluster Annotations', autosize_mode='fit_columns')
+        save_annotations_button = pn.widgets.Button(name='Save Annotations', button_type='success')
+
+        fs_xdim = pn.widgets.IntInput(name='FlowSOM xdim', value=10)
+        fs_ydim = pn.widgets.IntInput(name='FlowSOM ydim', value=10)
+        fs_rlen = pn.widgets.IntInput(name='FlowSOM rlen', value=10)
+
+        # Buttons
+        run_clustering_button = pn.widgets.Button(name='Run Clustering', button_type='primary')
+        save_adata_button = pn.widgets.Button(name='Save AnnData', button_type='success')
+
+        # Loading indicators
+        loading_indicator = pn.widgets.Progress(name='Clustering Progress', active=False, bar_color='primary')
+        loading_indicator_subcluster = pn.widgets.Progress(name='Subclustering Progress', active=False, bar_color='primary')
+
+        # Output areas
+        output_area = pn.pane.Markdown()
+        visualization_area = pn.Tabs()  # Changed to pn.Tabs to hold multiple plots
+
+        # Global variable to hold the AnnData object
+        adata_container = {}
+        
+        # Spatial visualization parameters
+        spatial_color = pn.widgets.TextInput(name='Color By Column', placeholder='Enter group column name (e.g., cell_type_coarse)')
+        spatial_unique_region = pn.widgets.TextInput(name='Unique Region Column', value='unique_region')
+        spatial_x = pn.widgets.TextInput(name='X Coordinate Column', value='x')
+        spatial_y = pn.widgets.TextInput(name='Y Coordinate Column', value='y')
+        spatial_n_columns = pn.widgets.IntInput(name='Number of Columns', value=2)
+        spatial_palette = pn.widgets.TextInput(name='Color Palette', value='tab20')
+        spatial_figsize = pn.widgets.FloatInput(name='Figure Size', value=17)
+        spatial_size = pn.widgets.FloatInput(name='Point Size', value=20)
+        spatial_savefig = pn.widgets.Checkbox(name='Save Figure', value=False)
+        spatial_output_fname = pn.widgets.TextInput(name='Output Filename', placeholder='Enter output filename')
+        run_spatial_visualization_button = pn.widgets.Button(name='Run Spatial Visualization', button_type='primary')
+
+        # Link callbacks
+        load_data_button.on_click(load_data)
+        run_clustering_button.on_click(run_clustering)
+        subcluster_button.on_click(run_subclustering)
+        save_annotations_button.on_click(save_annotations)
+        save_adata_button.on_click(save_adata)
+        run_spatial_visualization_button.on_click(run_spatial_visualization)
+
+        # Clustering Tab Layout
+        clustering_tab = pn.Column(
+            pn.pane.Markdown("### Load Data"),
+            pn.Row(input_path, output_dir_widget, load_data_button) if adata is None else pn.pane.Markdown("AnnData object loaded."),
+            pn.layout.Divider(),
+            pn.pane.Markdown("### Clustering Parameters"),
+            pn.Row(clustering_method, resolution, n_neighbors),
+            pn.Row(seed, reclustering),
+            pn.Row(fs_xdim, fs_ydim, fs_rlen),
+            key_added_input,
+            marker_list_input,
+            pn.layout.Divider(),
+            pn.Row(run_clustering_button, loading_indicator),
+            output_area
+        )
+
+        # Subclustering Tab Layout
+        subclustering_tab = pn.Column(
+            pn.pane.Markdown("### Subclustering Parameters"),
+            pn.Row(subcluster_key, subcluster_values, subcluster_resolution),
+            pn.layout.Divider(),
+            pn.Row(subcluster_button, loading_indicator_subcluster),
+            output_area
+        )
+
+        # Annotation Tab Layout
+        annotation_tab = pn.Column(
+            pn.pane.Markdown("### Cluster Annotation"),
+            cluster_annotation,
+            pn.layout.Divider(),
+            save_annotations_button,
+            output_area
+        )
+
+        # Save Tab Layout
+        save_tab = pn.Column(
+            pn.pane.Markdown("### Save Data"),
+            save_adata_button,
+            output_area
+        )
+
+        # Spatial Visualization Tab Layout
+        spatial_visualization_tab = pn.Column(
+            pn.pane.Markdown("### Spatial Visualization Parameters"),
+            pn.Row(spatial_color, spatial_palette),
+            pn.Row(spatial_unique_region, spatial_n_columns),
+            pn.Row(spatial_x, spatial_y),
+            pn.Row(spatial_figsize, spatial_size),
+            pn.layout.Divider(),
+            pn.Row(spatial_savefig, spatial_output_fname),
+            pn.layout.Divider(),
+            pn.Row(run_spatial_visualization_button),
+            output_area
+        )
+
+        # Assemble Tabs
+        tabs = pn.Tabs(
+            ("Clustering", clustering_tab),
+            ("Subclustering", subclustering_tab),
+            ("Annotation", annotation_tab),
+            ("Spatial Visualization", spatial_visualization_tab),
+            ("Save", save_tab)
+        )
+
+        # Main Layout with Visualization Area
+        main_layout = pn.Row(
+            tabs,
+            visualization_area,
+            sizing_mode='stretch_both'
+        )
+
+        # Automatically load data if adata is provided
+        if adata is not None:
+            load_data()
+
+        return main_layout
+
+    # Run the app
+    main_layout = create_clustering_app()
+
+    main_layout.servable(title='SPACEc Clustering App')
+    
+    return main_layout
