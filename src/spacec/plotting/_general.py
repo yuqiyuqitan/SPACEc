@@ -2716,11 +2716,6 @@ def pl_create_cluster_celltype_heatmap(dataframe, cluster_column, celltype_colum
     plt.show()
 
 
-import matplotlib.pyplot as plt
-import pandas as pd
-import seaborn as sns
-
-
 def catplot(
     adata,
     color,
@@ -2865,6 +2860,8 @@ def catplot(
         fig.savefig(
             output_dir + output_fname + "_spatial_plot.pdf", bbox_inches="tight"
         )
+
+    return data
 
 
 def pl_generate_CN_comb_map(
@@ -3886,25 +3883,43 @@ def cn_map(
         # Dummy scatter plots for legend
         freqs = simp_freqs * 10000
         max_size = max(freqs)
-        sizes = [round(max_size)/4, round(max_size)/2, round(max_size)]  # Replace with the sizes you want in the legend
-        labels = [str(round(max_size/100)/4) + '%', str(round(max_size/100)/2) + '%', str(round(max_size/100)) + '%']  # Replace with the labels you want in the legend
+        sizes = [
+            round(max_size) / 4,
+            round(max_size) / 2,
+            round(max_size),
+        ]  # Replace with the sizes you want in the legend
+        labels = [
+            str(round(max_size / 100) / 4) + "%",
+            str(round(max_size / 100) / 2) + "%",
+            str(round(max_size / 100)) + "%",
+        ]  # Replace with the labels you want in the legend
 
         # Add legend
-        legend_elements = [plt.Line2D([0], [0], marker='o', color='w', label=label,
-                                    markerfacecolor='black', markersize=size**0.5) 
-                        for size, label in zip(sizes, labels)]
+        legend_elements = [
+            plt.Line2D(
+                [0],
+                [0],
+                marker="o",
+                color="w",
+                label=label,
+                markerfacecolor="black",
+                markersize=size**0.5,
+            )
+            for size, label in zip(sizes, labels)
+        ]
 
         # Add first legend
-        legend1 = plt.legend(handles=legend_elements, 
-                             loc='lower right', 
-                             title='Total frequency', 
-                             title_fontsize = 30, 
-                             fontsize=30, 
-                             handlelength=6, 
-                             handletextpad=1, 
-                             bbox_to_anchor=(0.0, -0.15, 1.0, 0.102))
+        legend1 = plt.legend(
+            handles=legend_elements,
+            loc="lower right",
+            title="Total frequency",
+            title_fontsize=30,
+            fontsize=30,
+            handlelength=6,
+            handletextpad=1,
+            bbox_to_anchor=(0.0, -0.15, 1.0, 0.102),
+        )
 
-        
         if n in tops:
             plt.text(
                 pos[n][0],
@@ -4664,7 +4679,7 @@ def plot_masks(
     background="white",
     n_columns=4,
     rand_seed=1,
-    outline=True  # New parameter to add outline
+    outline=True,  # New parameter to add outline
 ):
     """
     Plot segmentation masks colored by categorical annotation.
@@ -4713,13 +4728,13 @@ def plot_masks(
     -----
     The function uses `regionprops` from `skimage.measure` to calculate centroids of the masks and `cKDTree` from `scipy.spatial` for fast spatial lookup.
     """
-    
+
     df = pd.DataFrame(adata.obs[[X, Y, color, unique_region]])
     df[color] = df[color].astype("category")
     if invert_y:
         y_orig = df[Y].values.copy()
         df[Y] *= -1
-        
+
     # generate random colors if palette is None
     if palette is None:
         if (color + "_colors") not in adata.uns.keys():
@@ -4738,7 +4753,7 @@ def plot_masks(
         unique_cell_types = np.sort(adata.obs[color].astype(str).unique())
         colors = cmap(np.linspace(0, 1, len(unique_cell_types)))
         palette = dict(zip(unique_cell_types, colors))
-    
+
     # subset regions
     if subset is None:
         region_list = list(
@@ -4750,7 +4765,7 @@ def plot_masks(
             return
         else:
             region_list = [subset]
-            
+
     n_rows = int(np.ceil(len(region_list) / n_columns))
     fig, axes = plt.subplots(
         n_rows,
@@ -4759,45 +4774,52 @@ def plot_masks(
         squeeze=False,
         gridspec_kw={"wspace": 0.5, "hspace": 0.4},
     )
-    
-    if background == 'black':
-        fig.patch.set_facecolor('black')
+
+    if background == "black":
+        fig.patch.set_facecolor("black")
         for ax in axes.flatten():
-            ax.set_facecolor('black')
+            ax.set_facecolor("black")
     else:
-        fig.patch.set_facecolor('white')
+        fig.patch.set_facecolor("white")
         for ax in axes.flatten():
-            ax.set_facecolor('white')
-    
+            ax.set_facecolor("white")
+
     for i_ax, (name, ax) in enumerate(zip(region_list, axes.flatten())):
         data = df[df[unique_region] == name]
-        
+
         # test if name is in the masks
         if name not in adata.uns["masks"].keys():
-            print(name + " is not a valid keys in adata.uns['masks']. Please check if the masks were named correctly. Masks should be named after a region, batch or condition.")
-            print('These are the valid keys: ', adata.uns["masks"].keys())
+            print(
+                name
+                + " is not a valid keys in adata.uns['masks']. Please check if the masks were named correctly. Masks should be named after a region, batch or condition."
+            )
+            print("These are the valid keys: ", adata.uns["masks"].keys())
             return
         masks = adata.uns["masks"][name]
-        
-        if background == 'black':
+
+        if background == "black":
             background_color = [0, 0, 0]
             outline_color = [1, 1, 1]  # White outline
-        else: 
-            if background == 'white':
+        else:
+            if background == "white":
                 background_color = [1, 1, 1]
                 outline_color = [0, 0, 0]  # Black outline
-            else: 
-                print('Choose either black or white for background, defaulting to black')
+            else:
+                print(
+                    "Choose either black or white for background, defaulting to black"
+                )
                 background_color = [0, 0, 0]
                 outline_color = [1, 1, 1]  # White outline
-        
+
         # Calculate centroids
         props = regionprops(masks)
-        centroids = [prop.centroid for prop in props if prop.label != 0]  # Exclude background
+        centroids = [
+            prop.centroid for prop in props if prop.label != 0
+        ]  # Exclude background
 
         # Create a KDTree for fast spatial lookup
         tree = cKDTree(data[[X, Y]].values)
-        
+
         # Initialize color map with zeros (black for background)
         color_map = np.zeros((masks.max() + 1, 4))  # RGBA
         color_map[0, :3] = background_color  # Set the background color
@@ -4815,24 +4837,26 @@ def plot_masks(
         cell_types = cell_types[unique_pos]
 
         # Assign colors using numpy indexing, excluding background
-        color_map[valid_labels, :3] = np.array([palette.get(cell_type, [0, 0, 0])[:3] for cell_type in cell_types])
+        color_map[valid_labels, :3] = np.array(
+            [palette.get(cell_type, [0, 0, 0])[:3] for cell_type in cell_types]
+        )
         color_map[valid_labels, 3] = 1  # Set alpha for valid labels
 
         # Create a colored image using vectorized operations
         colored_masks = color_map[masks]
-        
+
         if outline:
-            boundaries = find_boundaries(masks, mode='outer')
+            boundaries = find_boundaries(masks, mode="outer")
             valid_boundaries = boundaries & np.isin(masks, valid_labels)
             colored_masks[valid_boundaries, :3] = outline_color
             colored_masks[valid_boundaries, 3] = 1  # Ensure outline is not transparent
-        
+
         # Set alpha to 0 for all invalid masks
         colored_masks[masks == 0, 3] = 0
-        
+
         # Rotate the colored masks 90 degrees to the left
         rotated_colored_masks = np.rot90(colored_masks)
-        
+
         # Check if background is black
         if background == "black":
             legend_text_color = "white"
@@ -4840,21 +4864,30 @@ def plot_masks(
         else:
             legend_text_color = "black"  # default color
             title_color = "black"  # default color
-    
-        
+
         # Plot the rotated colored masks
         ax.imshow(rotated_colored_masks)
-        ax.axis('off')  # Hide the axis
+        ax.axis("off")  # Hide the axis
 
-        
         ax.set_title(name, color=title_color)
         ax.set_aspect("equal")
 
         # Add padding to the legend
         # Create custom legend
         unique_cell_types = data[color].unique()
-        legend_patches = [mpatches.Patch(color=palette[cell_type], label=cell_type) for cell_type in unique_cell_types if cell_type in palette]
-        legend = ax.legend(handles=legend_patches, bbox_to_anchor=(1.05, 1), loc='upper left', fontsize='large', title=color, title_fontsize='large', )
+        legend_patches = [
+            mpatches.Patch(color=palette[cell_type], label=cell_type)
+            for cell_type in unique_cell_types
+            if cell_type in palette
+        ]
+        legend = ax.legend(
+            handles=legend_patches,
+            bbox_to_anchor=(1.05, 1),
+            loc="upper left",
+            fontsize="large",
+            title=color,
+            title_fontsize="large",
+        )
         plt.setp(legend.get_texts(), color=legend_text_color)  # Set legend text color
         plt.setp(legend.get_title(), color=legend_text_color)
         # frame = legend.get_frame()
@@ -4862,13 +4895,13 @@ def plot_masks(
 
     for i in range(i_ax + 1, n_rows * n_columns):
         axes.flatten()[i].axis("off")
-        
+
     if savefig:
         fig.savefig(
             output_dir + output_fname + "_spatial_plot.pdf", bbox_inches="tight"
         )
-        
-        
+
+
 def create_mask_dict(mask_file_paths, region_names):
     """
     Create a dictionary mapping region names to their corresponding masks.
@@ -4881,15 +4914,18 @@ def create_mask_dict(mask_file_paths, region_names):
     dict: Dictionary where keys are region names and values are the corresponding masks.
     """
     if len(mask_file_paths) != len(region_names):
-        raise ValueError("The number of mask file paths must match the number of region names.")
-    
+        raise ValueError(
+            "The number of mask file paths must match the number of region names."
+        )
+
     mask_dict = {}
     for file_path, region_name in zip(mask_file_paths, region_names):
-        with open(file_path, 'rb') as f:
+        with open(file_path, "rb") as f:
             mask = pickle.load(f)
         mask_dict[region_name] = mask
-    
+
     return mask_dict
+
 
 def create_mask_dict_png(mask_file_paths, region_names):
     """
@@ -4903,24 +4939,26 @@ def create_mask_dict_png(mask_file_paths, region_names):
     dict: Dictionary where keys are region names and values are combined masks.
     """
     if len(mask_file_paths) != len(region_names):
-        raise ValueError("The number of mask file paths must match the number of region names.")
-    
+        raise ValueError(
+            "The number of mask file paths must match the number of region names."
+        )
+
     mask_dict = {}
     for file_path, region_name in zip(mask_file_paths, region_names):
         # Read the image in grayscale mode
         mask_image = imread(file_path, as_gray=True)
         if mask_image is None:
             raise ValueError(f"Could not read the image file: {file_path}")
-        
+
         # Rotate the image 90 degrees to the right
         mask_image = np.rot90(mask_image, k=3)
-        
+
         # Mirror the image horizontally
         mask_image = np.fliplr(mask_image)
-        
+
         # Convert the image to 8-bit grayscale
         mask_image = (mask_image * 255).astype(np.uint8)
-        
+
         # Create a combined mask by assigning unique integer labels to each unique gray level, skipping black (0)
         combined_mask = np.zeros_like(mask_image, dtype=np.int32)
         unique_gray_levels = np.unique(mask_image)
@@ -4928,7 +4966,7 @@ def create_mask_dict_png(mask_file_paths, region_names):
             if gray_level == 0:
                 continue  # Skip black (background)
             combined_mask[mask_image == gray_level] = i
-        
+
         mask_dict[region_name] = combined_mask
-    
+
     return mask_dict
