@@ -76,6 +76,7 @@ def tl_cell_types_de(
 
 #########
 
+
 def tl_Create_neighborhoods(
     df, n_num, cluster_col, X, Y, regions, sum_cols=None, keep_cols=None, ks=[20]
 ):
@@ -113,6 +114,7 @@ def tl_Chose_window_size(
 
 
 #######
+
 
 def tl_spatial_context_stats(
     n_num,
@@ -169,6 +171,7 @@ def tl_spatial_context_stats(
 
     return (simp_df_tissue1, simp_df_tissue2)
 
+
 def tl_xycorr(df, sample_col, y_rows, x_columns, X_pix, Y_pix):
     # Make a copy for xy correction
     df_XYcorr = df.copy()
@@ -208,6 +211,7 @@ def tl_xycorr(df, sample_col, y_rows, x_columns, X_pix, Y_pix):
             )
 
     return df_XYcorr
+
 
 def tl_get_distances(df, cell_list, cell_type_col):
     names = cell_list
@@ -308,14 +312,10 @@ def tl_generate_voronoi_plots(
 
             end = time.time()
             print(end - start)
-            
-            
+
 
 ###############
 # Patch analysis
-
-
-
 
 
 def tl_generate_masks_from_images(

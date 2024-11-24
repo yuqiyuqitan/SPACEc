@@ -5,8 +5,9 @@ import os
 import platform
 import subprocess
 import sys
-import zipfile
 import tempfile
+import zipfile
+
 import requests
 
 if platform.system() == "Windows":
@@ -53,6 +54,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 import pandas as pd
+import panel as pn
 import scipy.stats as st
 import skimage
 import skimage.color
@@ -82,7 +84,6 @@ from sklearn.neighbors import NearestNeighbors
 from sklearn.svm import SVC
 from tqdm import tqdm
 from yellowbrick.cluster import KElbowVisualizer
-import panel as pn
 
 if TYPE_CHECKING:
     from anndata import AnnData
@@ -175,6 +176,7 @@ def tl_calculate_neigh_combs(w, l, n_num, threshold=0.85, per_keep_thres=0.85):
 
     return (simps, simp_freqs, simp_sums)
 
+
 def tl_build_graph_CN_comb_map(simp_freqs, thresh_freq=0.001):
     """
     Build a directed graph for the CN combination map.
@@ -220,6 +222,7 @@ def tl_build_graph_CN_comb_map(simp_freqs, thresh_freq=0.001):
     )
 
     return (g, tops, e0, e1)
+
 
 def clustering(
     adata,
@@ -479,6 +482,7 @@ def clustering(
         adata_tmp.obs = merged_df
 
     return adata_tmp
+
 
 def neighborhood_analysis(
     adata,
@@ -773,6 +777,7 @@ def tl_format_for_squidpy(adata, x_col, y_col):
     new_adata = ad.AnnData(counts, obsm={"spatial": spatial_coordinates})
 
     return new_adata
+
 
 def calculate_triangulation_distances(df_input, id, x_pos, y_pos, cell_type, region):
     """
@@ -1166,7 +1171,7 @@ def tl_iterate_tri_distances(
 #    num_iterations=1000,
 #    key_name=None,
 #    correct_dtype=True,
-#):
+# ):
 #    """
 #    Iterate over triangulation distances for each unique region in the input AnnData object
 
@@ -1220,7 +1225,7 @@ def tl_iterate_tri_distances(
 #    if num_cores is None:
 #        num_cores = os.cpu_count() // 2  # Default to using half of available cores
 
-    # Define a helper function to process each region and iteration
+# Define a helper function to process each region and iteration
 #    def process_iteration(region_name, iteration):
 #        # Filter by region
 #        subset = df_input.loc[df_input[region] == region_name, :].copy()
@@ -1235,10 +1240,10 @@ def tl_iterate_tri_distances(
 #            subset[x_pos].astype(str) + "_" + subset[y_pos].astype(str)
 #        )
 
-        # Shuffle annotations
+# Shuffle annotations
 #        shuffled = shuffle_annotations(subset, cell_type, region, iteration)
 
-        # Get triangulation distances
+# Get triangulation distances
 #        results = get_triangulation_distances(
 #            df_input=shuffled,
 #            id=id,
@@ -1250,7 +1255,7 @@ def tl_iterate_tri_distances(
 #            correct_dtype=False,
 #        )
 
- #       # Summarize results
+#       # Summarize results
 #        per_cell_summary = (
 #            results.groupby(["celltype1_index", "celltype1", "celltype2"])
 #            .distance.mean()
@@ -1271,19 +1276,19 @@ def tl_iterate_tri_distances(
 #        per_celltype_summary[region] = region_name
 #        per_celltype_summary["iteration"] = iteration#
 
- #       return per_celltype_summary
+#       return per_celltype_summary
 
-    # Parallel processing for each region and iteration
+# Parallel processing for each region and iteration
 #    results = Parallel(n_jobs=num_cores)(
 #        delayed(process_iteration)(region_name, iteration)
 #        for region_name in unique_regions
 #        for iteration in range(1, num_iterations + 1)
 #    )
 
-    # Combine all results
+# Combine all results
 #    iterative_triangulation_distances = pd.concat(results, ignore_index=True)
 
-    # append result to adata
+# append result to adata
 #    if key_name is None:
 #        key_name = "iTriDist_" + str(num_iterations)
 #    adata.uns[key_name] = iterative_triangulation_distances
@@ -1465,17 +1470,32 @@ def identify_interactions(
             .agg(mean_per_cell=("distance", "mean"))
             .reset_index()
             .groupby(["celltype1", "celltype2", comparison])
-            .agg(observed=("mean_per_cell", list), observed_mean=("mean_per_cell", "mean"))
+            .agg(
+                observed=("mean_per_cell", list),
+                observed_mean=("mean_per_cell", "mean"),
+            )
             .reset_index()
         )
     else:
         observed_distances = (
             triangulation_distances_long.query("distance <= @distance_threshold")
-            .groupby(["celltype1_index", "celltype2_index", "celltype1", "celltype2", comparison, region])
+            .groupby(
+                [
+                    "celltype1_index",
+                    "celltype2_index",
+                    "celltype1",
+                    "celltype2",
+                    comparison,
+                    region,
+                ]
+            )
             .agg(mean_per_cell=("distance", "mean"))
             .reset_index()
             .groupby(["celltype1", "celltype2", comparison])
-            .agg(observed=("mean_per_cell", list), observed_mean=("mean_per_cell", "mean"))
+            .agg(
+                observed=("mean_per_cell", list),
+                observed_mean=("mean_per_cell", "mean"),
+            )
             .reset_index()
         )
 
@@ -1521,19 +1541,19 @@ def identify_interactions(
     # drop na from distance_pvals
     # distance_pvals = distance_pvals.dropna()
 
-
     # append result to adata
-        
+
     # create dictionary for the results
     triangulation_distances_dict = {
-            "distance_pvals": distance_pvals,
-            "triangulation_distances_observed": iterated_triangulation_distances_long,
-            "triangulation_distances_iterated": triangulation_distances_long,
-        }
+        "distance_pvals": distance_pvals,
+        "triangulation_distances_observed": iterated_triangulation_distances_long,
+        "triangulation_distances_iterated": triangulation_distances_long,
+    }
 
     return distance_pvals, triangulation_distances_dict
 
-def adata_cell_percentages(adata, column_percentage = 'cell_type'):
+
+def adata_cell_percentages(adata, column_percentage="cell_type"):
     """
     Calculate the percentage of each cell type in an AnnData object.
 
@@ -1550,10 +1570,12 @@ def adata_cell_percentages(adata, column_percentage = 'cell_type'):
     cell_type_percentages = (cell_type_counts / total_cells) * 100
 
     # Convert to DataFrame for better readability
-    cell_type_percentages_df = pd.DataFrame({
-        column_percentage: cell_type_counts.index,
-        'percentage': cell_type_percentages.values
-    })
+    cell_type_percentages_df = pd.DataFrame(
+        {
+            column_percentage: cell_type_counts.index,
+            "percentage": cell_type_percentages.values,
+        }
+    )
 
     return cell_type_percentages_df
 
@@ -1622,10 +1644,10 @@ def filter_interactions(
 
     return dist_table, distance_pvals_sig_sub
 
-def remove_rare_cell_types(adata,
-                           distance_pvals,
-                           cell_type_column="cell_type",
-                           min_cell_type_percentage=1):
+
+def remove_rare_cell_types(
+    adata, distance_pvals, cell_type_column="cell_type", min_cell_type_percentage=1
+):
     """
     Remove cell types with a percentage lower than the specified threshold from the distance_pvals DataFrame.
 
@@ -1645,21 +1667,33 @@ def remove_rare_cell_types(adata,
     DataFrame
         Filtered distance_pvals DataFrame with rare cell types removed.
     """
-    cell_type_percentages_df = adata_cell_percentages(adata, column_percentage=cell_type_column)
-    
+    cell_type_percentages_df = adata_cell_percentages(
+        adata, column_percentage=cell_type_column
+    )
+
     # Identify cell types with less than the specified percentage of the total cells
-    cell_type_percentages_df[cell_type_percentages_df['percentage'] < min_cell_type_percentage]
+    cell_type_percentages_df[
+        cell_type_percentages_df["percentage"] < min_cell_type_percentage
+    ]
 
     # Print the names of the cell types with less than the specified percentage of the total cells
-    print('Cell types with less than ' + str(min_cell_type_percentage) + '% of the total cells:')
-    remove = cell_type_percentages_df[cell_type_percentages_df['percentage'] < min_cell_type_percentage][cell_type_column].values
+    print(
+        "Cell types with less than "
+        + str(min_cell_type_percentage)
+        + "% of the total cells:"
+    )
+    remove = cell_type_percentages_df[
+        cell_type_percentages_df["percentage"] < min_cell_type_percentage
+    ][cell_type_column].values
 
     # Remove rows from distance_pvals that contain cell types with less than the specified percentage of the total cells in column celltype1 or celltype2
     distance_pvals = distance_pvals[
-        ~distance_pvals['celltype1'].isin(remove) &
-        ~distance_pvals['celltype2'].isin(remove)]
-    
+        ~distance_pvals["celltype1"].isin(remove)
+        & ~distance_pvals["celltype2"].isin(remove)
+    ]
+
     return distance_pvals
+
 
 # Function for patch identification
 ## Adjust clustering parameter to get the desired number of clusters
@@ -1697,7 +1731,8 @@ def apply_dbscan_clustering(df, min_cluster_size=10):
     print("Estimated number of noise points: %d" % n_noise_)
     # Update the cluster labels in the original dataframe
     df.loc[df.index, "cluster"] = labels
-    
+
+
 def identify_points_in_proximity(
     df,
     full_df,
@@ -1743,8 +1778,10 @@ def identify_points_in_proximity(
     outlines : pandas.DataFrame
         DataFrame containing the outline points.
     """
-    
-    nbrs, unique_clusters = precompute(df, x_column, y_column, full_df, identification_column, edge_neighbours)
+
+    nbrs, unique_clusters = precompute(
+        df, x_column, y_column, full_df, identification_column, edge_neighbours
+    )
     num_processes = max(
         1, os.cpu_count() - 1
     )  # Use all available CPUs minus 2, but at least 1
@@ -1767,7 +1804,7 @@ def identify_points_in_proximity(
                         identification_column,
                     ),
                     nbrs,
-                    unique_clusters
+                    unique_clusters,
                 )
                 for cluster in set(df[cluster_column]) - {-1}
             ],
@@ -1784,6 +1821,7 @@ def identify_points_in_proximity(
     else:
         outlines = pd.DataFrame(columns=["x", "y", "patch_id", identification_column])
     return result, outlines
+
 
 # Precompute nearest neighbors model and unique clusters
 def precompute(df, x_column, y_column, full_df, identification_column, edge_neighbours):
@@ -1816,6 +1854,7 @@ def precompute(df, x_column, y_column, full_df, identification_column, edge_neig
     unique_clusters = full_df[identification_column].unique()
     return nbrs, unique_clusters
 
+
 def process_cluster(args, nbrs, unique_clusters):
     (
         df,
@@ -1830,7 +1869,7 @@ def process_cluster(args, nbrs, unique_clusters):
         plot,
         identification_column,
     ) = args
-    
+
     """
     Process a single cluster to identify points in proximity and generate hull points.
 
@@ -1872,7 +1911,7 @@ def process_cluster(args, nbrs, unique_clusters):
     hull_nearest_neighbors : pandas.DataFrame
         DataFrame containing the nearest neighbors of the hull points.
     """
-    
+
     # Filter DataFrame for the current cluster
     subset = df.loc[df[cluster_column] == cluster]
     points = subset[[x_column, y_column]].values
@@ -1895,7 +1934,10 @@ def process_cluster(args, nbrs, unique_clusters):
     # Identify points within the circle for each hull point
     in_circle = distances <= radius
     # Identify points from a different cluster for each hull point
-    diff_cluster = full_df[identification_column].values[:, np.newaxis] != hull_nearest_neighbors[identification_column].values
+    diff_cluster = (
+        full_df[identification_column].values[:, np.newaxis]
+        != hull_nearest_neighbors[identification_column].values
+    )
     # Combine the conditions
     in_circle_diff_cluster = in_circle & diff_cluster
     # Collect all points within the circle but from a different cluster
@@ -1959,6 +2001,7 @@ def process_cluster(args, nbrs, unique_clusters):
     # Add a 'patch_id' column to identify the cluster
     prox_points["patch_id"] = cluster
     return prox_points, hull_nearest_neighbors
+
 
 # This function analyzes what is in proximity of a selected group (CN, Celltype, etc...).
 def patch_proximity_analysis(
@@ -2605,6 +2648,7 @@ def masks_to_outlines_scikit_image(masks):
     else:
         return find_boundaries(masks, mode="inner")
 
+
 def tm_viewer_catplot(
     adata,
     directory=None,
@@ -2623,7 +2667,9 @@ def tm_viewer_catplot(
     print("Preparing TissUUmaps input...")
 
     if directory is None:
-        print("Creating temporary directory... If you want to save the files, please specify a directory.")
+        print(
+            "Creating temporary directory... If you want to save the files, please specify a directory."
+        )
         directory = tempfile.mkdtemp()
 
     if not os.path.exists(directory):
@@ -2678,6 +2724,7 @@ def tm_viewer_catplot(
         )
 
     return csv_paths
+
 
 def tm_viewer(
     adata,
@@ -2843,6 +2890,7 @@ def tm_viewer(
 
     return image_list, csv_paths
 
+
 def tm_viewer_catplot(
     adata,
     directory=None,
@@ -2852,7 +2900,7 @@ def tm_viewer_catplot(
     color_by="cell_type",
     open_viewer=True,
     add_UMAP=False,
-    keep_list = None
+    keep_list=None,
 ):
     """
     Generate and visualize categorical plots using TissUUmaps.
@@ -2891,7 +2939,9 @@ def tm_viewer_catplot(
     print("Preparing TissUUmaps input...")
 
     if directory is None:
-        print("Creating temporary directory... If you want to save the files, please specify a directory.")
+        print(
+            "Creating temporary directory... If you want to save the files, please specify a directory."
+        )
         directory = tempfile.mkdtemp()
 
     if not os.path.exists(directory):
@@ -2946,6 +2996,7 @@ def tm_viewer_catplot(
         )
 
     return csv_paths
+
 
 def install_gpu_leiden(CUDA="12"):
     """
@@ -3151,6 +3202,7 @@ def install_stellar(CUDA=12):
             "If neither is working for you check the installation guide at: https://pytorch.org/get-started/locally/ and https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html"
         )
 
+
 def launch_interactive_clustering(adata=None, output_dir=None):
     """
     Launch an interactive clustering application for single-cell data analysis.
@@ -3172,35 +3224,39 @@ def launch_interactive_clustering(adata=None, output_dir=None):
     ValueError
         If `adata` is provided but `output_dir` is not specified, or if `output_dir` is not a string.
     """
-    warnings.filterwarnings('ignore')
-    pn.extension('deckgl', design='bootstrap', theme='default', template='bootstrap')
-    pn.state.template.config.raw_css.append("""
+    warnings.filterwarnings("ignore")
+    pn.extension("deckgl", design="bootstrap", theme="default", template="bootstrap")
+    pn.state.template.config.raw_css.append(
+        """
     #main {
     padding: 0;
-    }""")
+    }"""
+    )
 
     # check if output_dir is provided if adata is provided
     if adata is not None and not output_dir:
-        raise ValueError("Please provide an output directory to save the annotated AnnData object.")
+        raise ValueError(
+            "Please provide an output directory to save the annotated AnnData object."
+        )
         # exit the function if output_dir is not provided
         return
-        
+
     else:
         # check if output_dir is a string
         if output_dir and not isinstance(output_dir, str):
             raise ValueError("output_dir must be a string.")
-        
+
         # check if output directory exists and create if not:
         if output_dir and not os.path.exists(output_dir):
             os.makedirs(output_dir)
-    
+
     # Define the app
     def create_clustering_app():
-        
+
         # Callback to load data
         def load_data(event=None):
             if adata is not None:
-                adata_container['adata'] = adata
+                adata_container["adata"] = adata
                 marker_list_input.options = list(adata.var_names)
                 output_area.object = "**AnnData object loaded successfully.**"
                 return
@@ -3208,18 +3264,24 @@ def launch_interactive_clustering(adata=None, output_dir=None):
                 output_area.object = "**Please enter a valid AnnData file path.**"
                 return
             loaded_adata = sc.read_h5ad(input_path.value)
-            adata_container['adata'] = loaded_adata
+            adata_container["adata"] = loaded_adata
             marker_list_input.options = list(loaded_adata.var_names)
             output_area.object = "**AnnData file loaded successfully.**"
 
         # Callback to run clustering
         def run_clustering(event):
-            adata = adata_container.get('adata', None)
+            adata = adata_container.get("adata", None)
             if adata is None:
                 output_area.object = "**Please load an AnnData file first.**"
                 return
-            marker_list = list(marker_list_input.value) if marker_list_input.value else None
-            key_added = key_added_input.value if key_added_input.value else clustering_method.value + '_' + str(resolution.value)
+            marker_list = (
+                list(marker_list_input.value) if marker_list_input.value else None
+            )
+            key_added = (
+                key_added_input.value
+                if key_added_input.value
+                else clustering_method.value + "_" + str(resolution.value)
+            )
             # Start loading indicator
             loading_indicator.active = True
             output_area.object = "**Clustering in progress...**"
@@ -3238,10 +3300,10 @@ def launch_interactive_clustering(adata=None, output_dir=None):
                     seed=42,
                     fs_xdim=fs_xdim.value,
                     fs_ydim=fs_ydim.value,
-                    fs_rlen=fs_rlen.value
+                    fs_rlen=fs_rlen.value,
                 )
-                
-                adata_container['adata'] = adata
+
+                adata_container["adata"] = adata
                 output_area.object = "**Clustering completed.**"
                 # Automatically generate visualization
                 key_to_visualize = key_added
@@ -3249,28 +3311,36 @@ def launch_interactive_clustering(adata=None, output_dir=None):
                 sc.pl.umap(adata, color=[key_to_visualize], show=False)
                 umap_fig = plt.gcf()
                 plt.close()
-                tabs.append(('UMAP', pn.pane.Matplotlib(umap_fig, dpi=100)))
+                tabs.append(("UMAP", pn.pane.Matplotlib(umap_fig, dpi=100)))
                 if marker_list:
-                    sc.pl.dotplot(adata, marker_list, groupby=key_to_visualize, dendrogram=True, show=False)
+                    sc.pl.dotplot(
+                        adata,
+                        marker_list,
+                        groupby=key_to_visualize,
+                        dendrogram=True,
+                        show=False,
+                    )
                     dotplot_fig = plt.gcf()
                     plt.close()
-                    tabs.append(('Dotplot', pn.pane.Matplotlib(dotplot_fig, dpi=100)))
+                    tabs.append(("Dotplot", pn.pane.Matplotlib(dotplot_fig, dpi=100)))
                 # Generate histogram plot
                 cluster_counts = adata.obs[key_to_visualize].value_counts()
                 cluster_counts.sort_index(inplace=True)
-                cluster_counts.plot(kind='bar')
-                plt.xlabel('Cluster')
-                plt.ylabel('Number of Cells')
-                plt.title(f'Cluster Counts for {key_to_visualize}')
+                cluster_counts.plot(kind="bar")
+                plt.xlabel("Cluster")
+                plt.ylabel("Number of Cells")
+                plt.title(f"Cluster Counts for {key_to_visualize}")
                 hist_fig = plt.gcf()
                 plt.close()
-                tabs.append(('Histogram', pn.pane.Matplotlib(hist_fig, dpi=100)))
+                tabs.append(("Histogram", pn.pane.Matplotlib(hist_fig, dpi=100)))
                 # Add new tabs to visualization area
                 for name, pane in tabs:
                     visualization_area.append((name, pane))
                 # Update cluster annotations
                 clusters = adata.obs[key_to_visualize].unique().astype(str)
-                annotations_df = pd.DataFrame({'Cluster': clusters, 'Annotation': ['']*len(clusters)})
+                annotations_df = pd.DataFrame(
+                    {"Cluster": clusters, "Annotation": [""] * len(clusters)}
+                )
                 cluster_annotation.value = annotations_df
             except Exception as e:
                 output_area.object = f"**Error during clustering: {e}**"
@@ -3280,15 +3350,15 @@ def launch_interactive_clustering(adata=None, output_dir=None):
 
         # Callback to run subclustering
         def run_subclustering(event):
-            adata = adata_container.get('adata', None)
+            adata = adata_container.get("adata", None)
             if adata is None:
                 output_area.object = "**Please run clustering first.**"
                 return
             if not subcluster_key.value or not subcluster_values.value:
                 output_area.object = "**Please provide subcluster key and values.**"
                 return
-            clusters = [c.strip() for c in subcluster_values.value.split(',')]
-            key_added = subcluster_key.value + '_subcluster'
+            clusters = [c.strip() for c in subcluster_values.value.split(",")]
+            key_added = subcluster_key.value + "_subcluster"
             # Start loading indicator for subclustering
             loading_indicator_subcluster.active = True
             output_area.object = "**Subclustering in progress...**"
@@ -3298,38 +3368,50 @@ def launch_interactive_clustering(adata=None, output_dir=None):
                     seed=seed.value,
                     restrict_to=(subcluster_key.value, clusters),
                     resolution=subcluster_resolution.value,
-                    key_added=key_added
+                    key_added=key_added,
                 )
-                adata_container['adata'] = adata
+                adata_container["adata"] = adata
                 output_area.object = "**Subclustering completed.**"
                 # Update visualization
                 tabs = []
                 sc.pl.umap(adata, color=[key_added], show=False)
                 umap_fig = plt.gcf()
                 plt.close()
-                tabs.append(('UMAP_Sub', pn.pane.Matplotlib(umap_fig, dpi=100)))
-                marker_list = list(marker_list_input.value) if marker_list_input.value else None
+                tabs.append(("UMAP_Sub", pn.pane.Matplotlib(umap_fig, dpi=100)))
+                marker_list = (
+                    list(marker_list_input.value) if marker_list_input.value else None
+                )
                 if marker_list:
-                    sc.pl.dotplot(adata, marker_list, groupby=key_added, dendrogram=True, show=False)
+                    sc.pl.dotplot(
+                        adata,
+                        marker_list,
+                        groupby=key_added,
+                        dendrogram=True,
+                        show=False,
+                    )
                     dotplot_fig = plt.gcf()
                     plt.close()
-                    tabs.append(('Dotplot_Sub', pn.pane.Matplotlib(dotplot_fig, dpi=100)))
+                    tabs.append(
+                        ("Dotplot_Sub", pn.pane.Matplotlib(dotplot_fig, dpi=100))
+                    )
                 # Generate histogram plot
                 cluster_counts = adata.obs[key_added].value_counts()
                 cluster_counts.sort_index(inplace=True)
-                cluster_counts.plot(kind='bar')
-                plt.xlabel('Subcluster')
-                plt.ylabel('Number of Cells')
-                plt.title(f'Subcluster Counts for {key_added}')
+                cluster_counts.plot(kind="bar")
+                plt.xlabel("Subcluster")
+                plt.ylabel("Number of Cells")
+                plt.title(f"Subcluster Counts for {key_added}")
                 hist_fig = plt.gcf()
                 plt.close()
-                tabs.append(('Histogram_Sub', pn.pane.Matplotlib(hist_fig, dpi=100)))
+                tabs.append(("Histogram_Sub", pn.pane.Matplotlib(hist_fig, dpi=100)))
                 # Add new tabs to visualization area
                 for name, pane in tabs:
                     visualization_area.append((name, pane))
                 # Update cluster annotations
                 clusters = adata.obs[key_added].unique().astype(str)
-                annotations_df = pd.DataFrame({'Cluster': clusters, 'Annotation': ['']*len(clusters)})
+                annotations_df = pd.DataFrame(
+                    {"Cluster": clusters, "Annotation": [""] * len(clusters)}
+                )
                 cluster_annotation.value = annotations_df
             except Exception as e:
                 output_area.object = f"**Error during subclustering: {e}**"
@@ -3339,17 +3421,31 @@ def launch_interactive_clustering(adata=None, output_dir=None):
 
         # Callback to save annotations
         def save_annotations(event):
-            adata = adata_container.get('adata', None)
+            adata = adata_container.get("adata", None)
             if adata is None:
                 output_area.object = "**No AnnData object to annotate.**"
                 return
-            annotation_dict = dict(zip(cluster_annotation.value['Cluster'], cluster_annotation.value['Annotation']))
-            key_to_annotate = key_added_input.value if key_added_input.value else clustering_method.value + '_' + str(resolution.value)
-            adata.obs['cell_type'] = adata.obs[key_to_annotate].astype(str).map(annotation_dict).astype('category')
+            annotation_dict = dict(
+                zip(
+                    cluster_annotation.value["Cluster"],
+                    cluster_annotation.value["Annotation"],
+                )
+            )
+            key_to_annotate = (
+                key_added_input.value
+                if key_added_input.value
+                else clustering_method.value + "_" + str(resolution.value)
+            )
+            adata.obs["cell_type"] = (
+                adata.obs[key_to_annotate]
+                .astype(str)
+                .map(annotation_dict)
+                .astype("category")
+            )
             output_area.object = "**Annotations saved to AnnData object.**"
 
         def save_adata(event):
-            adata = adata_container.get('adata', None)
+            adata = adata_container.get("adata", None)
             if adata is None:
                 output_area.object = "**No AnnData object to save.**"
                 return
@@ -3357,74 +3453,115 @@ def launch_interactive_clustering(adata=None, output_dir=None):
                 output_area.object = "**Please specify an output directory.**"
                 return
             os.makedirs(output_dir_widget.value, exist_ok=True)
-            output_filepath = os.path.join(output_dir_widget.value, 'adata_annotated.h5ad')
+            output_filepath = os.path.join(
+                output_dir_widget.value, "adata_annotated.h5ad"
+            )
             adata.write(output_filepath)
             output_area.object = f"**AnnData saved to {output_filepath}.**"
 
         # Callback to run spatial visualization
         def run_spatial_visualization(event):
-            adata = adata_container.get('adata', None)
+            adata = adata_container.get("adata", None)
             if adata is None:
                 output_area.object = "**Please load an AnnData file first.**"
                 return
             try:
                 sp.pl.catplot(
-                    adata, 
-                    color=spatial_color.value, 
-                    unique_region=spatial_unique_region.value, 
-                    X=spatial_x.value, 
-                    Y=spatial_y.value, 
-                    n_columns=spatial_n_columns.value, 
-                    palette=spatial_palette.value, 
-                    savefig=spatial_savefig.value, 
-                    output_fname=spatial_output_fname.value, 
-                    output_dir=output_dir_widget.value, 
-                    figsize=spatial_figsize.value, 
-                    size=spatial_size.value
+                    adata,
+                    color=spatial_color.value,
+                    unique_region=spatial_unique_region.value,
+                    X=spatial_x.value,
+                    Y=spatial_y.value,
+                    n_columns=spatial_n_columns.value,
+                    palette=spatial_palette.value,
+                    savefig=spatial_savefig.value,
+                    output_fname=spatial_output_fname.value,
+                    output_dir=output_dir_widget.value,
+                    figsize=spatial_figsize.value,
+                    size=spatial_size.value,
                 )
                 spatial_fig = plt.gcf()
                 plt.close()
                 # Add new tab to visualization area
-                visualization_area.append(('Spatial Visualization', pn.pane.Matplotlib(spatial_fig, dpi=100)))
+                visualization_area.append(
+                    ("Spatial Visualization", pn.pane.Matplotlib(spatial_fig, dpi=100))
+                )
                 output_area.object = "**Spatial visualization completed.**"
             except Exception as e:
                 output_area.object = f"**Error during spatial visualization: {e}**"
-        
+
         # File paths
-        input_path = pn.widgets.TextInput(name='AnnData File Path', placeholder='Enter path to .h5ad file')
-        output_dir_widget = pn.widgets.TextInput(name='Output Directory', placeholder='Enter output directory path', value=output_dir if output_dir else '')
-        load_data_button = pn.widgets.Button(name='Load Data', button_type='primary')
+        input_path = pn.widgets.TextInput(
+            name="AnnData File Path", placeholder="Enter path to .h5ad file"
+        )
+        output_dir_widget = pn.widgets.TextInput(
+            name="Output Directory",
+            placeholder="Enter output directory path",
+            value=output_dir if output_dir else "",
+        )
+        load_data_button = pn.widgets.Button(name="Load Data", button_type="primary")
 
         # Clustering parameters
-        clustering_method = pn.widgets.Select(name='Clustering Method', options=["leiden", "louvain", "flowSOM", "leiden_gpu"])
-        resolution = pn.widgets.FloatInput(name='Resolution', value=1.0)
-        n_neighbors = pn.widgets.IntInput(name='Number of Neighbors', value=10)
-        reclustering = pn.widgets.Checkbox(name='Reclustering', value=False)
-        seed = pn.widgets.IntInput(name='Random Seed', value=42)
-        key_added_input = pn.widgets.TextInput(name='Key Added', placeholder='Enter key to add to AnnData.obs', value='')
-        marker_list_input = pn.widgets.MultiChoice(name='Marker List', options=[], width=950)
+        clustering_method = pn.widgets.Select(
+            name="Clustering Method",
+            options=["leiden", "louvain", "flowSOM", "leiden_gpu"],
+        )
+        resolution = pn.widgets.FloatInput(name="Resolution", value=1.0)
+        n_neighbors = pn.widgets.IntInput(name="Number of Neighbors", value=10)
+        reclustering = pn.widgets.Checkbox(name="Reclustering", value=False)
+        seed = pn.widgets.IntInput(name="Random Seed", value=42)
+        key_added_input = pn.widgets.TextInput(
+            name="Key Added", placeholder="Enter key to add to AnnData.obs", value=""
+        )
+        marker_list_input = pn.widgets.MultiChoice(
+            name="Marker List", options=[], width=950
+        )
 
         # Subclustering parameters
-        subcluster_key = pn.widgets.TextInput(name='Subcluster Key', placeholder='Enter key to filter on (e.g., "leiden_1")')
-        subcluster_values = pn.widgets.TextInput(name='Subcluster Values', placeholder='Enter clusters to subset (comma-separated)')
-        subcluster_resolution = pn.widgets.FloatInput(name='Subcluster Resolution', value=0.3)
-        subcluster_button = pn.widgets.Button(name='Run Subclustering', button_type='primary')
+        subcluster_key = pn.widgets.TextInput(
+            name="Subcluster Key",
+            placeholder='Enter key to filter on (e.g., "leiden_1")',
+        )
+        subcluster_values = pn.widgets.TextInput(
+            name="Subcluster Values",
+            placeholder="Enter clusters to subset (comma-separated)",
+        )
+        subcluster_resolution = pn.widgets.FloatInput(
+            name="Subcluster Resolution", value=0.3
+        )
+        subcluster_button = pn.widgets.Button(
+            name="Run Subclustering", button_type="primary"
+        )
 
         # Cluster annotation
-        cluster_annotation = pn.widgets.DataFrame(pd.DataFrame(columns=['Cluster', 'Annotation']), name='Cluster Annotations', autosize_mode='fit_columns')
-        save_annotations_button = pn.widgets.Button(name='Save Annotations', button_type='success')
+        cluster_annotation = pn.widgets.DataFrame(
+            pd.DataFrame(columns=["Cluster", "Annotation"]),
+            name="Cluster Annotations",
+            autosize_mode="fit_columns",
+        )
+        save_annotations_button = pn.widgets.Button(
+            name="Save Annotations", button_type="success"
+        )
 
-        fs_xdim = pn.widgets.IntInput(name='FlowSOM xdim', value=10)
-        fs_ydim = pn.widgets.IntInput(name='FlowSOM ydim', value=10)
-        fs_rlen = pn.widgets.IntInput(name='FlowSOM rlen', value=10)
+        fs_xdim = pn.widgets.IntInput(name="FlowSOM xdim", value=10)
+        fs_ydim = pn.widgets.IntInput(name="FlowSOM ydim", value=10)
+        fs_rlen = pn.widgets.IntInput(name="FlowSOM rlen", value=10)
 
         # Buttons
-        run_clustering_button = pn.widgets.Button(name='Run Clustering', button_type='primary')
-        save_adata_button = pn.widgets.Button(name='Save AnnData', button_type='success')
+        run_clustering_button = pn.widgets.Button(
+            name="Run Clustering", button_type="primary"
+        )
+        save_adata_button = pn.widgets.Button(
+            name="Save AnnData", button_type="success"
+        )
 
         # Loading indicators
-        loading_indicator = pn.widgets.Progress(name='Clustering Progress', active=False, bar_color='primary')
-        loading_indicator_subcluster = pn.widgets.Progress(name='Subclustering Progress', active=False, bar_color='primary')
+        loading_indicator = pn.widgets.Progress(
+            name="Clustering Progress", active=False, bar_color="primary"
+        )
+        loading_indicator_subcluster = pn.widgets.Progress(
+            name="Subclustering Progress", active=False, bar_color="primary"
+        )
 
         # Output areas
         output_area = pn.pane.Markdown()
@@ -3432,19 +3569,28 @@ def launch_interactive_clustering(adata=None, output_dir=None):
 
         # Global variable to hold the AnnData object
         adata_container = {}
-        
+
         # Spatial visualization parameters
-        spatial_color = pn.widgets.TextInput(name='Color By Column', placeholder='Enter group column name (e.g., cell_type_coarse)')
-        spatial_unique_region = pn.widgets.TextInput(name='Unique Region Column', value='unique_region')
-        spatial_x = pn.widgets.TextInput(name='X Coordinate Column', value='x')
-        spatial_y = pn.widgets.TextInput(name='Y Coordinate Column', value='y')
-        spatial_n_columns = pn.widgets.IntInput(name='Number of Columns', value=2)
-        spatial_palette = pn.widgets.TextInput(name='Color Palette', value='tab20')
-        spatial_figsize = pn.widgets.FloatInput(name='Figure Size', value=17)
-        spatial_size = pn.widgets.FloatInput(name='Point Size', value=20)
-        spatial_savefig = pn.widgets.Checkbox(name='Save Figure', value=False)
-        spatial_output_fname = pn.widgets.TextInput(name='Output Filename', placeholder='Enter output filename')
-        run_spatial_visualization_button = pn.widgets.Button(name='Run Spatial Visualization', button_type='primary')
+        spatial_color = pn.widgets.TextInput(
+            name="Color By Column",
+            placeholder="Enter group column name (e.g., cell_type_coarse)",
+        )
+        spatial_unique_region = pn.widgets.TextInput(
+            name="Unique Region Column", value="unique_region"
+        )
+        spatial_x = pn.widgets.TextInput(name="X Coordinate Column", value="x")
+        spatial_y = pn.widgets.TextInput(name="Y Coordinate Column", value="y")
+        spatial_n_columns = pn.widgets.IntInput(name="Number of Columns", value=2)
+        spatial_palette = pn.widgets.TextInput(name="Color Palette", value="tab20")
+        spatial_figsize = pn.widgets.FloatInput(name="Figure Size", value=17)
+        spatial_size = pn.widgets.FloatInput(name="Point Size", value=20)
+        spatial_savefig = pn.widgets.Checkbox(name="Save Figure", value=False)
+        spatial_output_fname = pn.widgets.TextInput(
+            name="Output Filename", placeholder="Enter output filename"
+        )
+        run_spatial_visualization_button = pn.widgets.Button(
+            name="Run Spatial Visualization", button_type="primary"
+        )
 
         # Link callbacks
         load_data_button.on_click(load_data)
@@ -3457,7 +3603,11 @@ def launch_interactive_clustering(adata=None, output_dir=None):
         # Clustering Tab Layout
         clustering_tab = pn.Column(
             pn.pane.Markdown("### Load Data"),
-            pn.Row(input_path, output_dir_widget, load_data_button) if adata is None else pn.pane.Markdown("AnnData object loaded."),
+            (
+                pn.Row(input_path, output_dir_widget, load_data_button)
+                if adata is None
+                else pn.pane.Markdown("AnnData object loaded.")
+            ),
             pn.layout.Divider(),
             pn.pane.Markdown("### Clustering Parameters"),
             pn.Row(clustering_method, resolution, n_neighbors),
@@ -3467,7 +3617,7 @@ def launch_interactive_clustering(adata=None, output_dir=None):
             marker_list_input,
             pn.layout.Divider(),
             pn.Row(run_clustering_button, loading_indicator),
-            output_area
+            output_area,
         )
 
         # Subclustering Tab Layout
@@ -3476,7 +3626,7 @@ def launch_interactive_clustering(adata=None, output_dir=None):
             pn.Row(subcluster_key, subcluster_values, subcluster_resolution),
             pn.layout.Divider(),
             pn.Row(subcluster_button, loading_indicator_subcluster),
-            output_area
+            output_area,
         )
 
         # Annotation Tab Layout
@@ -3485,14 +3635,12 @@ def launch_interactive_clustering(adata=None, output_dir=None):
             cluster_annotation,
             pn.layout.Divider(),
             save_annotations_button,
-            output_area
+            output_area,
         )
 
         # Save Tab Layout
         save_tab = pn.Column(
-            pn.pane.Markdown("### Save Data"),
-            save_adata_button,
-            output_area
+            pn.pane.Markdown("### Save Data"), save_adata_button, output_area
         )
 
         # Spatial Visualization Tab Layout
@@ -3506,7 +3654,7 @@ def launch_interactive_clustering(adata=None, output_dir=None):
             pn.Row(spatial_savefig, spatial_output_fname),
             pn.layout.Divider(),
             pn.Row(run_spatial_visualization_button),
-            output_area
+            output_area,
         )
 
         # Assemble Tabs
@@ -3515,15 +3663,11 @@ def launch_interactive_clustering(adata=None, output_dir=None):
             ("Subclustering", subclustering_tab),
             ("Annotation", annotation_tab),
             ("Spatial Visualization", spatial_visualization_tab),
-            ("Save", save_tab)
+            ("Save", save_tab),
         )
 
         # Main Layout with Visualization Area
-        main_layout = pn.Row(
-            tabs,
-            visualization_area,
-            sizing_mode='stretch_both'
-        )
+        main_layout = pn.Row(tabs, visualization_area, sizing_mode="stretch_both")
 
         # Automatically load data if adata is provided
         if adata is not None:
@@ -3534,6 +3678,6 @@ def launch_interactive_clustering(adata=None, output_dir=None):
     # Run the app
     main_layout = create_clustering_app()
 
-    main_layout.servable(title='SPACEc Clustering App')
-    
+    main_layout.servable(title="SPACEc Clustering App")
+
     return main_layout
