@@ -11,6 +11,7 @@ from ._general import (
     patch_proximity_analysis,
     tm_viewer,
     tm_viewer_catplot,
+    adata_cell_percentages,
 )
 from ._qptiff_converter import label_tissue, save_labelled_tissue
 from ._segmentation import cell_segmentation
@@ -33,4 +34,5 @@ __all__ = [
     "tm_viewer",
     "tm_viewer_catplot",
     "launch_interactive_clustering",
+    "adata_cell_percentages",
 ]
