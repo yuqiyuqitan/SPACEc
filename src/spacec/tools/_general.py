@@ -6,7 +6,7 @@ import platform
 import subprocess
 import sys
 import zipfile
-
+import tempfile
 import requests
 
 if platform.system() == "Windows":
@@ -2605,20 +2605,94 @@ def masks_to_outlines_scikit_image(masks):
     else:
         return find_boundaries(masks, mode="inner")
 
+def tm_viewer_catplot(
+    adata,
+    directory=None,
+    region_column="unique_region",
+    x="x",
+    y="y",
+    color_by="celltype_fine",
+    open_viewer=True,
+    add_UMAP=False,
+):
+    segmented_matrix = adata.obs
+
+    if keep_list is None:
+        keep_list = [region_column, x, y, color_by]
+
+    print("Preparing TissUUmaps input...")
+
+    if directory is None:
+        print("Creating temporary directory... If you want to save the files, please specify a directory.")
+        directory = tempfile.mkdtemp()
+
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+    # only keep columns in keep_list
+    segmented_matrix = segmented_matrix[keep_list]
+
+    if add_UMAP:
+        # add UMAP coordinates to segmented_matrix
+        segmented_matrix["UMAP_1"] = adata.obsm["X_umap"][:, 0]
+        segmented_matrix["UMAP_2"] = adata.obsm["X_umap"][:, 1]
+
+    csv_paths = []
+    # separate matrix by region and save every region as single csv file
+    unique_regions = segmented_matrix[region_column].unique()
+    for region in unique_regions:
+        region_matrix = segmented_matrix.loc[segmented_matrix[region_column] == region]
+        region_csv_path = os.path.join(directory, region + ".csv")
+        region_matrix.to_csv(region_csv_path)
+        csv_paths.append(region_csv_path)
+
+    if open_viewer:
+        print("Opening TissUUmaps viewer...")
+        tj.loaddata(
+            images=None,
+            csvFiles=[str(p) for p in csv_paths],
+            xSelector=x,
+            ySelector=y,
+            keySelector=color_by,
+            nameSelector=color_by,
+            colorSelector=color_by,
+            piechartSelector=None,
+            shapeSelector=None,
+            scaleSelector=None,
+            fixedShape=None,
+            scaleFactor=1,
+            colormap=None,
+            compositeMode="source-over",
+            boundingBox=None,
+            port=5100,
+            host="localhost",
+            height=900,
+            tmapFilename="project",
+            plugins=[
+                "Plot_Histogram",
+                "Points2Regions",
+                "Spot_Inspector",
+                "Feature_Space",
+                "ClassQC",
+            ],
+        )
+
+    return csv_paths
 
 def tm_viewer(
     adata,
     images_pickle_path,
-    directory,
+    directory=None,
     region_column="unique_region",
     region="",
     xSelector="x",
     ySelector="y",
-    color_by="celltype_fine",
+    color_by="cell_type",
     keep_list=None,
     include_masks=True,
     open_viewer=True,
     add_UMAP=True,
+    use_jpg_compression=False,
 ):
     """
     Prepare and visualize spatial transcriptomics data using TissUUmaps.
@@ -2629,8 +2703,8 @@ def tm_viewer(
         Annotated data matrix.
     images_pickle_path : str
         Path to the pickle file containing images and masks.
-    directory : str
-        Directory to save the output files.
+    directory : str, optional
+        Directory to save the output files. If None, a temporary directory will be created.
     region_column : str, optional
         Column name in `adata.obs` that specifies the region, by default "unique_region".
     region : str, optional
@@ -2649,6 +2723,8 @@ def tm_viewer(
         Whether to open the TissUUmaps viewer, by default True.
     add_UMAP : bool, optional
         Whether to add UMAP coordinates to the output, by default True.
+    use_jpg_compression : bool, optional
+        Whether to use JPEG compression for saving images, by default False.
 
     Returns
     -------
@@ -2665,10 +2741,13 @@ def tm_viewer(
     image_dict = seg_output["image_dict"]
     masks = seg_output["masks"]
 
-    if keep_list == None:
+    if keep_list is None:
         keep_list = [region_column, xSelector, ySelector, color_by]
 
     print("Preparing TissUUmaps input...")
+
+    if directory is None:
+        directory = tempfile.mkdtemp()
 
     cache_dir = pathlib.Path(directory) / region
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -2676,7 +2755,7 @@ def tm_viewer(
     # only keep columns in keep_list
     segmented_matrix = segmented_matrix[keep_list]
 
-    if add_UMAP == True:
+    if add_UMAP:
         # add UMAP coordinates to segmented_matrix
         segmented_matrix["UMAP_1"] = adata.obsm["X_umap"][:, 0]
         segmented_matrix["UMAP_2"] = adata.obsm["X_umap"][:, 1]
@@ -2694,12 +2773,18 @@ def tm_viewer(
 
     image_list = []
     # save every image as tif file in image directory from image_dict. name by key in image_dict
+    if use_jpg_compression == True:
+        print("Using jpg compression")
     for key, image in image_dict.items():
-        file_path = os.path.join(image_dir, f"{key}.tif")
-        imsave(file_path, image, check_contrast=False)
+        if use_jpg_compression == True:
+            file_path = os.path.join(image_dir, f"{key}.jpg")
+            imsave(file_path, image, quality=100)
+        else:
+            file_path = os.path.join(image_dir, f"{key}.tif")
+            imsave(file_path, image, check_contrast=False)
         image_list.append(file_path)
 
-    if include_masks == True:
+    if include_masks:
         # select first item from image_dict as reference image
         reference_image = list(image_dict.values())[0]
 
@@ -2715,7 +2800,7 @@ def tm_viewer(
         masks_3d = np.squeeze(masks)
         outlines = masks_to_outlines_scikit_image(masks_3d)
 
-        reference_image[outlines == True] = [255, 0, 0]
+        reference_image[outlines] = [255, 0, 0]
 
         file_path = os.path.join(image_dir, "masks.jpg")
 
@@ -2725,7 +2810,7 @@ def tm_viewer(
         imsave(file_path, reference_image)
         image_list.append(file_path)
 
-    if open_viewer == True:
+    if open_viewer:
         print("Opening TissUUmaps viewer...")
         tj.loaddata(
             images=image_list,
@@ -2758,6 +2843,109 @@ def tm_viewer(
 
     return image_list, csv_paths
 
+def tm_viewer_catplot(
+    adata,
+    directory=None,
+    region_column="unique_region",
+    x="x",
+    y="y",
+    color_by="cell_type",
+    open_viewer=True,
+    add_UMAP=False,
+    keep_list = None
+):
+    """
+    Generate and visualize categorical plots using TissUUmaps.
+
+    Parameters
+    ----------
+    adata : AnnData
+        Annotated data matrix.
+    directory : str, optional
+        Directory to save the output CSV files. If None, a temporary directory is created.
+    region_column : str, optional
+        Column name in `adata.obs` that contains region information. Default is "unique_region".
+    x : str, optional
+        Column name in `adata.obs` to be used for x-axis. Default is "x".
+    y : str, optional
+        Column name in `adata.obs` to be used for y-axis. Default is "y".
+    color_by : str, optional
+        Column name in `adata.obs` to be used for coloring the points. Default is "cell_type".
+    open_viewer : bool, optional
+        Whether to open the TissUUmaps viewer after generating the CSV files. Default is True.
+    add_UMAP : bool, optional
+        Whether to add UMAP coordinates to the output data. Default is False.
+    keep_list : list of str, optional
+        List of columns to keep from `adata.obs`. If None, defaults to [region_column, x, y, color_by].
+
+    Returns
+    -------
+    list of str
+        List of paths to the generated CSV files.
+    """
+    segmented_matrix = adata.obs
+
+    if keep_list is None:
+        keep_list = [region_column, x, y, color_by]
+
+    print("Preparing TissUUmaps input...")
+
+    if directory is None:
+        print("Creating temporary directory... If you want to save the files, please specify a directory.")
+        directory = tempfile.mkdtemp()
+
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+    # only keep columns in keep_list
+    segmented_matrix = segmented_matrix[keep_list]
+
+    if add_UMAP:
+        # add UMAP coordinates to segmented_matrix
+        segmented_matrix["UMAP_1"] = adata.obsm["X_umap"][:, 0]
+        segmented_matrix["UMAP_2"] = adata.obsm["X_umap"][:, 1]
+
+    csv_paths = []
+    # separate matrix by region and save every region as single csv file
+    unique_regions = segmented_matrix[region_column].unique()
+    for region in unique_regions:
+        region_matrix = segmented_matrix.loc[segmented_matrix[region_column] == region]
+        region_csv_path = os.path.join(directory, region + ".csv")
+        region_matrix.to_csv(region_csv_path)
+        csv_paths.append(region_csv_path)
+
+    if open_viewer:
+        print("Opening TissUUmaps viewer...")
+        tj.loaddata(
+            images=[],
+            csvFiles=[str(p) for p in csv_paths],
+            xSelector=x,
+            ySelector=y,
+            keySelector=color_by,
+            nameSelector=color_by,
+            colorSelector=color_by,
+            piechartSelector=None,
+            shapeSelector=None,
+            scaleSelector=None,
+            fixedShape=None,
+            scaleFactor=1,
+            colormap=None,
+            compositeMode="source-over",
+            boundingBox=None,
+            port=5100,
+            host="localhost",
+            height=900,
+            tmapFilename="project",
+            plugins=[
+                "Plot_Histogram",
+                "Points2Regions",
+                "Spot_Inspector",
+                "Feature_Space",
+                "ClassQC",
+            ],
+        )
+
+    return csv_paths
 
 def install_gpu_leiden(CUDA="12"):
     """
