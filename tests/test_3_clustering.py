@@ -81,6 +81,10 @@ def test_3_clustering():
             "Arginase-1",
         ]
 
+        # interative clustering
+        sp.tl.launch_interactive_clustering(adata=adata, 
+                                      output_dir=output_path)
+
         # clustering
         adata = sp.tl.clustering(
             adata,

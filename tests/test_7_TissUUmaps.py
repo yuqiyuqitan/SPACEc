@@ -34,7 +34,17 @@ def test_7_TissUUmaps():
         keep_list=None,
         open_viewer=True,
     )
-
+    
+    csv_paths = sp.tl.tm_viewer_catplot(
+        adata,
+        directory=processed_path / "cache",
+        region_column="unique_region",
+        xSelector="y",
+        ySelector="x",
+        color_by="celltype",
+        keep_list=None,
+        open_viewer=True,
+    )
 
 if __name__ == "__main__":
     test_7_TissUUmaps()
