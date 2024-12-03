@@ -2127,25 +2127,40 @@ def patch_proximity_analysis(
     return final_results, outlines_results
 
 
-def stellar_get_tonsilbe_edge_index(pos, distance_thres):
+def stellar_get_edge_index(pos, distance_thres, max_memory_usage=1.6e10, chunk_size=1000):
     """
     Constructs edge indexes in one region based on pairwise distances and a distance threshold.
 
     Parameters:
     pos (array-like): An array-like object of shape (n_samples, n_features) representing the positions.
     distance_thres (float): The distance threshold. Pairs of positions with distances less than this threshold will be considered as edges.
+    max_memory_usage (float): The maximum memory usage in bytes before switching to chunk processing.
+    chunk_size (int): The size of the chunks to process at a time.
 
     Returns:
     edge_list (list): A list of lists where each inner list contains two indices representing an edge.
     """
-    # construct edge indexes in one region
-    edge_list = []
-    dists = pairwise_distances(pos)
-    dists_mask = dists < distance_thres
-    np.fill_diagonal(dists_mask, 0)
-    edge_list = np.transpose(np.nonzero(dists_mask)).tolist()
-    return edge_list
+    n_samples = pos.shape[0]
+    estimated_memory_usage = n_samples * n_samples * 8  # Estimate memory usage for the distance matrix (float64)
 
+    if estimated_memory_usage > max_memory_usage:
+        print("Processing will be done in chunks to save memory.")
+        edge_list = []
+        for i in tqdm(range(0, n_samples, chunk_size), desc="Processing chunks"):
+            pos_chunk = pos[i:i + chunk_size]
+            dists_chunk = pairwise_distances(pos_chunk, pos)
+            dists_mask_chunk = dists_chunk < distance_thres
+            np.fill_diagonal(dists_mask_chunk[:, i:i + chunk_size], 0)
+            chunk_edge_list = np.transpose(np.nonzero(dists_mask_chunk)).tolist()
+            chunk_edge_list = [[i + edge[0], edge[1]] for edge in chunk_edge_list]
+            edge_list.extend(chunk_edge_list)
+    else:
+        dists = pairwise_distances(pos)
+        dists_mask = dists < distance_thres
+        np.fill_diagonal(dists_mask, 0)
+        edge_list = np.transpose(np.nonzero(dists_mask)).tolist()
+
+    return edge_list
 
 def adata_stellar(
     adata_train,
@@ -2237,10 +2252,10 @@ def adata_stellar(
 
     train_y = np.array([cell_type_dict[x] for x in train_y])
 
-    labeled_edges = stellar_get_tonsilbe_edge_index(
+    labeled_edges = stellar_get_edge_index(
         labeled_pos, distance_thres=distance_thres
     )
-    unlabeled_edges = stellar_get_tonsilbe_edge_index(
+    unlabeled_edges = stellar_get_edge_index(
         unlabeled_pos, distance_thres=distance_thres
     )
 
