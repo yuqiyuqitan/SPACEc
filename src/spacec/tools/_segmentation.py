@@ -1,8 +1,4 @@
 import os
-# Set environment variables
-os.environ['PATH'] = os.pathsep.join([os.environ.get('CONDA_PREFIX', '') + '/bin', os.environ['PATH']])
-os.environ['LD_LIBRARY_PATH'] = os.pathsep.join([os.environ.get('CONDA_PREFIX', '') + '/lib', os.environ.get('LD_LIBRARY_PATH', '')])
-
 import pathlib
 import shutil
 import sys
