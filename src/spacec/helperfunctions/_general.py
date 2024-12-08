@@ -1,8 +1,9 @@
-!export PATH=$CONDA_PREFIX/bin:$PATH
-!export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
+import os
+# Set environment variables
+os.environ['PATH'] = os.pathsep.join([os.environ.get('CONDA_PREFIX', '') + '/bin', os.environ['PATH']])
+os.environ['LD_LIBRARY_PATH'] = os.pathsep.join([os.environ.get('CONDA_PREFIX', '') + '/lib', os.environ.get('LD_LIBRARY_PATH', '')])
 
 # load required packages
-import os
 import random
 import time
 import warnings
