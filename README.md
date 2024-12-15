@@ -76,6 +76,10 @@ conda install tensorflow=2.10.0
 
 <details><summary>Windows</summary>
 
+Although SPACEc can run directly on Windows systems, we highly recommend running it in WSL. If you are unfamiliar with WSL, you can find more information on how to use and install it here: https://learn.microsoft.com/de-de/windows/wsl/install
+
+If you decide to use WSL, follow the Linux instructions.
+
 ```bash
 # setup `conda` repository
 conda create -n spacec
