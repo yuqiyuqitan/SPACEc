@@ -1719,7 +1719,7 @@ def apply_dbscan_clustering(df, min_cluster_size=10):
         metric="euclidean",
         alpha=1.0,
         cluster_selection_method="eom",
-        allow_single_cluster=False,
+        allow_single_cluster=True,
     )
     labels = hdbscan.fit_predict(df[["x", "y"]])
     # Number of clusters in labels, ignoring noise if present.
