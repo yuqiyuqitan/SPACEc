@@ -18,81 +18,39 @@ choose_package_manager
 $pkg_manager create -n spacec python=3.10 -y
 source activate spacec
 
-if [[ "$(uname -s)" == *"MINGW"* || "$(uname -s)" == *"CYGWIN"* ]]; then
-    mkdir -p $CONDA_PREFIX/etc/conda/activate.d
-    # Windows specific environment variable setup
-    echo "Running on Windows"
-    vipsbin="c:/vips-dev-8.15/bin"
-    vips_file_path="$vipsbin/vips.exe"
-
-    if [ ! -f "$vips_file_path" ]; then
-        # VIPS is not installed, download and extract it
-        echo "Downloading VIPS..."
-        url="https://github.com/libvips/build-win64-mxe/releases/download/v8.15.2/vips-dev-w64-all-8.15.2.zip"
-        zip_file_path="vips-dev-w64-all-8.15.2.zip"
-        curl -L -o "$zip_file_path" "$url"
-        unzip "$zip_file_path" -d "c:/vips-dev-8.15"
-    fi
-
-    echo 'export PATH=$CONDA_PREFIX/bin:$PATH' > $CONDA_PREFIX/etc/conda/activate.d/env_vars.sh
-    echo 'export PATH=c:/vips-dev-8.15/bin:$PATH' >> $CONDA_PREFIX/etc/conda/activate.d/env_vars.sh
-    chmod +x $CONDA_PREFIX/etc/conda/activate.d/env_vars.sh
-fi
-
 read -p "Do you want to install the GPU version of SPACEc? (y/n): " confirm
 if [ "$confirm" = "y" ]; then
     nvidia-smi
     # Install packages
     $pkg_manager install conda-forge::cudatoolkit=11.2.2 -y
     $pkg_manager install conda-forge::cudnn=8.1.0.77 -y
-    if [[ "$(uname -s)" == *"MINGW"* || "$(uname -s)" == *"CYGWIN"* ]]; then
-        $pkg_manager install -c conda-forge graphviz -y
+    $pkg_manager install -c conda-forge graphviz libvips pyvips openslide-python -y
 
-        # Set environment variables
-        mkdir -p $CONDA_PREFIX/etc/conda/activate.d
-        echo 'export PATH=$CONDA_PREFIX/bin:$PATH' > $CONDA_PREFIX/etc/conda/activate.d/env_vars.sh
-        echo 'export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH' >> $CONDA_PREFIX/etc/conda/activate.d/env_vars.sh
-        chmod +x $CONDA_PREFIX/etc/conda/activate.d/env_vars.sh
+    # Set environment variables
+    mkdir -p $CONDA_PREFIX/etc/conda/activate.d
+    echo 'export PATH=$CONDA_PREFIX/bin:$PATH' > $CONDA_PREFIX/etc/conda/activate.d/env_vars.sh
+    echo 'export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH' >> $CONDA_PREFIX/etc/conda/activate.d/env_vars.sh
+    chmod +x $CONDA_PREFIX/etc/conda/activate.d/env_vars.sh
 
-        # Install Python packages
-        pip install --upgrade pip
-        pip install git+https://github.com/yuqiyuqitan/SPACEc.git@combined_updates_tim
-        pip install pandas==1.*
-        pip install protobuf==3.20.0
-        pip install numpy==1.24.*
-        pip install tensorflow-gpu==2.8.0
+    # Install Python packages
+    pip install --upgrade pip
+    pip install git+https://github.com/yuqiyuqitan/SPACEc.git@combined_updates_tim
+    pip install pandas==1.*
+    pip install protobuf==3.20.0
+    pip install numpy==1.24.*
+    pip install tensorflow-gpu==2.8.0
 
-        echo "Installation complete. Please restart the terminal to apply the changes."
-
+    # Install RAPIDS
+    read -p "Do you want to install the RAPIDS? NVIDIA RTX20XX or better required! (y/n): " confirm
+    if [ "$confirm" = "y" ]; then
+        $pkg_manager install -c rapidsai -c conda-forge -c nvidia rapids=24.02 -y #python=3.10 cuda-version=11.2 -y
+        pip install rapids-singlecell==0.9.5
+        pip install pandas==1.5.*
     else
-        $pkg_manager install -c conda-forge graphviz libvips pyvips openslide-python -y
-
-        # Set environment variables
-        mkdir -p $CONDA_PREFIX/etc/conda/activate.d
-        echo 'export PATH=$CONDA_PREFIX/bin:$PATH' > $CONDA_PREFIX/etc/conda/activate.d/env_vars.sh
-        echo 'export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH' >> $CONDA_PREFIX/etc/conda/activate.d/env_vars.sh
-        chmod +x $CONDA_PREFIX/etc/conda/activate.d/env_vars.sh
-
-        # Install Python packages
-        pip install --upgrade pip
-        pip install git+https://github.com/yuqiyuqitan/SPACEc.git@combined_updates_tim
-        pip install pandas==1.*
-        pip install protobuf==3.20.0
-        pip install numpy==1.24.*
-        pip install tensorflow-gpu==2.8.0
-
-        # Install RAPIDS
-        read -p "Do you want to install the RAPIDS? NVIDIA RTX20XX or better required! (y/n): " confirm
-        if [ "$confirm" = "y" ]; then
-            $pkg_manager install -c rapidsai -c conda-forge -c nvidia rapids=24.02 python=3.10 cuda-version=11.2 -y
-            pip install rapids-singlecell==0.9.5
-            $pkg_manager install pandas -y
-        else
-            echo "RAPIDS installation aborted by the user."
-        fi
-
-        echo "Installation complete. Please restart the terminal to apply the changes."
+        echo "RAPIDS installation aborted by the user."
     fi
+
+    echo "Installation complete. Please restart the terminal to apply the changes."
 else
     if [[ "$(uname)" == "Darwin" ]]; then
         echo "Configure SPACEc for macOS"
@@ -105,18 +63,13 @@ else
         pip uninstall werkzeug -y
         pip install numpy==1.26.4 werkzeug==2.3.8
     else
-        # Check if running on Windows
-        if [[ "$(uname -s)" == *"MINGW"* || "$(uname -s)" == *"CYGWIN"* ]]; then
-            $pkg_manager install -c conda-forge graphviz -y
-        else
-            echo "Running on Linux"
-            $pkg_manager install -c conda-forge graphviz libvips pyvips openslide-python -y
-            pip install --upgrade pip
-            pip install git+https://github.com/yuqiyuqitan/SPACEc.git@combined_updates_tim
-            pip install pandas==1.*
-            pip install protobuf==3.20.0
-            pip install numpy==1.24.*
-        fi
+        echo "Running on Linux"
+        $pkg_manager install -c conda-forge graphviz libvips pyvips openslide-python -y
+        pip install --upgrade pip
+        pip install git+https://github.com/yuqiyuqitan/SPACEc.git@combined_updates_tim
+        pip install pandas==1.*
+        pip install protobuf==3.20.0
+        pip install numpy==1.24.*
     fi
 
     echo "Installation complete. Please restart the terminal to apply the changes."
