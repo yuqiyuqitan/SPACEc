@@ -2191,7 +2191,7 @@ def adata_stellar(
     adata (AnnData): The unannotated data with the added key for the predicted results.
     """
 
-        print("Please consider to cite the following paper when using STELLAR: Brbić, M., Cao, K., Hickey, J.W. et al. Annotation of spatially resolved single-cell data with STELLAR. Nat Methods 19, 1411–1418 (2022). https://doi.org/10.1038/s41592-022-01651-8")
+    print("Please consider to cite the following paper when using STELLAR: Brbić, M., Cao, K., Hickey, J.W. et al. Annotation of spatially resolved single-cell data with STELLAR. Nat Methods 19, 1411–1418 (2022). https://doi.org/10.1038/s41592-022-01651-8")
 
     sys.path.append(str(STELLAR_path))
     from datasets import GraphDataset
