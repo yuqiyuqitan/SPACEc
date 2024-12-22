@@ -2191,6 +2191,8 @@ def adata_stellar(
     adata (AnnData): The unannotated data with the added key for the predicted results.
     """
 
+        print("Please consider to cite the following paper when using STELLAR: Brbić, M., Cao, K., Hickey, J.W. et al. Annotation of spatially resolved single-cell data with STELLAR. Nat Methods 19, 1411–1418 (2022). https://doi.org/10.1038/s41592-022-01651-8")
+
     sys.path.append(str(STELLAR_path))
     from datasets import GraphDataset
     from STELLAR import STELLAR
@@ -2400,238 +2402,6 @@ def ml_predict(adata_val, svc, save_name="svm_pred", return_prob_mat=False):
         return svm_label_val
 
 
-class ImageProcessor:
-    """
-    A class used to process images and compute channel means and sums.
-
-    ...
-
-    Attributes
-    ----------
-    flatmasks : ndarray
-        2D numpy array containing masks for each cell.
-
-    Methods
-    -------
-    update_adjacency_value(adjacency_matrix, original, neighbor):
-        Updates the adjacency matrix based on the original and neighbor values.
-    update_adjacency_matrix(plane_mask_flattened, width, height, adjacency_matrix, index):
-        Updates the adjacency matrix based on the flattened plane mask.
-    compute_channel_means_sums_compensated(image):
-        Computes the channel means and sums for each cell and compensates them.
-    """
-
-    def __init__(self, flatmasks):
-        """
-        Constructs all the necessary attributes for the ImageProcessor object.
-
-        Parameters
-        ----------
-            flatmasks : ndarray
-                2D numpy array containing masks for each cell.
-        """
-        self.flatmasks = flatmasks
-
-    def update_adjacency_value(self, adjacency_matrix, original, neighbor):
-        # This function is copied from CellSeg
-        """
-        Updates the adjacency matrix based on the original and neighbor values.
-
-        Parameters
-        ----------
-            adjacency_matrix : ndarray
-                2D numpy array representing the adjacency matrix.
-            original : int
-                Original value.
-            neighbor : int
-                Neighbor value.
-
-        Returns
-        -------
-            bool
-                True if the original and neighbor values are different and not zero, False otherwise.
-        """
-        border = False
-
-        if original != 0 and original != neighbor:
-            border = True
-            if neighbor != 0:
-                adjacency_matrix[int(original - 1), int(neighbor - 1)] += 1
-        return border
-
-    def update_adjacency_matrix(
-        self, plane_mask_flattened, width, height, adjacency_matrix, index
-    ):
-        # This function is copied from CellSeg
-        """
-        Updates the adjacency matrix based on the flattened plane mask.
-
-        Parameters
-        ----------
-            plane_mask_flattened : ndarray
-                1D numpy array representing the flattened plane mask.
-            width : int
-                Width of the plane mask.
-            height : int
-                Height of the plane mask.
-            adjacency_matrix : ndarray
-                2D numpy array representing the adjacency matrix.
-            index : int
-                Index of the current cell in the flattened plane mask.
-        """
-        mod_value_width = index % width
-        origin_mask = plane_mask_flattened[index]
-        left, right, up, down = False, False, False, False
-
-        if mod_value_width != 0:
-            left = self.update_adjacency_value(
-                adjacency_matrix, origin_mask, plane_mask_flattened[index - 1]
-            )
-        if mod_value_width != width - 1:
-            right = self.update_adjacency_value(
-                adjacency_matrix, origin_mask, plane_mask_flattened[index + 1]
-            )
-        if index >= width:
-            up = self.update_adjacency_value(
-                adjacency_matrix, origin_mask, plane_mask_flattened[index - width]
-            )
-        if index <= len(plane_mask_flattened) - 1 - width:
-            down = self.update_adjacency_value(
-                adjacency_matrix, origin_mask, plane_mask_flattened[index + width]
-            )
-
-        if left or right or up or down:
-            adjacency_matrix[int(origin_mask - 1), int(origin_mask - 1)] += 1
-
-    def compute_channel_means_sums_compensated(self, image):
-        # This function is copied from CellSeg but modified to solve the least squares problem with torch instead of numpy
-        """
-        Computes the channel means and sums for each cell and compensates them.
-
-        Parameters
-        ----------
-            image : ndarray
-                3D numpy array representing the image.
-
-        Returns
-        -------
-            compensated_means : ndarray
-                2D numpy array representing the compensated means for each cell.
-            means : ndarray
-                2D numpy array representing the means for each cell.
-            channel_counts : ndarray
-                1D numpy array representing the counts for each cell.
-        """
-        height, width, n_channels = image.shape
-        mask_height, mask_width = self.flatmasks.shape
-        n_masks = len(np.unique(self.flatmasks)) - 1
-        channel_sums = np.zeros((n_masks, n_channels))
-        channel_counts = np.zeros((n_masks, n_channels))
-        if n_masks == 0:
-            return channel_sums, channel_sums, channel_counts
-
-        squashed_image = np.reshape(image, (height * width, n_channels))
-
-        # masklocs = np.nonzero(self.flatmasks)
-        # plane_mask = np.zeros((mask_height, mask_width), dtype = np.uint32)
-        # plane_mask[masklocs[0], masklocs[1]] = masklocs[2] + 1
-        # plane_mask = plane_mask.flatten()
-        plane_mask = self.flatmasks.flatten()
-
-        adjacency_matrix = np.zeros((n_masks, n_masks))
-        for i in range(len(plane_mask)):
-            self.update_adjacency_matrix(
-                plane_mask, mask_width, mask_height, adjacency_matrix, i
-            )
-
-            mask_val = plane_mask[i] - 1
-            if mask_val != -1:
-                channel_sums[mask_val.astype(np.int32)] += squashed_image[i]
-                channel_counts[mask_val.astype(np.int32)] += 1
-
-        # Normalize adjacency matrix
-        for i in range(n_masks):
-            adjacency_matrix[i] = adjacency_matrix[i] / (
-                max(adjacency_matrix[i, i], 1) * 2
-            )
-            adjacency_matrix[i, i] = 1
-
-        means = np.true_divide(
-            channel_sums,
-            channel_counts,
-            out=np.zeros_like(channel_sums, dtype="float"),
-            where=channel_counts != 0,
-        )
-        # Convert your numpy arrays to PyTorch tensors
-        adjacency_matrix_torch = torch.from_numpy(adjacency_matrix)
-        means_torch = torch.from_numpy(means)
-
-        # Solve the least squares problem
-        results_torch = torch.linalg.lstsq(adjacency_matrix_torch, means_torch).solution
-
-        # Convert the result back to a numpy array if needed
-        # Convert the result back to a numpy array if needed
-        results = results_torch.numpy()
-        compensated_means = np.maximum(results, np.zeros(results.shape))
-
-        return compensated_means, means, channel_counts[:, 0]
-
-
-def compensate_cell_matrix(df, image_dict, masks, overwrite=True):
-    """
-    Compensate cell matrix by computing channel means and sums.
-
-    Parameters
-    ----------
-    df : DataFrame
-        The DataFrame to which the compensated means will be added.
-    image_dict : dict
-        Dictionary containing images for each channel.
-    masks : ndarray
-        3D numpy array containing masks for each cell.
-    overwrite : bool, optional
-        If True, overwrite existing columns in df. If False, add new columns to df. Default is True.
-
-    Returns
-    -------
-    DataFrame
-        The DataFrame with added compensated means.
-
-    Notes
-    -----
-    The function computes the channel means and sums for each cell, compensates them, and adds them to the DataFrame.
-    The compensated means are added to the DataFrame with column names from the keys of the image_dict.
-    If overwrite is True, existing columns in the DataFrame are overwritten. If overwrite is False, new columns are added to the DataFrame.
-    """
-    masks = masks.squeeze()
-    image_list = [image_dict[channel_name] for channel_name in image_dict.keys()]
-
-    # Stack the 2D numpy arrays along the third dimension to create a 3D numpy array
-    image = np.stack(image_list, axis=-1)
-
-    # Now you can use `image` as the input for the function
-    processor = ImageProcessor(masks)
-    (
-        compensated_means,
-        means,
-        channel_counts,
-    ) = processor.compute_channel_means_sums_compensated(image)
-
-    # Get the keys
-    keys = list(image_dict.keys())
-
-    # Cycle over the keys
-    for i in range(len(keys)):
-        # Add the compensated_means to the DataFrame with column names from keys
-
-        if overwrite == True:
-            df[keys[i]] = compensated_means[:, i]
-        else:
-            df[keys[i] + "_compensated"] = compensated_means[:, i]
-
-    return df
-
-
 def masks_to_outlines_scikit_image(masks):
     """get outlines of masks as a 0-1 array
 
@@ -2793,6 +2563,9 @@ def tm_viewer(
     list
         List of paths to the saved CSV files.
     """
+    
+    print("Please consider to cite the following paper when using TissUUmaps: TissUUmaps 3: Improvements in interactive visualization, exploration, and quality assessment of large-scale spatial omics data - Pielawski, Nicolas et al. 2023 - Heliyon, Volume 9, Issue 5, e15306")
+    
     segmented_matrix = adata.obs
 
     with open(images_pickle_path, "rb") as f:
