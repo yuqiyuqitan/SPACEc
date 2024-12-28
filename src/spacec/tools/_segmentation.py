@@ -744,10 +744,9 @@ def run_cellpose(
             model_type=model,
             gpu=use_gpu,
         )
-    masks, flows, styles, diams = model_to_use.eval(
+    masks, flows, styles = model_to_use.eval(
         image, diameter=diameter, channels=rgb_channels
     )
-    print("diameter set to: " + str(diams))
 
     if save_mask_as_png == True:
         filename = output_dir + "/segmentation.png"
