@@ -79,7 +79,7 @@ def test_cell_segmentation():
             output_dir=output_dir,
             output_fname="tonsil2",
             seg_method="cellpose",  # cellpose or mesmer
-            model=data_path / "cellpose_test_model/models/CP_20241228_233217",  # cellpose model
+            model=data_path / "CP_test.zip",  # cellpose model
             diameter=28,  # average cell diameter (in pixels). If set to None, it will be automatically estimated.
             nuclei_channel="DAPI",
             membrane_channel_list=[
