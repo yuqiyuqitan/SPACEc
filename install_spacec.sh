@@ -34,7 +34,7 @@ if [ "$confirm" = "y" ]; then
 
     # Install Python packages
     pip install --upgrade pip
-    pip install git+https://github.com/yuqiyuqitan/SPACEc.git@combined_updates_tim
+    pip install spacec
     pip install pandas==1.*
     pip install protobuf==3.20.0
     pip install numpy==1.24.*
@@ -58,7 +58,7 @@ else
         $pkg_manager install -c conda-forge graphviz libvips pyvips openslide-python -y
         # Install Python packages
         pip install --upgrade pip
-        pip install git+https://github.com/yuqiyuqitan/SPACEc.git@combined_updates_tim
+        pip install spacec
         $pkg_manager install tensorflow=2.10.0
         pip uninstall werkzeug -y
         pip install numpy==1.26.4 werkzeug==2.3.8
@@ -66,7 +66,7 @@ else
         echo "Running on Linux"
         $pkg_manager install -c conda-forge graphviz libvips pyvips openslide-python -y
         pip install --upgrade pip
-        pip install git+https://github.com/yuqiyuqitan/SPACEc.git@combined_updates_tim
+        pip install spacec
         pip install pandas==1.*
         pip install protobuf==3.20.0
         pip install numpy==1.24.*
