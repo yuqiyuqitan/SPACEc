@@ -42,7 +42,7 @@ SPACEc should work on most Linux distributions. However, we only tested it on Ub
     conda install conda-forge::cudatoolkit=11.2.2 -y
     conda install conda-forge::cudnn=8.1.0.77 -y
     
-    conda install install -c conda-forge graphviz libvips pyvips openslide-python
+    conda install -c conda-forge graphviz libvips pyvips openslide-python
     ```
     
 4. If you want to use your GPU run these additional commands. Otherwise, only install SPACEc.
