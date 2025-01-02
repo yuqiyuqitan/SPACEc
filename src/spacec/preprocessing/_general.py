@@ -634,9 +634,11 @@ def compensate_cell_matrix(df, image_dict, masks, overwrite=True):
     The compensated means are added to the DataFrame with column names from the keys of the image_dict.
     If overwrite is True, existing columns in the DataFrame are overwritten. If overwrite is False, new columns are added to the DataFrame.
     """
-    
-    print("This function uses code from Lee, M.Y., Bedia, J.S., Bhate, S.S. et al. CellSeg: a robust, pre-trained nucleus segmentation and pixel quantification software for highly multiplexed fluorescence images. BMC Bioinformatics 23, 46 (2022) please consider citing the original work.")
-    
+
+    print(
+        "This function uses code from Lee, M.Y., Bedia, J.S., Bhate, S.S. et al. CellSeg: a robust, pre-trained nucleus segmentation and pixel quantification software for highly multiplexed fluorescence images. BMC Bioinformatics 23, 46 (2022) please consider citing the original work."
+    )
+
     masks = masks.squeeze()
     image_list = [image_dict[channel_name] for channel_name in image_dict.keys()]
 

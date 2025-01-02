@@ -2127,7 +2127,9 @@ def patch_proximity_analysis(
     return final_results, outlines_results
 
 
-def stellar_get_edge_index(pos, distance_thres, max_memory_usage=1.6e10, chunk_size=1000):
+def stellar_get_edge_index(
+    pos, distance_thres, max_memory_usage=1.6e10, chunk_size=1000
+):
     """
     Constructs edge indexes in one region based on pairwise distances and a distance threshold.
 
@@ -2141,16 +2143,18 @@ def stellar_get_edge_index(pos, distance_thres, max_memory_usage=1.6e10, chunk_s
     edge_list (list): A list of lists where each inner list contains two indices representing an edge.
     """
     n_samples = pos.shape[0]
-    estimated_memory_usage = n_samples * n_samples * 8  # Estimate memory usage for the distance matrix (float64)
+    estimated_memory_usage = (
+        n_samples * n_samples * 8
+    )  # Estimate memory usage for the distance matrix (float64)
 
     if estimated_memory_usage > max_memory_usage:
         print("Processing will be done in chunks to save memory.")
         edge_list = []
         for i in tqdm(range(0, n_samples, chunk_size), desc="Processing chunks"):
-            pos_chunk = pos[i:i + chunk_size]
+            pos_chunk = pos[i : i + chunk_size]
             dists_chunk = pairwise_distances(pos_chunk, pos)
             dists_mask_chunk = dists_chunk < distance_thres
-            np.fill_diagonal(dists_mask_chunk[:, i:i + chunk_size], 0)
+            np.fill_diagonal(dists_mask_chunk[:, i : i + chunk_size], 0)
             chunk_edge_list = np.transpose(np.nonzero(dists_mask_chunk)).tolist()
             chunk_edge_list = [[i + edge[0], edge[1]] for edge in chunk_edge_list]
             edge_list.extend(chunk_edge_list)
@@ -2161,6 +2165,7 @@ def stellar_get_edge_index(pos, distance_thres, max_memory_usage=1.6e10, chunk_s
         edge_list = np.transpose(np.nonzero(dists_mask)).tolist()
 
     return edge_list
+
 
 def adata_stellar(
     adata_train,
@@ -2191,7 +2196,9 @@ def adata_stellar(
     adata (AnnData): The unannotated data with the added key for the predicted results.
     """
 
-    print("Please consider to cite the following paper when using STELLAR: Brbić, M., Cao, K., Hickey, J.W. et al. Annotation of spatially resolved single-cell data with STELLAR. Nat Methods 19, 1411–1418 (2022). https://doi.org/10.1038/s41592-022-01651-8")
+    print(
+        "Please consider to cite the following paper when using STELLAR: Brbić, M., Cao, K., Hickey, J.W. et al. Annotation of spatially resolved single-cell data with STELLAR. Nat Methods 19, 1411–1418 (2022). https://doi.org/10.1038/s41592-022-01651-8"
+    )
 
     sys.path.append(str(STELLAR_path))
     from datasets import GraphDataset
@@ -2254,9 +2261,7 @@ def adata_stellar(
 
     train_y = np.array([cell_type_dict[x] for x in train_y])
 
-    labeled_edges = stellar_get_edge_index(
-        labeled_pos, distance_thres=distance_thres
-    )
+    labeled_edges = stellar_get_edge_index(labeled_pos, distance_thres=distance_thres)
     unlabeled_edges = stellar_get_edge_index(
         unlabeled_pos, distance_thres=distance_thres
     )
@@ -2563,9 +2568,11 @@ def tm_viewer(
     list
         List of paths to the saved CSV files.
     """
-    
-    print("Please consider to cite the following paper when using TissUUmaps: TissUUmaps 3: Improvements in interactive visualization, exploration, and quality assessment of large-scale spatial omics data - Pielawski, Nicolas et al. 2023 - Heliyon, Volume 9, Issue 5, e15306")
-    
+
+    print(
+        "Please consider to cite the following paper when using TissUUmaps: TissUUmaps 3: Improvements in interactive visualization, exploration, and quality assessment of large-scale spatial omics data - Pielawski, Nicolas et al. 2023 - Heliyon, Volume 9, Issue 5, e15306"
+    )
+
     segmented_matrix = adata.obs
 
     with open(images_pickle_path, "rb") as f:
