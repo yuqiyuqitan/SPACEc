@@ -94,13 +94,21 @@ jobs:
 
       - name: Setup Graphviz
         uses: tlylt/install-graphviz@v1
+
       - name: Retrieve pre-built distribution files
         uses: actions/download-artifact@v4
         with: {name: python-distribution-files, path: dist/}
-      - name: Run tests
+      - name: Run tests (other)
+        if: startsWith(matrix.platform, 'ubuntu')
         run: >-
           pipx run --python '${{ steps.setup-python.outputs.python-path }}'
-          tox --installpkg '${{ needs.prepare.outputs.wheel-distribution }}'
+          tox -e platform-other --installpkg '${{ needs.prepare.outputs.wheel-distribution }}'
+          -- -rFEx --durations 10 --color yes  # pytest args
+      - name: Run tests (macos)
+        if: startsWith(matrix.platform, 'macos')
+        run: >-
+          pipx run --python '${{ steps.setup-python.outputs.python-path }}'
+          tox -e platform-macos --installpkg '${{ needs.prepare.outputs.wheel-distribution }}'
           -- -rFEx --durations 10 --color yes  # pytest args
       - name: Generate coverage report
         run: pipx run coverage lcov -o coverage.lcov
