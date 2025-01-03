@@ -124,7 +124,7 @@ def test_6_patch_proximity_analysis():
         subset_column="condition",
         subset_condition="tonsil",
         title="Tonsil patch proximity analysis",
-        savefig=None
+        savefig=None,
     )
 
 
