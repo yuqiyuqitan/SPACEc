@@ -4461,7 +4461,9 @@ def ppa_res_donut(
 
     plt.title(title, size=24, y=0.96)
 
-    if savefig:
+    if savefig is None:
+        pass
+    elif savefig:
         plt.savefig(output_dir + output_fname + ".pdf", bbox_inches="tight")
     else:
         plt.show()

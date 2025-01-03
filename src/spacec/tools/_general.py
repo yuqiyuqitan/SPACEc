@@ -392,9 +392,12 @@ def clustering(
             anndata_to_CPU(adata)  # moves `.X` to the CPU
 
         else:
+
             print("Computing neighbors and UMAP")
+            print("- neighbors")
             sc.pp.neighbors(adata, n_neighbors=n_neighbors)
             # UMAP computation
+            print("- UMAP")
             sc.tl.umap(adata)
             print("Clustering")
             # Perform leiden clustering - improved version of louvain clustering

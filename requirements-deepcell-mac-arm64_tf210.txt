@@ -1,0 +1,27 @@
+# Protobuf version override needed because
+# the older packages have older compiled protobufs…
+protobuf<3.20
+
+tensorflow-macos==2.10.0
+tensorflow-metal==0.6.0
+
+# Things we need dependencies for
+# smart_open[gcs]
+
+# DeepCell requirements
+deepcell-toolbox>=0.12.1
+deepcell-tracking~=0.6.5
+scipy>=1.2.3,<2
+scikit-image>=0.19.3
+# scikit-learn>=0.20.4
+# tensorflow_addons~=0.16.1
+# spektral~=1.0.4
+jupyterlab
+matplotlib
+
+# added for basic SPACEc functionality
+leidenalg
+louvain
+spektral
+pydot==1.4.2
+cellpose==3.0.8
