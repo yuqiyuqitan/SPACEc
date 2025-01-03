@@ -80,20 +80,20 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
 
-      # libvips
-      - name: Install libvips on Ubuntu
-        if: startsWith(matrix.platform, 'ubuntu')
-        run: sudo apt-get install -y libvips
-      # TODO: Can't get this to run
-      # - name: Install libvips on Windows
-      #   if: startsWith(matrix.platform, 'windows')
-      #   run: choco install nip2
-      - name: Install libvips on Mac
-        if: startsWith(matrix.platform, 'macos')
-        run: brew install vips
+      # # libvips
+      # - name: Install libvips on Ubuntu
+      #   if: startsWith(matrix.platform, 'ubuntu')
+      #   run: sudo apt-get install -y libvips
+      # # TODO: Can't get this to run
+      # # - name: Install libvips on Windows
+      # #   if: startsWith(matrix.platform, 'windows')
+      # #   run: choco install nip2
+      # - name: Install libvips on Mac
+      #   if: startsWith(matrix.platform, 'macos')
+      #   run: brew install vips
 
-      - name: Setup Graphviz
-        uses: tlylt/install-graphviz@v1
+      # - name: Setup Graphviz
+      #   uses: tlylt/install-graphviz@v1
 
       - name: Retrieve pre-built distribution files
         uses: actions/download-artifact@v4
