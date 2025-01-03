@@ -61,8 +61,8 @@ jobs:
       matrix:
         python:
         # - "3.8"  # oldest Python supported
-        # - "3.9"
-        - "3.10"  # newest Python that is stable
+        - "3.9"
+        # - "3.10"  # newest Python that is stable
         platform:
         # - ubuntu-latest
         - macos-latest
