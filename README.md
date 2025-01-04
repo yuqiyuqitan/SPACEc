@@ -1,7 +1,9 @@
 # SPatial Analysis for CodEX data (SPACEc)
 
 [![Documentation Status](https://readthedocs.org/projects/spacec/badge/?version=latest)](https://spacec.readthedocs.io/en/latest/?badge=latest)
-![example workflow](https://github.com/yuqiyuqitan/SPACEc/actions/workflows/ci.yml/badge.svg)
+![Test Workflow](https://github.com/yuqiyuqitan/SPACEc/actions/workflows/ci.yml/badge.svg)
+[![PyPI-Server](https://img.shields.io/pypi/v/spacec.svg)](https://pypi.org/project/spacec/)
+[![Monthly Downloads](https://pepy.tech/badge/spacec/month)](https://pepy.tech/project/spacec)
 
 [Preprint](https://doi.org/10.1101/2024.06.29.601349): more detailed explanation on each steps in Supplementary Notes 2 (p13-24).
 [Tutorial](https://spacec.readthedocs.io/en/latest/?badge=latest)
