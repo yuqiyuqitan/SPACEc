@@ -99,14 +99,11 @@ jobs:
         uses: actions/download-artifact@v4
         with: {name: python-distribution-files, path: dist/}
 
-      - name: Check Architecture
-        run: arch
-
-      - name: Run tests (other)
+      - name: Run tests (ubuntu)
         if: startsWith(matrix.platform, 'ubuntu')
         run: >-
           pipx run --python '${{ steps.setup-python.outputs.python-path }}'
-          tox -e platform-other --installpkg '${{ needs.prepare.outputs.wheel-distribution }}'
+          tox -e platform-ubuntu --installpkg '${{ needs.prepare.outputs.wheel-distribution }}'
           -- -rFEx --durations 10 --color yes  # pytest args
       - name: Run tests (macos)
         if: startsWith(matrix.platform, 'macos')
