@@ -124,7 +124,7 @@ If you run SPACEc on an Apple M chip, you should consider the additional step 3 
     # install Python
     conda install python==3.10
 
-    conda install install -c conda-forge graphviz libvips pyvips openslide-python
+    conda install -c conda-forge graphviz libvips pyvips openslide-python
     ```
 
 5. Install SPACEc in your conda environment. Note: We provide SPACEc via PyPi; therefore, you need to use pip.
