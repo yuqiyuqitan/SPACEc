@@ -4,7 +4,7 @@
 [![Downloads](https://pepy.tech/badge/spacec)](https://pepy.tech/project/spacec)
 [![PyPI-Server](https://img.shields.io/pypi/v/spacec?logo=PyPI)](https://pypi.org/project/spacec/)
 [![Documentation Status](https://readthedocs.org/projects/spacec/badge/?version=latest)](https://spacec.readthedocs.io/en/latest/?badge=latest)
-![Test Workflow](https://github.com/yuqiyuqitan/SPACEc/actions/workflows/ci.yml/badge.svg)
+[![Test Workflow](https://github.com/yuqiyuqitan/SPACEc/actions/workflows/ci.yml/badge.svg)](https://github.com/yuqiyuqitan/SPACEc/actions/workflows/ci.yml)
 
 [Preprint](https://doi.org/10.1101/2024.06.29.601349): more detailed explanation on each steps in Supplementary Notes 2 (p13-24).
 [Tutorial](https://spacec.readthedocs.io/en/latest/?badge=latest)
