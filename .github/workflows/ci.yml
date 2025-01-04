@@ -99,6 +99,9 @@ jobs:
         uses: actions/download-artifact@v4
         with: {name: python-distribution-files, path: dist/}
 
+      - name: Check Architecture
+        run: arch
+
       - name: Run tests (other)
         if: startsWith(matrix.platform, 'ubuntu')
         run: >-
