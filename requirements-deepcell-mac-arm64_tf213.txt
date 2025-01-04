@@ -17,10 +17,11 @@ louvain
 matplotlib
 # Protobuf version override needed because
 # the older packages have older compiled protobufs…
-protobuf<3.20
+# protobuf<3.20
 pydot==1.4.2
 scikit-image>=0.19.3
 scipy>=1.2.3,<2
 spektral
 
-tensorflow-macos==2.10.0
+tensorflow-macos==2.13.0
+# tensorflow

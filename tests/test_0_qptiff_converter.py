@@ -4,7 +4,7 @@ from tempfile import TemporaryDirectory
 TEST_DIR = pathlib.Path(__file__).parent
 
 
-def test_cell_segmentation():
+def test_qptiff_converter():
     import matplotlib
 
     matplotlib.use("Agg")

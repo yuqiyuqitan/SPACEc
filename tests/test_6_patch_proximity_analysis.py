@@ -1,9 +1,11 @@
 import pathlib
-from tempfile import TemporaryDirectory
+
+import pytest
 
 TEST_DIR = pathlib.Path(__file__).parent
 
 
+@pytest.mark.slow
 def test_6_patch_proximity_analysis():
     # Set up environment
     import matplotlib
