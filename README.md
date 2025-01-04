@@ -1,7 +1,7 @@
 # SPatial Analysis for CodEX data (SPACEc)
 
 [![Stars](https://img.shields.io/github/stars/yuqiyuqitan/SPACEc?style=flat&logo=GitHub&color=yellow)](https://github.com/yuqiyuqitan/SPACEc/stargazers)
-[![PyPI-Server](https://img.shields.io/pypi/v/spacec.svg)](https://pypi.org/project/spacec/)
+[![PyPI-Server](https://img.shields.io/pypi/v/spacec?logo=PyPI)](https://pypi.org/project/spacec/)
 [![Monthly Downloads](https://pepy.tech/badge/spacec/month)](https://pepy.tech/project/spacec)
 [![Documentation Status](https://readthedocs.org/projects/spacec/badge/?version=latest)](https://spacec.readthedocs.io/en/latest/?badge=latest)
 ![Test Workflow](https://github.com/yuqiyuqitan/SPACEc/actions/workflows/ci.yml/badge.svg)
