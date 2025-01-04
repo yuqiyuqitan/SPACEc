@@ -6,10 +6,6 @@ TEST_DIR = pathlib.Path(__file__).parent
 
 def test_cell_segmentation():
 
-    import os
-
-    os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-
     import matplotlib
 
     import spacec as sp
