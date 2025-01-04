@@ -102,6 +102,11 @@ jobs:
       - name: Check Architecture
         run: arch
 
+      - name: Check Python and TensorFlow versions
+        run: |
+          python --version
+          pip show tensorflow tensorflow-macos tensorflow-metal keras
+
       - name: Run tests (other)
         if: startsWith(matrix.platform, 'ubuntu')
         run: >-
