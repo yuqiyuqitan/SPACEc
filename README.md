@@ -20,8 +20,9 @@
 
 <details><summary>Linux</summary>
 
-SPACEc CPU:
-    ```bash
+SPACEc CPU
+
+```bash
     # Create conda environment
     conda create -n spacec python==3.10
     conda activate spacec
@@ -31,12 +32,13 @@ SPACEc CPU:
 
     # Install spacec
     pip install spacec
-    ```
+```
 
 #### Continue the following steps only if you have GPU(s)
 
-SPACEc GPU:
-    ```bash
+SPACEc GPU
+
+```bash
     # Set environment variables
     conda install conda-forge::cudatoolkit=11.2.2 cudnn=8.1.0.77 -y
     # Set environment variables for the conda environment
@@ -46,7 +48,7 @@ SPACEc GPU:
 
     # Ensure package compatibility
     pip install protobuf==3.20.0 numpy==1.24.* tensorflow-gpu==2.8.0
-    ```
+```
 
 1. For GPU-accelerated clustering via RAPIDS, note that only RTX20XX or better GPUs are supported (optional).
     ```bash
@@ -75,7 +77,8 @@ SPACEc GPU:
 
 
 SPACEc CPU:
-    ```bash
+
+```bash
     conda create -n spacec python==3.10
     conda activate spacec
 
@@ -92,7 +95,7 @@ SPACEc CPU:
     conda install tensorflow=2.10.0
     pip uninstall werkzeug -y
     pip install numpy==1.26.4 werkzeug==2.3.8
-    ```
+```
 
 SPACEc GPU:
 Mac GPU support remains problematic, we recommend you use Linux system for GPU acceleration.
@@ -120,7 +123,8 @@ If you decide to use WSL, follow the Linux instructions.
     6. Unpack the zip file and add the directory to your PATH environment. If you don’t know how to do that, consider watching this tutorial video that explains the process: [https://www.youtube.com/watch?v=O5iBsdAd1_w](https://www.youtube.com/watch?v=O5iBsdAd1_w)
 
 SPACEc CPU:
-    ```bash
+
+```bash
     # Create conda environment
     conda create -n spacec python==3.10
     conda activate spacec
@@ -130,10 +134,10 @@ SPACEc CPU:
 
     # Install spacec
     pip install spacec
-    ```
+```
 
 SPACEc GPU:
-    ```bash
+```bash
     conda install conda-forge::cudatoolkit=11.2.2 cudnn=8.1.0.77 -y
 
     mkdir %CONDA_PREFIX%\etc\conda\activate.d && (
@@ -141,13 +145,13 @@ SPACEc GPU:
     echo set PATH=%CONDA_PREFIX%\bin;%PATH% >> %CONDA_PREFIX%\etc\conda\activate.d\env_vars.bat
     echo set LD_LIBRARY_PATH=%CONDA_PREFIX%\lib;%LD_LIBRARY_PATH% >> %CONDA_PREFIX%\etc\conda\activate.d\env_vars.bat
     )
+```
 
-    ```
 Test if SPACEc loads and if your GPU is visible if you installed the GPU version.
-    ```python
+```python
     import spacec as sp
     sp.hf.check_for_gpu()
-    ```
+```
 
 * ⚠️ **IMPORTANT**: always import `spacec` first before importing any other packages
 </details>
