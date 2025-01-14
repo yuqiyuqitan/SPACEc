@@ -14,7 +14,7 @@
 ## Installation notes
 
 **Note**: We currently support Python==`3.9` and `3.10`.
-* **Example tonsil data** is avaialbel on[dryad](https://datadryad.org/stash/share/OXTHu8fAybiINGD1S3tIVUIcUiG4nOsjjeWmrvJV-dQ)
+* The **example tonsil data** is available on[dryad](https://datadryad.org/stash/share/OXTHu8fAybiINGD1S3tIVUIcUiG4nOsjjeWmrvJV-dQ)
 
 ### Install
 
