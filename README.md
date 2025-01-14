@@ -14,7 +14,7 @@
 ## Installation notes
 
 **Note**: We currently support Python==`3.9` and `3.10`.
-* **Example tonsil data** on [dryad](https://datadryad.org/stash/share/OXTHu8fAybiINGD1S3tIVUIcUiG4nOsjjeWmrvJV-dQ)
+* **Example tonsil data** is avaialbel on[dryad](https://datadryad.org/stash/share/OXTHu8fAybiINGD1S3tIVUIcUiG4nOsjjeWmrvJV-dQ)
 
 ### Install
 
@@ -157,9 +157,8 @@ Test if SPACEc loads and if your GPU is visible if you installed the GPU version
 </details>
 
 
-### Docker
-If you run into an installation issue or want to run SPACEc in a containerized environment, we have created a Docker image for you to use SPACEc so that you don't have to install manually. You can find the SPACEc Docker image here: https://hub.docker.com/r/tkempchen/spacec
-You can also build and modify the Docker image yourself by using the Dockerfiles in the repository.
+<details><summary>Docker</summary>
+If you encounter installation issues or prefer a containerized setup, use the SPACEc Docker image: https://hub.docker.com/r/tkempchen/spacec. You can also build or modify it using the repository's Dockerfiles.
 
 ```bash
 #Run CPU version:
@@ -170,14 +169,4 @@ docker run -p 8888:8888 -p 5100:5100 spacec:cpu
 docker pull tkempchen/spacec:gpu
 docker run --gpus all -p 8888:8888 -p 5100:5100 spacec:gpu
 ```
-
-### Run tests.
-
-```bash
-pip install pytest pytest-cov
-
-# Note: before you run `pytest` you might have to deactivate and activate the conda environment first
-# conda deactivate; conda activate spacec
-
-pytest
-```
+</details>
