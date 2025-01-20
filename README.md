@@ -48,21 +48,30 @@ SPACEc GPU
 
     # Ensure package compatibility
     pip install protobuf==3.20.0 numpy==1.24.* tensorflow-gpu==2.8.0
+
+    # If Pytorch does not find the GPU try:
+    # pip install torch==1.12.0+cu113 torchvision==0.13.0+cu113 torchaudio==0.12.0 --extra-index-url https://download.pytorch.org/whl/cu113
 ```
 
 1. For GPU-accelerated clustering via RAPIDS, note that only RTX20XX or better GPUs are supported (optional).
-    ```bash
+```bash
     conda install -c rapidsai -c conda-forge -c nvidia rapids=24.02
     pip install rapids-singlecell==0.9.5 pandas==1.5.*
-    ```
+```
 
 2. To run STELLAR (optional).
-    ```bash
-    # more information please refer to https://pytorch-geometric.readthedocs.io/en/2.5.2/notes/installation.html
-    pip install torch_geometric
-    ```
+```bash
+    # more information please refer to https://pytorch-geometric.readthedocs.io/en/2.1.0/notes/installation.html
+    pip install torch-scatter torch-sparse torch-cluster torch-spline-conv torch-geometric -f https://data.pyg.org/whl/torch-1.12.0+cu113.html
+```
 
-3. Test if SPACEc loads and if your GPU is visible if you installed the GPU version.
+3. Reinstall SPACEc to be compatible with the GPU setting
+```bash
+    # Install spacec
+    pip install spacec
+```
+
+4. Test if SPACEc loads and if your GPU is visible if you installed the GPU version. In Python:
     ```python
     import spacec as sp
     sp.hf.check_for_gpu()
@@ -106,21 +115,18 @@ Mac GPU support remains problematic, we recommend you use Linux system for GPU a
 
 <details><summary>Windows</summary>
 
-Although SPACEc can run directly on Windows systems, we highly recommend running it in WSL. If you are unfamiliar with WSL, you can find more information on how to use and install it here: https://learn.microsoft.com/en-us/windows/wsl/install
+Although SPACEc can run directly on Windows systems, we highly recommend running it in WSL. If you are unfamiliar with WSL, you can find more information on how to use and install it here: https://learn.microsoft.com/en-us/windows/wsl/install If you decide to use WSL, follow the Linux instructions.
 
-If you decide to use WSL, follow the Linux instructions.
-
-1. To run SPACEc you will need to install some additional software on windows.
-    1. Download the community version of Visual Studio from the official Microsoft website: [https://visualstudio.microsoft.com](https://visualstudio.microsoft.com/)
-    2. After installing the software on your system, you will be presented with a launcher that allows you to select the components to be installed on your system.
-    3. Install the components needed for C++ development (see screenshots) - The download will be a few GB in size, so prepare to wait depending on your internet connection.
+If you plan to continue with the native Windows environment
+1. One of the segmentation tools within SPACEc neeeds a C++ compiler. If your environment doesn't have it already, the easiest way is to:
+    1. Download the community version of Visual Studio from the official Microsoft website: [https://visualstudio.microsoft.com](https://visualstudio.microsoft.com/). After installing the software on your system, select the following options to install the components needed for C++ development (see screenshots)
 
         ![image](https://github.com/user-attachments/assets/ca35fe30-8deb-448f-bac7-688774b770aa)
 
         ![image 1](https://github.com/user-attachments/assets/f4344363-5a31-4695-b75c-5ed8c416b7c2)
 
-    5. In the meantime, you can already install libvips ([https://www.libvips.org/](https://www.libvips.org/)) by downloading the pre-compiled Windows binaries from this repository: https://github.com/libvips/build-win64-mxe/releases/tag/v8.16.0 and adding them to your PATH. If you are unsure about which version to choose, [vips-dev-w64-all-8.16.0.zip](https://github.com/libvips/build-win64-mxe/releases/download/v8.16.0/vips-dev-w64-all-8.16.0.zip) should work for you.
-    6. Unpack the zip file and add the directory to your PATH environment. If you don’t know how to do that, consider watching this tutorial video that explains the process: [https://www.youtube.com/watch?v=O5iBsdAd1_w](https://www.youtube.com/watch?v=O5iBsdAd1_w)
+    2. In the meantime, you can already install libvips ([https://www.libvips.org/](https://www.libvips.org/)) by downloading the pre-compiled Windows binaries from this repository: https://github.com/libvips/build-win64-mxe/releases/tag/v8.16.0 and adding them to your PATH. If you are unsure about which version to choose, [vips-dev-w64-all-8.16.0.zip](https://github.com/libvips/build-win64-mxe/releases/download/v8.16.0/vips-dev-w64-all-8.16.0.zip) should work for you.
+    3. Unpack the zip file and add the directory to your PATH environment. If you don’t know how to do that, consider watching this tutorial video that explains the process: [https://www.youtube.com/watch?v=O5iBsdAd1_w](https://www.youtube.com/watch?v=O5iBsdAd1_w)
 
 SPACEc CPU:
 
@@ -145,6 +151,15 @@ SPACEc GPU:
     echo set PATH=%CONDA_PREFIX%\bin;%PATH% >> %CONDA_PREFIX%\etc\conda\activate.d\env_vars.bat
     echo set LD_LIBRARY_PATH=%CONDA_PREFIX%\lib;%LD_LIBRARY_PATH% >> %CONDA_PREFIX%\etc\conda\activate.d\env_vars.bat
     )
+
+    # If Pytorch does not find the GPU try:
+    # pip install torch==1.12.0+cu113 torchvision==0.13.0+cu113 torchaudio==0.12.0 --extra-index-url https://download.pytorch.org/whl/cu113
+```
+
+Reinstall SPACEc to be compatible with the GPU setting
+```bash
+    # Install spacec
+    pip install spacec
 ```
 
 Test if SPACEc loads and if your GPU is visible if you installed the GPU version.

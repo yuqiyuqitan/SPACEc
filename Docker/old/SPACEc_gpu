@@ -1,0 +1,62 @@
+# Start from a base CUDA image
+FROM nvidia/cuda:12.1.1-devel-ubuntu20.04
+
+# Update the package list
+RUN apt-get update && \
+    apt-get install -y \
+    fontconfig \
+    fonts-dejavu-core \
+    fonts-droid-fallback \
+    fonts-liberation \
+    fonts-noto-mono \
+    ttf-bitstream-vera
+
+# Install Python, pip, and git
+RUN apt-get install -y python3 python3-pip git wget
+
+# Download and install Miniconda
+RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
+    bash Miniconda3-latest-Linux-x86_64.sh -b -p /miniconda && \
+    rm Miniconda3-latest-Linux-x86_64.sh
+
+# Add Miniconda to PATH
+ENV PATH="/miniconda/bin:${PATH}"
+
+# Update conda
+RUN conda update -y conda
+
+# Create a new conda environment with Python 3.9
+RUN conda create -n spacec python=3.9
+
+# Activate the new environment
+SHELL ["conda", "run", "-n", "spacec", "/bin/bash", "-c"]
+
+# Install graphviz in the new environment
+RUN conda run -n spacec conda install -y graphviz
+RUN conda install -c conda-forge libvips pyvips openslide-python
+
+# Install Python dependencies in the new environment
+RUN conda run pip install spacec
+
+RUN conda run pip install "TissUUmaps" && \
+    conda install libxml2=2.9.10 && \
+    conda run pip install torch_geometric && \
+    conda run pip install pyg_lib torch_scatter torch_sparse torch_cluster torch_spline_conv -f https://data.pyg.org/whl/torch-2.3.0+cu121.html && \
+    conda run pip install rapids-singlecell==0.9.5 && \
+    conda run pip install --extra-index-url=https://pypi.nvidia.com cudf-cu12==24.2.* dask-cudf-cu12==24.2.* cuml-cu12==24.2.* cugraph-cu12==24.2.* cuspatial-cu12==24.2.* cuproj-cu12==24.2.* cuxfilter-cu12==24.2.* cucim-cu12==24.2.* pylibraft-cu12==24.2.* raft-dask-cu12==24.2.* && \
+    conda run pip install protobuf==3.20
+
+
+# Copy notebooks into a new directory in the Docker image
+COPY notebooks /notebooks
+COPY example_data /example_data
+
+# Set the new directory as the working directory
+WORKDIR /notebooks
+
+# Expose Jupyter port
+EXPOSE 8888
+EXPOSE 5100
+
+# Set the default command to run Jupyter
+CMD ["conda", "run", "-n", "spacec", "jupyter", "notebook", "--ip='0.0.0.0'", "--port=8888", "--no-browser", "--allow-root", "--NotebookApp.token=''"]

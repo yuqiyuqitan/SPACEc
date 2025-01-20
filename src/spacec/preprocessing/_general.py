@@ -82,6 +82,7 @@ def filter_data(
     alpha=0.8,
     size=0.4,  # dot style
     log_scale=False,
+    plot=False,
 ):
     """
     Filter data based on nuclear threshold and size threshold, and visualize the data before and after filtering.
@@ -126,55 +127,55 @@ def filter_data(
     fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(15, 5))
 
     # Boxplot
-    sns.boxplot(data=df.loc[:, [cell_size, nuc_marker]], orient="h", ax=ax1)
-    ax1.set_title("Cell size and nuclear marker intensity")
+    # sns.boxplot(data=df.loc[:, [cell_size, nuc_marker]], orient="h", ax=ax1)
+    # ax1.set_title("Cell size and nuclear marker intensity")
+    if plot:
+        print("Plotting scatterplots now, if your data is large, it will take awhile!")
+        sns.scatterplot(
+            x=df[nuc_marker],
+            y=df[cell_size],
+            hue=df[color_by],
+            palette=palette,
+            alpha=alpha,
+            ax=ax2,
+            legend=False,
+        )
 
-    # Plot 1
-    sns.scatterplot(
-        x=df[nuc_marker],
-        y=df[cell_size],
-        hue=df[color_by],
-        palette=palette,
-        alpha=alpha,
-        ax=ax2,
-        legend=False,
-    )
+        if log_scale == True:
+            ax2.set_xscale("log")
+            ax2.set_yscale("log")
 
-    if log_scale == True:
-        ax2.set_xscale("log")
-        ax2.set_yscale("log")
+        ax2.axhline(size_thres, color="k", linestyle="dashed", linewidth=1)
+        ax2.axvline(nuc_thres, color="k", linestyle="dashed", linewidth=1)
+        ax2.legend(bbox_to_anchor=(1.2, 1), loc="upper left", borderaxespad=0)
+        ax2.set_title("Before filtering")
 
-    ax2.axhline(size_thres, color="k", linestyle="dashed", linewidth=1)
-    ax2.axvline(nuc_thres, color="k", linestyle="dashed", linewidth=1)
-    ax2.legend(bbox_to_anchor=(1.2, 1), loc="upper left", borderaxespad=0)
-    ax2.set_title("Before filtering")
+        # Plot 2
+        sns.scatterplot(
+            x=df_nuc[nuc_marker],
+            y=df_nuc[cell_size],
+            hue=df_nuc[color_by],
+            palette=palette,
+            alpha=alpha,
+            ax=ax3,
+        )
 
-    # Plot 2
-    sns.scatterplot(
-        x=df_nuc[nuc_marker],
-        y=df_nuc[cell_size],
-        hue=df_nuc[color_by],
-        palette=palette,
-        alpha=alpha,
-        ax=ax3,
-    )
+        if log_scale == True:
+            ax3.set_xscale("log")
+            ax3.set_yscale("log")
 
-    if log_scale == True:
-        ax3.set_xscale("log")
-        ax3.set_yscale("log")
+        ax3.axhline(size_thres, color="k", linestyle="dashed", linewidth=1)
+        ax3.axvline(nuc_thres, color="k", linestyle="dashed", linewidth=1)
+        ax3.legend(bbox_to_anchor=(1.2, 1), loc="upper left", borderaxespad=0)
+        ax3.set_title("After filtering")
 
-    ax3.axhline(size_thres, color="k", linestyle="dashed", linewidth=1)
-    ax3.axvline(nuc_thres, color="k", linestyle="dashed", linewidth=1)
-    ax3.legend(bbox_to_anchor=(1.2, 1), loc="upper left", borderaxespad=0)
-    ax3.set_title("After filtering")
+        plt.show()
+        # show plot
+        plt.tight_layout()
+        plt.show()
 
-    plt.show()
-    # show plot
-    plt.tight_layout()
-    plt.show()
-
-    # print the percentage of cells that are kept
-    print("Percentage of cells kept: ", per_keep * 100, "%")
+        # print the percentage of cells that are kept
+        print("Percentage of cells kept: ", per_keep * 100, "%")
 
     return df_nuc
 

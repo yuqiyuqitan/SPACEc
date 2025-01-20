@@ -3262,7 +3262,7 @@ def launch_interactive_clustering(adata=None, output_dir=None):
                 output_area.object = "**Please load an AnnData file first.**"
                 return
             try:
-                sp.pl.catplot(
+                catplot(
                     adata,
                     color=spatial_color.value,
                     unique_region=spatial_unique_region.value,

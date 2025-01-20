@@ -1,7 +1,9 @@
-# Start from a base CUDA image
-FROM ubuntu:20.04
+FROM debian:bullseye-slim
 
-# Update the package list
+# Fix (tzdata)
+ARG DEBIAN_FRONTEND=noninteractive
+
+# Update the package list and install dependencies
 RUN apt-get update && \
     apt-get install -y \
     fontconfig \
@@ -9,51 +11,55 @@ RUN apt-get update && \
     fonts-droid-fallback \
     fonts-liberation \
     fonts-noto-mono \
-    ttf-bitstream-vera
+    ttf-bitstream-vera \
+    git \
+    wget && \
+    rm -rf /var/lib/apt/lists/*
 
-# Install Python, pip, and git
-RUN apt-get install -y python3 python3-pip git wget
+# Install Miniforge
+RUN apt-get update && \
+    apt-get install -y wget && \
+    wget "https://github.com/conda-forge/miniforge/releases/download/23.11.0-0/Miniforge3-23.11.0-0-Linux-x86_64.sh" && \
+    bash Miniforge3-*.sh -b -p /miniforge && \
+    rm Miniforge3-*.sh
 
-# Download and install Miniconda
-RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
-    bash Miniconda3-latest-Linux-x86_64.sh -b -p /miniconda && \
-    rm Miniconda3-latest-Linux-x86_64.sh
+# Add Miniforge to PATH
+ENV PATH="/miniforge/bin:${PATH}"
 
-# Add Miniconda to PATH
-ENV PATH="/miniconda/bin:${PATH}"
+# Create a new conda environment with Python 3.10
+RUN conda create -n spacec python=3.10 -y
 
-# Update conda
-RUN conda update -y conda
+# Install mamba
+RUN conda install -n spacec -c conda-forge mamba -y
 
-# Create a new conda environment with Python 3.9
-RUN conda create -n spacec python=3.9
+# Install libxml2
+RUN mamba install -n spacec -c conda-forge libxml2=2.13.5 -y
 
-# Activate the new environment
-SHELL ["conda", "run", "-n", "spacec", "/bin/bash", "-c"]
+# Install other dependencies
+RUN mamba install -n spacec -c conda-forge graphviz libvips pyvips openslide-python -y
 
-# Install graphviz in the new environment
-RUN conda run -n spacec conda install -y graphviz
-RUN conda install -c conda-forge libvips pyvips openslide-python
+# Install gcc
+RUN apt-get update && \
+    apt-get install -y build-essential gcc && \
+    rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies in the new environment
-RUN conda run pip install spacec
+# Install SPACEc
+RUN mamba run -n spacec pip install git+https://github.com/yuqiyuqitan/SPACEc.git@combined_updates_tim
 
-RUN conda run pip install "TissUUmaps" && \
-    conda install libxml2=2.9.10 && \
-    conda run pip install torch_geometric && \
-    conda run pip install pyg_lib torch_scatter torch_sparse torch_cluster torch_spline_conv -f https://data.pyg.org/whl/torch-2.3.0+cu121.html && \
+# Install additional Python packages
+RUN mamba run -n spacec pip install networkx==3.2.* protobuf==3.20.0 numpy==1.24.*
 
+# Clean up
+RUN mamba clean --all -f -y && \
+    rm -rf /root/.cache/pip
 
-# Copy notebooks into a new directory in the Docker image
+# Copy notebooks into the image
 COPY notebooks /notebooks
-COPY example_data /example_data
-
-# Set the new directory as the working directory
 WORKDIR /notebooks
 
-# Expose Jupyter port
+# Expose relevant ports
 EXPOSE 8888
 EXPOSE 5100
 
-# Set the default command to run Jupyter
-CMD ["conda", "run", "-n", "spacec", "jupyter", "notebook", "--ip='0.0.0.0'", "--port=8888", "--no-browser", "--allow-root", "--NotebookApp.token=''"]
+# Default command
+CMD ["conda", "run", "-n", "spacec", "jupyter", "lab", "--ip='0.0.0.0'", "--port=8888", "--no-browser", "--allow-root", "--NotebookApp.token=''"]
