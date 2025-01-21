@@ -82,7 +82,7 @@ SPACEc GPU
 </details>
 
 
-<details><summary>Apple M1/M2</summary>
+<details><summary>Apple M1/M2/M3/M4</summary>
 
 
 SPACEc CPU:
@@ -113,6 +113,7 @@ SPACEc GPU:
 Mac GPU support remains problematic, we recommend you use Linux system for GPU acceleration.
 
 * ⚠️ **IMPORTANT**: always import `spacec` first before importing any other packages
+* ⚠️ **IMPORTANT**: At the moment, the SPACEc environment is incompatible with cellpose if run on an Apple Silicon Mac. If cellpose is needed, consider the following options: use the SPACEc Docker image, run on a Linux or Windows machine instead, run cellpose segmentation outside SPACEc and import your data to SPACEc. We hope to provide an Apple Silicon-compatible environment soon. 
 
 </details>
 
@@ -179,12 +180,16 @@ Test if SPACEc loads and if your GPU is visible if you installed the GPU version
 If you encounter installation issues or prefer a containerized setup, use the SPACEc Docker image: https://hub.docker.com/r/tkempchen/spacec. You can also build or modify it using the repository's Dockerfiles.
 
 ```bash
-#Run CPU version:
+# Run CPU version:
 docker pull tkempchen/spacec:cpu
-docker run -p 8888:8888 -p 5100:5100 spacec:cpu
+docker run -p 8888:8888 -p 5100:5100 tkempchen/spacec:cpu
 
-#Or run GPU version:
+# Run CPU version on Mac with M chip:
+docker pull tkempchen/spacec:cpu
+docker run -p --platform linux/amd64 8888:8888 -p 5100:5100 tkempchen/spacec:cpu
+
+# Or run GPU version:
 docker pull tkempchen/spacec:gpu
-docker run --gpus all -p 8888:8888 -p 5100:5100 spacec:gpu
+docker run --gpus all -p 8888:8888 -p 5100:5100 tkempchen/spacec:gpu
 ```
 </details>
