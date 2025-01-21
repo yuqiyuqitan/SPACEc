@@ -89,6 +89,7 @@ if TYPE_CHECKING:
     from anndata import AnnData
 
 from ..helperfunctions._general import *
+from ..plotting._general import catplot
 
 try:
     from torch_geometric.data import ClusterData, ClusterLoader, Data, InMemoryDataset
