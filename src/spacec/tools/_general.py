@@ -2440,83 +2440,73 @@ def masks_to_outlines_scikit_image(masks):
     else:
         return find_boundaries(masks, mode="inner")
 
+def download_file_tm(url, save_path):
+    """
+    Download a file from a given URL and save it to a specified path.
 
-def tm_viewer_catplot(
-    adata,
-    directory=None,
-    region_column="unique_region",
-    x="x",
-    y="y",
-    color_by="celltype_fine",
-    open_viewer=True,
-    add_UMAP=False,
-):
-    segmented_matrix = adata.obs
+    Parameters
+    ----------
+    url : str
+        The URL of the file to download.
+    save_path : str
+        The local path where the downloaded file will be saved.
 
-    if keep_list is None:
-        keep_list = [region_column, x, y, color_by]
+    Raises
+    ------
+    requests.exceptions.HTTPError
+        If the HTTP request returned an unsuccessful status code.
+    """
+    response = requests.get(url)
+    response.raise_for_status()  # Check if the request was successful
 
-    print("Preparing TissUUmaps input...")
+    with open(save_path, 'wb') as file:
+        file.write(response.content)
 
-    if directory is None:
-        print(
-            "Creating temporary directory... If you want to save the files, please specify a directory."
-        )
-        directory = tempfile.mkdtemp()
+def check_download_tm_plugins():
+    """
+    Check and download the TissUUmaps plugins if they are not already present.
 
-    if not os.path.exists(directory):
-        os.makedirs(directory)
+    This function checks if the required TissUUmaps plugins are present in the
+    appropriate directory within the active Conda environment. If any plugins
+    are missing, they are downloaded from the specified URLs.
 
-    # only keep columns in keep_list
-    segmented_matrix = segmented_matrix[keep_list]
-
-    if add_UMAP:
-        # add UMAP coordinates to segmented_matrix
-        segmented_matrix["UMAP_1"] = adata.obsm["X_umap"][:, 0]
-        segmented_matrix["UMAP_2"] = adata.obsm["X_umap"][:, 1]
-
-    csv_paths = []
-    # separate matrix by region and save every region as single csv file
-    unique_regions = segmented_matrix[region_column].unique()
-    for region in unique_regions:
-        region_matrix = segmented_matrix.loc[segmented_matrix[region_column] == region]
-        region_csv_path = os.path.join(directory, region + ".csv")
-        region_matrix.to_csv(region_csv_path)
-        csv_paths.append(region_csv_path)
-
-    if open_viewer:
-        print("Opening TissUUmaps viewer...")
-        tj.loaddata(
-            images=None,
-            csvFiles=[str(p) for p in csv_paths],
-            xSelector=x,
-            ySelector=y,
-            keySelector=color_by,
-            nameSelector=color_by,
-            colorSelector=color_by,
-            piechartSelector=None,
-            shapeSelector=None,
-            scaleSelector=None,
-            fixedShape=None,
-            scaleFactor=1,
-            colormap=None,
-            compositeMode="source-over",
-            boundingBox=None,
-            port=5100,
-            host="localhost",
-            height=900,
-            tmapFilename="project",
-            plugins=[
-                "Plot_Histogram",
-                "Points2Regions",
-                "Spot_Inspector",
-                "Feature_Space",
-                "ClassQC",
-            ],
-        )
-
-    return csv_paths
-
+    Raises
+    ------
+    EnvironmentError
+        If the Conda environment is not activated.
+    """
+    if __name__ == "__main__":
+        urls = [
+            "https://tissuumaps.github.io/TissUUmaps/plugins/latest/ClassQC.js",
+            "https://tissuumaps.github.io/TissUUmaps/plugins/latest/Plot_Histogram.js",
+            "https://tissuumaps.github.io/TissUUmaps/plugins/latest/Points2Regions.js",
+            "https://tissuumaps.github.io/TissUUmaps/plugins/latest/Spot_Inspector.js",
+            "https://tissuumaps.github.io/TissUUmaps/plugins/latest/Feature_Space.js"
+        ]
+        
+        conda_env_path = os.getenv('CONDA_PREFIX')
+        if not conda_env_path:
+            raise EnvironmentError("Conda environment is not activated.")
+        
+        python_version = f"python{sys.version_info.major}.{sys.version_info.minor}"
+        save_directory = os.path.join(conda_env_path, 'lib', python_version, 'site-packages', 'tissuumaps', 'plugins')
+        
+        if not os.path.exists(save_directory):
+            save_directory_option = os.path.join(conda_env_path, 'lib', 'site-packages', 'tissuumaps', 'plugins')
+            for url in urls:
+                file_name = os.path.basename(url)
+                save_path = os.path.join(save_directory_option, file_name)
+                if not os.path.exists(save_path):
+                    download_file_tm(url, save_path)
+                    print(f"Plug-in downloaded and saved to {save_path}")
+                
+        else:
+            for url in urls:
+                file_name = os.path.basename(url)
+                save_path = os.path.join(save_directory, file_name)
+                if not os.path.exists(save_path):
+                    download_file_tm(url, save_path)
+                    print(f"Plug-in downloaded and saved to {save_path}")
 
 def tm_viewer(
     adata,
@@ -2577,6 +2567,8 @@ def tm_viewer(
         "Please consider to cite the following paper when using TissUUmaps: TissUUmaps 3: Improvements in interactive visualization, exploration, and quality assessment of large-scale spatial omics data - Pielawski, Nicolas et al. 2023 - Heliyon, Volume 9, Issue 5, e15306"
     )
 
+    check_download_tm_plugins()
+    
     segmented_matrix = adata.obs
 
     with open(images_pickle_path, "rb") as f:
@@ -2687,7 +2679,6 @@ def tm_viewer(
 
     return image_list, csv_paths
 
-
 def tm_viewer_catplot(
     adata,
     directory=None,
@@ -2728,6 +2719,8 @@ def tm_viewer_catplot(
     list of str
         List of paths to the generated CSV files.
     """
+    
+    check_download_tm_plugins()
     segmented_matrix = adata.obs
 
     if keep_list is None:
