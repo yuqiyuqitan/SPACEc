@@ -14,7 +14,7 @@
 ## Installation notes
 
 **Note**: We currently support Python==`3.9` and `3.10`.
-* The **example tonsil data** is available on[dryad](https://datadryad.org/stash/share/OXTHu8fAybiINGD1S3tIVUIcUiG4nOsjjeWmrvJV-dQ)
+* The **example tonsil data** is available on [dryad](https://datadryad.org/stash/share/OXTHu8fAybiINGD1S3tIVUIcUiG4nOsjjeWmrvJV-dQ)
 
 ### Install
 
@@ -88,11 +88,14 @@ SPACEc GPU
 SPACEc CPU:
 
 ```bash
-    conda create -n spacec python==3.10
+    conda create -n spacec
     conda activate spacec
 
     # Set environment; Apple specific
     conda config --env --set subdir osx-64
+
+    # Install Python via conda
+    conda install python==3.10
 
     # Install dependencies via conda.
     conda install -c conda-forge graphviz libvips pyvips openslide-python
@@ -136,7 +139,7 @@ SPACEc CPU:
     conda activate spacec
 
     # Install dependencies via conda.
-    conda install -c conda-forge graphviz libvips pyvips openslide-python
+    conda install -c conda-forge graphviz
 
     # Install spacec
     pip install spacec
