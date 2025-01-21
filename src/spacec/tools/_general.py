@@ -2475,38 +2475,37 @@ def check_download_tm_plugins():
     EnvironmentError
         If the Conda environment is not activated.
     """
-    if __name__ == "__main__":
-        urls = [
-            "https://tissuumaps.github.io/TissUUmaps/plugins/latest/ClassQC.js",
-            "https://tissuumaps.github.io/TissUUmaps/plugins/latest/Plot_Histogram.js",
-            "https://tissuumaps.github.io/TissUUmaps/plugins/latest/Points2Regions.js",
-            "https://tissuumaps.github.io/TissUUmaps/plugins/latest/Spot_Inspector.js",
-            "https://tissuumaps.github.io/TissUUmaps/plugins/latest/Feature_Space.js"
-        ]
+    urls = [
+        "https://tissuumaps.github.io/TissUUmaps/plugins/latest/ClassQC.js",
+        "https://tissuumaps.github.io/TissUUmaps/plugins/latest/Plot_Histogram.js",
+        "https://tissuumaps.github.io/TissUUmaps/plugins/latest/Points2Regions.js",
+        "https://tissuumaps.github.io/TissUUmaps/plugins/latest/Spot_Inspector.js",
+        "https://tissuumaps.github.io/TissUUmaps/plugins/latest/Feature_Space.js"
+    ]
         
-        conda_env_path = os.getenv('CONDA_PREFIX')
-        if not conda_env_path:
-            raise EnvironmentError("Conda environment is not activated.")
+    conda_env_path = os.getenv('CONDA_PREFIX')
+    if not conda_env_path:
+        raise EnvironmentError("Conda environment is not activated.")
         
-        python_version = f"python{sys.version_info.major}.{sys.version_info.minor}"
-        save_directory = os.path.join(conda_env_path, 'lib', python_version, 'site-packages', 'tissuumaps', 'plugins')
+    python_version = f"python{sys.version_info.major}.{sys.version_info.minor}"
+    save_directory = os.path.join(conda_env_path, 'lib', python_version, 'site-packages', 'tissuumaps', 'plugins')
         
-        if not os.path.exists(save_directory):
-            save_directory_option = os.path.join(conda_env_path, 'lib', 'site-packages', 'tissuumaps', 'plugins')
-            for url in urls:
-                file_name = os.path.basename(url)
-                save_path = os.path.join(save_directory_option, file_name)
-                if not os.path.exists(save_path):
-                    download_file_tm(url, save_path)
-                    print(f"Plug-in downloaded and saved to {save_path}")
+    if not os.path.exists(save_directory):
+        save_directory_option = os.path.join(conda_env_path, 'lib', 'site-packages', 'tissuumaps', 'plugins')
+        for url in urls:
+            file_name = os.path.basename(url)
+            save_path = os.path.join(save_directory_option, file_name)
+            if not os.path.exists(save_path):
+                download_file_tm(url, save_path)
+                print(f"Plug-in downloaded and saved to {save_path}")
                 
-        else:
-            for url in urls:
-                file_name = os.path.basename(url)
-                save_path = os.path.join(save_directory, file_name)
-                if not os.path.exists(save_path):
-                    download_file_tm(url, save_path)
-                    print(f"Plug-in downloaded and saved to {save_path}")
+    else:
+        for url in urls:
+            file_name = os.path.basename(url)
+            save_path = os.path.join(save_directory, file_name)
+            if not os.path.exists(save_path):
+                download_file_tm(url, save_path)
+                print(f"Plug-in downloaded and saved to {save_path}")
 
 def tm_viewer(
     adata,
