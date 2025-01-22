@@ -186,7 +186,7 @@ docker run -p 8888:8888 -p 5100:5100 tkempchen/spacec:cpu
 
 # Run CPU version on Mac with M chip:
 docker pull tkempchen/spacec:cpu
-docker run -p --platform linux/amd64 8888:8888 -p 5100:5100 tkempchen/spacec:cpu
+docker run --platform linux/amd64 -p 8888:8888 -p 5100:5100 tkempchen/spacec:cpu
 
 # Or run GPU version:
 docker pull tkempchen/spacec:gpu
