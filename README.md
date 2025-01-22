@@ -113,7 +113,7 @@ SPACEc GPU:
 Mac GPU support remains problematic, we recommend you use Linux system for GPU acceleration.
 
 * ⚠️ **IMPORTANT**: always import `spacec` first before importing any other packages
-* ⚠️ **IMPORTANT**: At the moment, the SPACEc environment is incompatible with cellpose if run on an Apple Silicon Mac. If cellpose is needed, consider the following options: use the SPACEc Docker image, run on a Linux or Windows machine instead, run cellpose segmentation outside SPACEc and import your data to SPACEc. We hope to provide an Apple Silicon-compatible environment soon. 
+* ⚠️ **IMPORTANT**: At the moment, the SPACEc environment is incompatible with cellpose if run on an Apple Silicon Mac. If cellpose is needed, consider the following options: use the SPACEc Docker image, run on a Linux or Windows machine instead, run cellpose segmentation outside SPACEc and import your data to SPACEc. We hope to provide an Apple Silicon-compatible environment soon.
 
 </details>
 

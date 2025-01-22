@@ -2440,6 +2440,7 @@ def masks_to_outlines_scikit_image(masks):
     else:
         return find_boundaries(masks, mode="inner")
 
+
 def download_file_tm(url, save_path):
     """
     Download a file from a given URL and save it to a specified path.
@@ -2459,8 +2460,9 @@ def download_file_tm(url, save_path):
     response = requests.get(url)
     response.raise_for_status()  # Check if the request was successful
 
-    with open(save_path, 'wb') as file:
+    with open(save_path, "wb") as file:
         file.write(response.content)
+
 
 def check_download_tm_plugins():
     """
@@ -2480,25 +2482,29 @@ def check_download_tm_plugins():
         "https://tissuumaps.github.io/TissUUmaps/plugins/latest/Plot_Histogram.js",
         "https://tissuumaps.github.io/TissUUmaps/plugins/latest/Points2Regions.js",
         "https://tissuumaps.github.io/TissUUmaps/plugins/latest/Spot_Inspector.js",
-        "https://tissuumaps.github.io/TissUUmaps/plugins/latest/Feature_Space.js"
+        "https://tissuumaps.github.io/TissUUmaps/plugins/latest/Feature_Space.js",
     ]
-        
-    conda_env_path = os.getenv('CONDA_PREFIX')
+
+    conda_env_path = os.getenv("CONDA_PREFIX")
     if not conda_env_path:
         raise EnvironmentError("Conda environment is not activated.")
-        
+
     python_version = f"python{sys.version_info.major}.{sys.version_info.minor}"
-    save_directory = os.path.join(conda_env_path, 'lib', python_version, 'site-packages', 'tissuumaps', 'plugins')
-        
+    save_directory = os.path.join(
+        conda_env_path, "lib", python_version, "site-packages", "tissuumaps", "plugins"
+    )
+
     if not os.path.exists(save_directory):
-        save_directory_option = os.path.join(conda_env_path, 'lib', 'site-packages', 'tissuumaps', 'plugins')
+        save_directory_option = os.path.join(
+            conda_env_path, "lib", "site-packages", "tissuumaps", "plugins"
+        )
         for url in urls:
             file_name = os.path.basename(url)
             save_path = os.path.join(save_directory_option, file_name)
             if not os.path.exists(save_path):
                 download_file_tm(url, save_path)
                 print(f"Plug-in downloaded and saved to {save_path}")
-                
+
     else:
         for url in urls:
             file_name = os.path.basename(url)
@@ -2506,6 +2512,7 @@ def check_download_tm_plugins():
             if not os.path.exists(save_path):
                 download_file_tm(url, save_path)
                 print(f"Plug-in downloaded and saved to {save_path}")
+
 
 def tm_viewer(
     adata,
@@ -2567,7 +2574,7 @@ def tm_viewer(
     )
 
     check_download_tm_plugins()
-    
+
     segmented_matrix = adata.obs
 
     with open(images_pickle_path, "rb") as f:
@@ -2678,6 +2685,7 @@ def tm_viewer(
 
     return image_list, csv_paths
 
+
 def tm_viewer_catplot(
     adata,
     directory=None,
@@ -2718,7 +2726,7 @@ def tm_viewer_catplot(
     list of str
         List of paths to the generated CSV files.
     """
-    
+
     check_download_tm_plugins()
     segmented_matrix = adata.obs
 
