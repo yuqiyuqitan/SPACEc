@@ -44,7 +44,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Install SPACEc
-RUN mamba run -n spacec pip install git+https://github.com/yuqiyuqitan/SPACEc.git@combined_updates_tim
+RUN mamba run -n spacec pip install spacec
 
 # Install additional Python packages
 RUN mamba run -n spacec pip install networkx==3.2.* protobuf==3.20.0 numpy==1.24.*
