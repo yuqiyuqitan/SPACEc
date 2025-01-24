@@ -14,10 +14,13 @@ jupyterlab
 # added for basic SPACEc functionality
 leidenalg
 louvain
+
 matplotlib
+
 # Protobuf version override needed because
 # the older packages have older compiled protobufs…
 protobuf<3.20
+
 pydot==1.4.2
 scikit-image>=0.19.3
 scipy>=1.2.3,<2
