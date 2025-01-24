@@ -104,9 +104,11 @@ SPACEc CPU:
     pip install spacec
 
     # Install remaining requirements for deepcell
+    # NOTE: Ignore the error about pip's dependency resolver
     pip install -r https://raw.githubusercontent.com/nolanlab/SPACEc/master/requirements-deepcell-mac-arm64_tf210-metal.txt
     pip install deepcell --no-deps
 ```
+SPACEc GPU: Mac GPU support is currently only supported for tensorflow based methods, we recommend you use Linux system for full GPU acceleration.
 
 * ⚠️ **IMPORTANT**: always import `spacec` first before importing any other packages
 </details>
