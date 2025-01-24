@@ -28,7 +28,7 @@ SPACEc CPU
     conda activate spacec
 
     # Install dependencies via conda.
-    conda install -c conda-forge graphviz libvips pyvips openslide-python
+    conda install -c conda-forge graphviz pyvips openslide
 
     # Install spacec
     pip install spacec
@@ -91,19 +91,16 @@ SPACEc CPU:
     conda create -n spacec
     conda activate spacec
 
-    # Set environment; Apple specific
-    conda config --env --set subdir osx-64
-
     # Install Python via conda
     conda install python==3.10
 
     # Install dependencies via conda.
-    conda install -c conda-forge graphviz libvips pyvips openslide-python
+    conda install -c conda-forge graphviz pyvips openslide
 
     # Install spacec
     pip install spacec
 
-    # Ensure compatiable version
+    # Ensure compatible versions
     conda install tensorflow=2.10.0
     pip uninstall werkzeug -y
     pip install numpy==1.26.4 werkzeug==2.3.8
