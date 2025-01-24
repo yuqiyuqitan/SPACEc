@@ -1,20 +1,15 @@
 cellpose==3.0.8
 
-# Things we need dependencies for
-# smart_open[gcs]
-
 # DeepCell requirements
 deepcell-toolbox>=0.12.1
 deepcell-tracking~=0.6.5
-# scikit-learn>=0.20.4
-# tensorflow_addons~=0.16.1
-# spektral~=1.0.4
 jupyterlab
 
 # added for basic SPACEc functionality
 leidenalg
 louvain
 matplotlib
+
 # Protobuf version override needed because
 # the older packages have older compiled protobufs…
 protobuf==3.20.3

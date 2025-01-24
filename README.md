@@ -7,6 +7,8 @@
 [![Test Workflow](https://github.com/yuqiyuqitan/SPACEc/actions/workflows/ci.yml/badge.svg)](https://github.com/yuqiyuqitan/SPACEc/actions/workflows/ci.yml)
 [![DOI:10.1101/2024.06.29.601349](https://zenodo.org/badge/doi/10.5281/zenodo.4018965.svg)](https://doi.org/10.1101/2024.06.29.601349)
 
+**Multiplexed imaging** technologies offer valuable insights into intricate tissue structures, yet they pose significant computational hurdles. These include cumbersome data handoffs, inefficiencies in processing large images (often ranging from 8 to 40 gigabytes per image), and limited spatial analysis capabilities. We created **SPACEc, an all-in-one, scalable Python platform that advances both analytical capabilities and computational efficiency.** Through careful engineering optimization, it streamlines the entire process from image extraction and cell segmentation to data preprocessing, while introducing novel approaches such as Patch Proximity Analysis for mapping cellular microenvironments to fill in the current analytic gaps. The platform significantly improves the performance of existing tools through parallelization and GPU acceleration, including enhanced cell-cell interaction analysis and simplified deep-learning annotation workflows, while its intuitive user-friendly design makes these advanced spatial analyses accessible to a wider scientific audience.
+
 ## General outline of SPACEc analysis
 
 ![SPACEc](https://raw.githubusercontent.com/yuqiyuqitan/SPACEc/master/docs/overview.png)
@@ -28,7 +30,7 @@ SPACEc CPU
     conda activate spacec
 
     # Install dependencies via conda.
-    conda install -c conda-forge graphviz pyvips openslide
+    conda install -c conda-forge graphviz libvips openslide
 
     # Install spacec
     pip install spacec
@@ -95,23 +97,18 @@ SPACEc CPU:
     conda install python==3.10
 
     # Install dependencies via conda.
-    conda install -c conda-forge graphviz pyvips openslide
+    conda install -c conda-forge graphviz libvips openslide
+    # conda install -c conda-forge pyvips  # only required for Python 3.9
 
     # Install spacec
     pip install spacec
 
-    # Ensure compatible versions
-    conda install tensorflow=2.10.0
-    pip uninstall werkzeug -y
-    pip install numpy==1.26.4 werkzeug==2.3.8
+    # Install remaining requirements for deepcell
+    pip install -r https://raw.githubusercontent.com/nolanlab/SPACEc/master/requirements-deepcell-mac-arm64_tf210-metal.txt
+    pip install deepcell --no-deps
 ```
 
-SPACEc GPU:
-Mac GPU support remains problematic, we recommend you use Linux system for GPU acceleration.
-
 * ⚠️ **IMPORTANT**: always import `spacec` first before importing any other packages
-* ⚠️ **IMPORTANT**: At the moment, the SPACEc environment is incompatible with cellpose if run on an Apple Silicon Mac. If cellpose is needed, consider the following options: use the SPACEc Docker image, run on a Linux or Windows machine instead, run cellpose segmentation outside SPACEc and import your data to SPACEc. We hope to provide an Apple Silicon-compatible environment soon.
-
 </details>
 
 <details><summary>Windows</summary>
