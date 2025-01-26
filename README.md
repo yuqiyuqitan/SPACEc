@@ -49,20 +49,25 @@ SPACEc GPU
     chmod +x $CONDA_PREFIX/etc/conda/activate.d/env_vars.sh
 
     # Ensure package compatibility
-    pip install protobuf==3.20.0 numpy==1.24.* tensorflow-gpu==2.8.0
+    pip install protobuf==3.20.0 numpy==1.24 tensorflow-gpu==2.8.0
 
     # If Pytorch does not find the GPU try:
     # pip install torch==1.12.0+cu113 torchvision==0.13.0+cu113 torchaudio==0.12.0 --extra-index-url https://download.pytorch.org/whl/cu113
+
+    # restart the environment to reload PATH variable
+    conda deactivate
+    conda activate spacec
 ```
 
 1. For GPU-accelerated clustering via RAPIDS, note that only RTX20XX or better GPUs are supported (optional).
 ```bash
     conda install -c rapidsai -c conda-forge -c nvidia rapids=24.02
-    pip install rapids-singlecell==0.9.5 pandas==1.5.*
+    pip install rapids-singlecell==0.9.5 pandas==1.5 numpy==1.25
 ```
 
 2. To run STELLAR (optional).
 ```bash
+    # only works for Python 3.10 (not Python 3.9 based on our current testing)
     # more information please refer to https://pytorch-geometric.readthedocs.io/en/2.1.0/notes/installation.html
     pip install torch-scatter torch-sparse torch-cluster torch-spline-conv torch-geometric -f https://data.pyg.org/whl/torch-1.12.0+cu113.html
 ```

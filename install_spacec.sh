@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 
 # Function to prompt user for package manager choice
 choose_package_manager() {
