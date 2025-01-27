@@ -114,7 +114,7 @@ SPACEc CPU:
 
     # Install remaining requirements for deepcell
     # NOTE: Ignore the error about pip's dependency resolver
-    pip install -r https://raw.githubusercontent.com/nolanlab/SPACEc/master/requirements-deepcell-mac-arm64_tf210-metal.txt
+    pip install -r https://raw.githubusercontent.com/nolanlab/SPACEc/master/requirements/requirements-deepcell-mac-arm64_tf210-metal.txt
     pip install deepcell --no-deps
 ```
 SPACEc GPU: Mac GPU support is currently only supported for Tensorflow based methods not PyTorch, we recommend you use Linux system for full GPU acceleration.
@@ -182,19 +182,18 @@ Test if SPACEc loads and if your GPU is visible if you installed the GPU version
 
 
 <details><summary>Docker</summary>
-If you encounter installation issues or prefer a containerized setup, use the SPACEc Docker image: https://hub.docker.com/r/tkempchen/spacec. You can also build or modify it using the repository's Dockerfiles.
+If you encounter installation issues or prefer a containerized setup, use the SPACEc Docker image. You can build or modify it using the repository's Dockerfiles.
 
 ```bash
 # Run CPU version:
-docker pull tkempchen/spacec:cpu
+docker build -f ../Docker/spacec_cpu_build.dockerfile -t spacec:cpu .
 docker run -p 8888:8888 -p 5100:5100 tkempchen/spacec:cpu
 
-# Run CPU version on Mac with M chip:
-docker pull tkempchen/spacec:cpu
+# If running an amd64 image on apple silicon, use the following command:
 docker run --platform linux/amd64 -p 8888:8888 -p 5100:5100 tkempchen/spacec:cpu
 
 # Or run GPU version:
-docker pull tkempchen/spacec:gpu
+docker build -f ../Docker/spacec_gpu_build.dockerfile -t spacec:gpu .
 docker run --gpus all -p 8888:8888 -p 5100:5100 tkempchen/spacec:gpu
 ```
 </details>
