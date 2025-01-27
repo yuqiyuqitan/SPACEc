@@ -1,6 +1,5 @@
 FROM debian:bullseye-slim
 
-# Fix (tzdata)
 ARG DEBIAN_FRONTEND=noninteractive
 
 # Update the package list and install dependencies
@@ -53,8 +52,8 @@ RUN mamba run -n spacec pip install networkx==3.2.* protobuf==3.20.0 numpy==1.24
 RUN mamba clean --all -f -y && \
     rm -rf /root/.cache/pip
 
-# Copy notebooks into the image
-COPY notebooks /notebooks
+# Copy notebooks into the image YOU CAN CHANGE THIS TO COPY YOUR OWN NOTEBOOKS
+COPY ../notebooks /notebooks
 WORKDIR /notebooks
 
 # Expose relevant ports
