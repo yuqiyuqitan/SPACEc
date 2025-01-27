@@ -5,18 +5,22 @@ TEST_DIR = pathlib.Path(__file__).parent
 
 
 def test_cell_segmentation():
+
     import matplotlib
+
+    import spacec as sp
 
     matplotlib.use("Agg")
 
     data_path = TEST_DIR / "data"
+
+    gpu = sp.hf.check_for_gpu()
 
     with TemporaryDirectory() as output_dir:
         # output_dir = pathlib.Path("tests/_out")
         # output_dir.mkdir(exist_ok=True, parents=True)
 
         print("Segmentation CH")
-        import spacec as sp
 
         sp.pl.segmentation_ch(
             # image for segmentation
@@ -67,6 +71,26 @@ def test_cell_segmentation():
             input_format="Multichannel",  # Phenocycler or codex
             resize_factor=1,  # default is 1; if the image is too large, lower the value. Lower values will speed up the segmentation but may reduce the accuracy.
             size_cutoff=0,
+            use_gpu=gpu,
+        )
+        print("Cell Segmentation Cellpose with custom model")
+        seg_output_cellpose = sp.tl.cell_segmentation(
+            file_name=data_path / "raw/tonsil/1/reg010_X01_Y01_Z01.tif",
+            channel_file=data_path / "raw/tonsil/channelnames.txt",
+            output_dir=output_dir,
+            output_fname="tonsil2",
+            seg_method="cellpose",  # cellpose or mesmer
+            model=data_path / "CP_test.zip",  # cellpose model
+            diameter=28,  # average cell diameter (in pixels). If set to None, it will be automatically estimated.
+            nuclei_channel="DAPI",
+            membrane_channel_list=[
+                "CD45",
+                "betaCatenin",
+            ],  # default is None #default is None; if provide more than one channel, then they will be combined
+            input_format="Multichannel",  # Phenocycler or codex
+            resize_factor=1,  # default is 1; if the image is too large, lower the value. Lower values will speed up the segmentation but may reduce the accuracy.
+            size_cutoff=0,
+            custom_model=True,
         )
 
         print("Show Masks Mesmer")

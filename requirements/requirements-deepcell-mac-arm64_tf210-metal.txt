@@ -1,0 +1,22 @@
+cellpose==3.0.8
+
+# DeepCell requirements
+deepcell-toolbox>=0.12.1
+deepcell-tracking~=0.6.5
+jupyterlab
+
+# added for basic SPACEc functionality
+leidenalg
+louvain
+matplotlib
+
+# Protobuf version override needed because
+# the older packages have older compiled protobufs…
+protobuf<3.20
+pydot==1.4.2
+scikit-image>=0.19.3
+scipy>=1.2.3,<2
+spektral
+
+tensorflow-macos==2.10.0
+tensorflow-metal==0.6.0

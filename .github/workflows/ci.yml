@@ -62,10 +62,10 @@ jobs:
         python:
         # - "3.8"  # oldest Python supported
         - "3.9"
-        # - "3.10"  # newest Python that is stable
+        - "3.10"  # newest Python that is stable
         platform:
         - ubuntu-latest
-        # - macos-latest
+        - macos-latest
         # - windows-latest
         # exclude:
         #   - platform: windows-latest
@@ -83,25 +83,35 @@ jobs:
       # libvips
       - name: Install libvips on Ubuntu
         if: startsWith(matrix.platform, 'ubuntu')
-        run: sudo apt-get install -y libvips
-      # TODO: Can't get this to run
-      # - name: Install libvips on Windows
-      #   if: startsWith(matrix.platform, 'windows')
-      #   run: choco install nip2
-        # - name: Install libvips on Mac
-        #   if: startsWith(matrix.platform, 'macos')
-        #   run: brew install vips
+        run: sudo apt-get install -y libvips graphviz
+      # # TODO: Can't get this to run
+      # # - name: Install libvips on Windows
+      # #   if: startsWith(matrix.platform, 'windows')
+      # #   run: choco install nip2
+      # - name: Install libvips on Mac
+      #   if: startsWith(matrix.platform, 'macos')
+      #   run: brew install vips
 
-      - name: Setup Graphviz
-        uses: tlylt/install-graphviz@v1
+      # - name: Setup Graphviz
+      #   uses: tlylt/install-graphviz@v1
+
       - name: Retrieve pre-built distribution files
         uses: actions/download-artifact@v4
         with: {name: python-distribution-files, path: dist/}
-      - name: Run tests
+
+      - name: Run tests (ubuntu)
+        if: startsWith(matrix.platform, 'ubuntu')
         run: >-
           pipx run --python '${{ steps.setup-python.outputs.python-path }}'
-          tox --installpkg '${{ needs.prepare.outputs.wheel-distribution }}'
+          tox -e platform-ubuntu --installpkg '${{ needs.prepare.outputs.wheel-distribution }}'
           -- -rFEx --durations 10 --color yes  # pytest args
+      - name: Run tests (macos)
+        if: startsWith(matrix.platform, 'macos')
+        run: >-
+          pipx run --python '${{ steps.setup-python.outputs.python-path }}'
+          tox -e platform-macos --installpkg '${{ needs.prepare.outputs.wheel-distribution }}'
+          -- -rFEx --durations 10 --color yes  # pytest args
+
       - name: Generate coverage report
         run: pipx run coverage lcov -o coverage.lcov
       # - name: Upload partial coverage report

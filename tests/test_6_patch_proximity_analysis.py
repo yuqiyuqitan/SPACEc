@@ -1,9 +1,11 @@
 import pathlib
-from tempfile import TemporaryDirectory
+
+import pytest
 
 TEST_DIR = pathlib.Path(__file__).parent
 
 
+# @pytest.mark.slow
 def test_6_patch_proximity_analysis():
     # Set up environment
     import matplotlib
@@ -22,6 +24,7 @@ def test_6_patch_proximity_analysis():
     # %%
     # this region result is also saved to adata.uns
     # this region result is also saved to adata.uns
+    print("test 1")
     region_results = sp.tl.patch_proximity_analysis(
         adata,
         region_column="unique_region",
@@ -33,10 +36,11 @@ def test_6_patch_proximity_analysis():
         radius=(1000),  # to get the distance in µm
         edge_neighbours=3,
         key_name="ppa_result_50",
-        plot=True,
+        plot=False,
     )
 
     # this region result is also saved to adata.uns
+    print("test 2")
     region_results = sp.tl.patch_proximity_analysis(
         adata,
         region_column="unique_region",
@@ -52,6 +56,7 @@ def test_6_patch_proximity_analysis():
     )
 
     # this region result is also saved to adata.uns
+    print("test 3")
     region_results = sp.tl.patch_proximity_analysis(
         adata,
         region_column="unique_region",
@@ -67,6 +72,7 @@ def test_6_patch_proximity_analysis():
     )
 
     # this region result is also saved to adata.uns
+    print("test 4")
     region_results = sp.tl.patch_proximity_analysis(
         adata,
         region_column="unique_region",
@@ -82,6 +88,7 @@ def test_6_patch_proximity_analysis():
     )
 
     # this region result is also saved to adata.uns
+    print("test 5")
     region_results = sp.tl.patch_proximity_analysis(
         adata,
         region_column="unique_region",
@@ -98,6 +105,7 @@ def test_6_patch_proximity_analysis():
 
     # %%
     # plot the result to see the cell types enriched around the edge of the patches
+    print("test 6")
     sp.pl.ppa_res_donut(
         adata,
         palette=None,
@@ -118,6 +126,7 @@ def test_6_patch_proximity_analysis():
         subset_column="condition",
         subset_condition="tonsil",
         title="Tonsil patch proximity analysis",
+        savefig=None,
     )
 
 

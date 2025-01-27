@@ -5,6 +5,7 @@ import os
 import platform
 import subprocess
 import sys
+import tempfile
 import zipfile
 
 import requests
@@ -53,6 +54,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 import pandas as pd
+import panel as pn
 import scipy.stats as st
 import skimage
 import skimage.color
@@ -87,6 +89,7 @@ if TYPE_CHECKING:
     from anndata import AnnData
 
 from ..helperfunctions._general import *
+from ..plotting._general import catplot
 
 try:
     from torch_geometric.data import ClusterData, ClusterLoader, Data, InMemoryDataset
@@ -110,122 +113,32 @@ except ImportError:
 ############################################################
 
 
-############
-"""
-The function tl_cell_types_de performs differential enrichment analysis for various cell subsets between different neighborhoods using linear regression.
-It takes in several inputs such as cell type frequencies, neighborhood numbers, and patient information.
-The function first normalizes overall cell type frequencies and then neighborhood-specific cell type frequencies. Next, a linear regression model is fitted to find the coefficients and p-values for the group coefficient.
-Finally, the function returns a dataframe with the coefficients and p-values for each cell subset. The p-values can be corrected for multiple testing after the function has been executed.
-"""
-
-
-def tl_cell_types_de(
-    ct_freq, all_freqs, neighborhood_num, nbs, patients, group, cells, cells1
-):
-    # data prep
-    # normalized overall cell type frequencies
-    X_cts = hf_normalize(
-        ct_freq.reset_index().set_index("patients").loc[patients, cells]
-    )
-
-    # normalized neighborhood specific cell type frequencies
-    df_list = []
-
-    for nb in nbs:
-        cond_nb = (
-            all_freqs.loc[all_freqs[neighborhood_num] == nb, cells1]
-            .rename({col: col + "_" + str(nb) for col in cells}, axis=1)
-            .set_index("patients")
-        )
-        df_list.append(hf_normalize(cond_nb))
-
-    X_cond_nb = pd.concat(df_list, axis=1).loc[patients]
-
-    # differential enrichment for all cell subsets
-    changes = {}
-    # nbs =[0, 2, 3, 4, 6, 7, 8, 9]
-    for col in cells:
-        for nb in nbs:
-            # build a design matrix with a constant, group 0 or 1 and the overall frequencies
-            X = pd.concat(
-                [
-                    X_cts[col],
-                    group.astype("int"),
-                    pd.Series(np.ones(len(group)), index=group.index.values),
-                ],
-                axis=1,
-            ).values
-            if col + "_%d" % nb in X_cond_nb.columns:
-                # set the neighborhood specific ct freqs as the outcome
-                Y = X_cond_nb[col + "_%d" % nb].values
-                X = X[~pd.isna(Y)]
-                Y = Y[~pd.isna(Y)]
-                # fit a linear regression model
-                results = sm.OLS(Y, X).fit()
-                # find the params and pvalues for the group coefficient
-                changes[(col, nb)] = (results.pvalues[1], results.params[1])
-
-    # make a dataframe with coeffs and pvalues
-    dat = pd.DataFrame(changes).loc[1].unstack()
-    dat = (
-        pd.DataFrame(np.nan_to_num(dat.values), index=dat.index, columns=dat.columns)
-        .T.sort_index(ascending=True)
-        .loc[:, X_cts.columns]
-    )
-    pvals = (
-        (pd.DataFrame(changes).loc[0].unstack())
-        .T.sort_index(ascending=True)
-        .loc[:, X_cts.columns]
-    )
-
-    # this is where you should correct pvalues for multiple testing
-
-    return dat, pvals
-
-
-#########
-
-
-def tl_Create_neighborhoods(
-    df, n_num, cluster_col, X, Y, regions, sum_cols=None, keep_cols=None, ks=[20]
-):
-    if sum_cols == None:
-        sum_cols = df[cluster_col].unique()
-
-    if keep_cols == None:
-        keep_cols = df.columns.values.tolist()
-
-    Neigh = Neighborhoods(
-        df, ks, cluster_col, sum_cols, keep_cols, X, Y, regions, add_dummies=True
-    )
-    windows = Neigh.k_windows()
-
-    return (windows, sum_cols)
-
-
-######
-
-
-def tl_Chose_window_size(
-    windows, n_num, n_neighborhoods, sum_cols, n2_name="neigh_ofneigh"
-):
-    # Choose the windows size to continue with
-    w = windows[n_num]
-
-    k_centroids = {}
-
-    km = MiniBatchKMeans(n_clusters=n_neighborhoods, random_state=0)
-    labels = km.fit_predict(w[sum_cols].values)
-    k_centroids[n_num] = km.cluster_centers_
-    w[n2_name] = labels
-
-    return (w, k_centroids)
-
-
-#######
-
-
 def tl_calculate_neigh_combs(w, l, n_num, threshold=0.85, per_keep_thres=0.85):
+    """
+    Calculate neighborhood combinations based on a threshold.
+
+    Parameters
+    ----------
+    w : DataFrame
+        DataFrame containing the data.
+    l : list
+        List of column names to be used.
+    n_num : int
+        Number of neighborhoods or k chosen for the neighborhoods.
+    threshold : float, optional
+        Threshold for neighborhood combinations, by default 0.85.
+    per_keep_thres : float, optional
+        Percent to keep threshold or percent of neighborhoods that fall above a certain threshold, by default 0.85.
+
+    Returns
+    -------
+    tuple
+        A tuple containing:
+        - simps: Series of neighborhood combinations.
+        - simp_freqs: Series of frequency counts of the combinations.
+        - simp_sums: Series of cumulative sums of the frequency counts.
+
+    """
     w.loc[:, l]
 
     # need to normalize by number of neighborhoods or k chosen for the neighborhoods
@@ -265,10 +178,30 @@ def tl_calculate_neigh_combs(w, l, n_num, threshold=0.85, per_keep_thres=0.85):
     return (simps, simp_freqs, simp_sums)
 
 
-#######
-
-
 def tl_build_graph_CN_comb_map(simp_freqs, thresh_freq=0.001):
+    """
+    Build a directed graph for the CN combination map.
+
+    Parameters
+    ----------
+    simp_freqs : pandas.Series
+        A series containing the frequencies of simplices.
+    thresh_freq : float, optional
+        The threshold frequency to filter simplices, by default 0.001.
+
+    Returns
+    -------
+    tuple
+        A tuple containing:
+        - g : networkx.DiGraph
+            The directed graph with edges representing the CN combination map.
+        - tops : list
+            A list of the top 20 simplices sorted by frequency.
+        - e0 : str
+            The last simplex in the outer loop.
+        - e1 : str
+            The last simplex in the inner loop.
+    """
     g = nx.DiGraph()
 
     # selected_simps = simp_sums[simp_sums<=thresh_cumulative].index.values
@@ -290,132 +223,6 @@ def tl_build_graph_CN_comb_map(simp_freqs, thresh_freq=0.001):
     )
 
     return (g, tops, e0, e1)
-
-
-#######
-
-
-def tl_spatial_context_stats(
-    n_num,
-    patient_ID_component1,
-    patient_ID_component2,
-    windows,
-    total_per_thres=0.9,
-    comb_per_thres=0.005,
-    tissue_column="Block type",
-    subset_list=["Resection"],
-    plot_order=["Resection", "Biopsy"],
-    pal_tis={"Resection": "blue", "Biopsy": "orange"},
-    subset_list_tissue1=["Resection"],
-    subset_list_tissue2=["Biopsy"],
-):
-    data_compare = windows[n_num]
-
-    # Prepare IDs this could for example be the combination of patient ID and tissue type. Apart from that, the function assigns a number to each name from the neighborhood column
-    data_compare = prepare_neighborhood_df(
-        data_compare,
-        neighborhood_column=None,
-        patient_ID_component1=patient_ID_component1,
-        patient_ID_component2=patient_ID_component2,
-    )  # this is a helper function
-
-    data_compare["donor_tis"].unique()
-
-    simp_df_tissue1 = hf_simp_rep(
-        data=data_compare,
-        patient_col="donor_tis",
-        tissue_column=tissue_column,
-        subset_list_tissue=subset_list_tissue1,
-        ttl_per_thres=total_per_thres,
-        comb_per_thres=comb_per_thres,
-        thres_num=1,
-    )
-    print(simp_df_tissue1)
-
-    simp_df_tissue2 = hf_simp_rep(
-        data=data_compare,
-        patient_col="donor_tis",
-        tissue_column=tissue_column,
-        subset_list_tissue=subset_list_tissue2,
-        ttl_per_thres=total_per_thres,
-        comb_per_thres=comb_per_thres,
-        thres_num=1,
-    )
-    print(simp_df_tissue2)
-
-    ##### Compare the organization at high level to see if differences in combinations - more or less structured/compartmentalized
-    data_simp = [simp_df_tissue1, simp_df_tissue2]
-    df_num_count = pl_comb_num_freq(data_list=data_simp)
-    print(df_num_count)
-
-    return (simp_df_tissue1, simp_df_tissue2)
-
-
-###########
-
-
-def tl_xycorr(df, sample_col, y_rows, x_columns, X_pix, Y_pix):
-    # Make a copy for xy correction
-    df_XYcorr = df.copy()
-
-    df_XYcorr["Xcorr"] = 0
-    df_XYcorr["Ycorr"] = 0
-
-    for sample in df_XYcorr[sample_col].unique():
-        df_sub = df_XYcorr.loc[df_XYcorr[sample_col] == sample]
-        region_num = df_sub.region.max().astype(int)
-
-        # first value of tuple is y and second is x
-        d = list(product(range(0, y_rows, 1), range(0, x_columns, 1)))
-        e = list(range(1, region_num + 1, 1))
-        dict_corr = {}
-        dict_corr = dict(zip(e, d))
-
-        # Adding the pixels with the dictionary
-        for x in range(1, region_num + 1, 1):
-            df_XYcorr["Xcorr"].loc[
-                (df_XYcorr["region"] == x) & (df_XYcorr[sample_col] == sample)
-            ] = (
-                df_XYcorr["x"].loc[
-                    (df_XYcorr["region"] == x) & (df_XYcorr[sample_col] == sample)
-                ]
-                + dict_corr[x][1] * X_pix
-            )
-
-        for x in range(1, region_num + 1, 1):
-            df_XYcorr["Ycorr"].loc[
-                (df_XYcorr["region"] == x) & (df_XYcorr[sample_col] == sample)
-            ] = (
-                df_XYcorr["y"].loc[
-                    (df_XYcorr["region"] == x) & (df_XYcorr[sample_col] == sample)
-                ]
-                + dict_corr[x][0] * Y_pix
-            )
-
-    return df_XYcorr
-
-
-###############
-
-
-def tl_get_distances(df, cell_list, cell_type_col):
-    names = cell_list
-    cls = {}
-    for i, cname in enumerate(names):
-        cls[i] = df[["x", "y"]][df[cell_type_col] == cname].to_numpy()
-        cls[i] = cls[i][~np.isnan(cls[i]).any(axis=1), :]
-
-    dists = {}
-
-    for i in range(5):
-        for j in range(0, i):
-            dists[(j, i)] = cdist(cls[j], cls[i])
-            dists[(i, j)] = dists[(j, i)]
-    return cls, dists
-
-
-###############
-# clustering
 
 
 def clustering(
@@ -586,9 +393,12 @@ def clustering(
             anndata_to_CPU(adata)  # moves `.X` to the CPU
 
         else:
+
             print("Computing neighbors and UMAP")
+            print("- neighbors")
             sc.pp.neighbors(adata, n_neighbors=n_neighbors)
             # UMAP computation
+            print("- UMAP")
             sc.tl.umap(adata)
             print("Clustering")
             # Perform leiden clustering - improved version of louvain clustering
@@ -678,570 +488,6 @@ def clustering(
     return adata_tmp
 
 
-###############
-# Patch analysis
-
-
-def tl_generate_voronoi_plots(
-    df,
-    output_path,
-    grouping_col="Community",
-    tissue_col="tissue",
-    region_col="unique_region",
-    x_col="x",
-    y_col="y",
-):
-    """
-    Generate Voronoi plots for unique combinations of tissue and region.
-
-    Parameters:
-        df (pandas.DataFrame): Input DataFrame containing the data.
-        output_path (str): Output path to save the plots.
-        grouping_col (str): Column that contains group label that is used to color the voronoi diagrams
-        tissue_col (str): Column that contains tissue labels
-        region_col (str): Column that contains region labels
-        x_col (str): Column that contains x coordinates
-        y_col (str): Column that contains y coordinates
-
-    Returns:
-        None
-    """
-
-    unique_tissues = df[tissue_col].unique()
-    unique_regions = df[region_col].unique()
-
-    combinations = list(itertools.product(unique_tissues, unique_regions))
-
-    for tissue, region in combinations:
-        subset_df = df[(df[tissue_col] == tissue) & (df[region_col] == region)]
-        sorted_df = subset_df.sort_values(grouping_col)
-        unique_values = sorted_df[grouping_col].unique()
-
-        specific_output = os.path.join(output_path, tissue)
-        os.makedirs(specific_output, exist_ok=True)
-        specific_output = os.path.join(specific_output, region)
-        os.makedirs(specific_output, exist_ok=True)
-
-        for group in unique_values:
-            start = time.time()
-
-            output_filename = group + "_plot.png"
-            output_path2 = os.path.join(specific_output, output_filename)
-
-            color_dict = {}
-            for value in unique_values:
-                color_dict[value] = "black"
-            color_dict[group] = "white"
-
-            X = sorted_df[x_col]
-            Y = sorted_df[y_col]
-            np.random.seed(1234)
-            points = np.c_[X, Y]
-
-            vor = Voronoi(points)
-            regions, vertices = hf_voronoi_finite_polygons_2d(vor)
-            groups = sorted_df[grouping_col].values
-
-            fig, ax = plt.subplots()
-            ax.set_ylim(0, max(Y))
-            ax.set_xlim(0, max(X))
-            ax.axis("off")
-
-            for i, region in tqdm(
-                enumerate(regions), total=len(regions), desc="Processing regions"
-            ):
-                group = groups[i]
-                color = color_dict.get(group, "gray")
-                polygon = vertices[region]
-                ax.fill(*zip(*polygon), color=color)
-
-            ax.plot(points[:, 0], points[:, 1], "o", color="black", zorder=1, alpha=0)
-
-            fig.set_size_inches(9.41, 9.07 * 1.02718006795017)
-            fig.savefig(
-                output_path2, bbox_inches="tight", pad_inches=0, dpi=129.0809327846365
-            )
-            plt.close(fig)
-
-            end = time.time()
-            print(end - start)
-
-
-def tl_generate_masks_from_images(
-    image_folder, mask_output, image_type=".tif", filter_size=5, threshold_value=10
-):
-    """
-    Generate binary masks from CODEX images.
-
-    Parameters:
-        image_folder (str): Directory that contains the images that are used to generate the masks
-        mask_output (str): Directory to store the generated masks
-        image_type (str): File type of image. By default ".tif"
-        filter_size (num): Size for filter disk during mask generation
-        threshold_value (num): Threshold value for binary mask generation
-
-    Returns:
-        None
-    """
-    folders_list = hf_list_folders(image_folder)
-    print(folders_list)
-    for folder in tqdm(folders_list, desc="Processing folders"):
-        direc = image_folder + "/" + folder
-        print(direc)
-
-        filelist = os.listdir(direc)
-        filelist = [f for f in filelist if f.endswith(image_type)]
-        print(filelist)
-
-        output_dir = mask_output + folder
-        os.makedirs(output_dir, exist_ok=True)
-
-        for f in tqdm(filelist, desc="Processing files"):
-            path = os.path.join(direc, f)
-            print(path)
-
-            tl_generate_mask(
-                path=path,
-                output_dir=output_dir,
-                filename="/" + f,
-                filter_size=filter_size,
-                threshold_value=threshold_value,
-            )
-
-
-def tl_generate_info_dataframe(
-    df,
-    voronoi_output,
-    mask_output,
-    filter_list=None,
-    info_cols=["tissue", "donor", "unique_region", "region", "array"],
-):
-    """
-    Generate a filtered DataFrame based on specific columns and values.
-
-    Parameters:
-        df (pandas.DataFrame): Input DataFrame.
-        voronoi_output (str): Path to the Voronoi output directory.
-        mask_output (str): Path to the mask output directory.
-        info_cols (list): columns to extract from input df
-        filter_list (list, optional): List of values to filter.
-
-    Returns:
-        pandas.DataFrame: Filtered DataFrame.
-    """
-    df_info = df[info_cols].drop_duplicates()
-    df_info["folder_names"] = df_info["array"]
-    df_info["region"] = df_info["region"].astype(int)
-    df_info["region_long"] = ["reg00" + str(region) for region in df_info["region"]]
-    df_info["voronoi_path"] = (
-        voronoi_output + df_info["tissue"] + "/" + df_info["unique_region"]
-    )
-    df_info["mask_path"] = mask_output + df_info["folder_names"] + "/"
-
-    if filter_list != None:
-        # remove unwanted folders
-        df_info = df_info[~df_info["folder_names"].isin(filter_list)]
-
-    else:
-        print("no filter used")
-
-    return df_info
-
-
-###
-
-
-def tl_process_files(voronoi_path, mask_path, region):
-    """
-    Process files based on the provided paths and region.
-
-    Parameters:
-        voronoi_path (str): Path to the Voronoi files.
-        mask_path (str): Path to the mask files.
-        region (str): Region identifier.
-
-    Returns:
-        None
-    """
-    png_files_list = hf_get_png_files(voronoi_path)
-    tiff_file_path = hf_find_tiff_file(mask_path, region)
-
-    if tiff_file_path:
-        print(f"Matching TIFF file found: {tiff_file_path}")
-    else:
-        print("No matching TIFF file found.")
-
-    for f in tqdm(png_files_list, desc="Processing files"):
-        print(f)
-        tl_apply_mask(f, tiff_file_path, f + "_cut.png")
-
-
-###
-
-
-def tl_process_data(df_info, output_dir_csv):
-    """
-    Process data based on the information provided in the DataFrame.
-
-    Parameters:
-        df_info (pandas.DataFrame): DataFrame containing the information.
-        output_dir_csv (str): Output directory for CSV results.
-
-    Returns:
-        pandas.DataFrame: Concatenated DataFrame of results.
-        list: List of contours.
-    """
-    DF_list = []
-    contour_list = []
-
-    for index, row in df_info.iterrows():
-        voronoi_path = row["voronoi_path"]
-        mask_path = row["mask_path"]
-        region = row["region_long"]
-        donor = row["donor"]
-        unique_region = row["unique_region"]
-
-        png_files_list = hf_get_png_files(voronoi_path)
-        png_files_list = [
-            filename for filename in png_files_list if not filename.endswith("cut.png")
-        ]
-
-        tiff_file_path = hf_find_tiff_file(mask_path, region)
-
-        if tiff_file_path:
-            print(f"Matching TIFF file found: {tiff_file_path}")
-        else:
-            print("No matching TIFF file found.")
-
-        for f in png_files_list:
-            print(f)
-            g = f + "_cut" + ".png"
-            print(g)
-            tl_apply_mask(f, tiff_file_path, g)
-
-            output_dir_csv_tmp = output_dir_csv + "/" + donor + "_" + unique_region
-            os.makedirs(output_dir_csv_tmp, exist_ok=True)
-
-            image_dir = output_dir_csv + "/" + donor + "_" + unique_region
-            os.makedirs(image_dir, exist_ok=True)
-            print(f"Path created: {image_dir}")
-
-            image_dir = os.path.join(image_dir, os.path.basename(os.path.normpath(g)))
-            path = g
-
-            df, contour = tl_analyze_image(
-                path,
-                invert=False,
-                output_dir=image_dir,
-            )
-
-            df["group"] = hf_extract_filename(g)
-            df["unique_region"] = unique_region
-
-            DF_list.append(df)
-            contour_list.append(contour)
-
-    results_df = pd.concat(DF_list)
-    contour_list_results_df = pd.concat(DF_list)
-
-    results_df.to_csv(os.path.join(output_dir_csv, "results.csv"))
-
-    return results_df, contour_list
-
-
-###
-
-
-def tl_analyze_image(
-    path,
-    output_dir,
-    invert=False,
-    properties_list=[
-        "label",
-        "centroid",
-        "area",
-        "perimeter",
-        "solidity",
-        "coords",
-        "axis_minor_length",
-        "axis_major_length",
-        "orientation",
-        "slice",
-    ],
-):
-    """
-    Analyze an image by performing connected component analysis on patches and storing their information.
-
-    The function applies image processing techniques such as Gaussian smoothing, thresholding, and connected component
-    labeling to identify and analyze patches within the image. It extracts region properties of these patches,
-    calculates their circularity, and stores the coordinates of their contour. The resulting information is saved
-    in a DataFrame along with a visualization plot.
-
-    Parameters:
-        path (str): Path to the input image.
-        output_dir (str): Directory to save the output plot.
-        invert (bool, optional): Flag indicating whether to invert the image (default is False).
-        properties_list: (list of str): Define properties to be measured (see SciKit Image), by default "label", "centroid", "area", "perimeter", "solidity", "coords", "axis_minor_length", "axis_major_length", "orientation", "slice"
-
-    Returns:
-        tuple: A tuple containing the DataFrame with region properties, including patch contour coordinates, and
-               the list of contour coordinates for each patch.
-    """
-    image = skimage.io.imread(path)
-
-    if image.ndim == 2:
-        print("2D array")
-    else:
-        image = image[:, :, 0]
-
-    if invert:
-        print(
-            "The original background color was white. The image was inverted for further analysis."
-        )
-        # image = 255 - image
-    else:
-        print("no inversion")
-
-    smooth = skimage.filters.gaussian(image, sigma=1.5)
-    thresh = smooth > skimage.filters.threshold_otsu(smooth)
-
-    blobs_labels = skimage.measure.label(thresh, background=0)
-
-    properties = skimage.measure.regionprops(blobs_labels)
-
-    props_table = skimage.measure.regionprops_table(
-        blobs_labels,
-        properties=(properties_list),
-    )
-
-    prop_df = pd.DataFrame(props_table)
-
-    prop_df["circularity"] = (4 * np.pi * prop_df["area"]) / (prop_df["perimeter"] ** 2)
-
-    # Store the contour of each patch in the DataFrame
-    contour_list = []
-    for index in range(1, blobs_labels.max()):
-        label_i = properties[index].label
-        contour = skimage.measure.find_contours(blobs_labels == label_i, 0.5)[0]
-        contour_list.append(contour)
-
-    contour_list_df = pd.DataFrame({"contours": contour_list})
-
-    prop_df = pd.concat([prop_df, contour_list_df], axis=1)
-
-    plt.figure(figsize=(9, 3.5))
-    plt.subplot(1, 2, 1)
-    plt.imshow(thresh, cmap="gray")
-    plt.axis("off")
-    plt.subplot(1, 2, 2)
-    plt.imshow(blobs_labels, cmap="nipy_spectral")
-    plt.axis("off")
-
-    plt.tight_layout()
-
-    plt.savefig(output_dir)
-    plt.close()
-
-    return prop_df, contour_list
-
-
-###
-
-
-def tl_apply_mask(image_path, mask_path, output_path):
-    """
-    Apply a mask to an image and save the resulting masked image.
-
-    Parameters:
-        image_path (str): Path to the input image.
-        mask_path (str): Path to the mask image.
-        output_path (str): Path to save the masked image.
-
-    Returns:
-        None
-    """
-    # Load the image and the mask
-    image = io.imread(image_path)
-    mask = io.imread(mask_path, as_gray=True)
-    mask = np.flip(mask, axis=0)
-
-    width = 941
-    height = 907
-    image = skimage.transform.resize(image, (height, width))
-
-    if image.ndim == 2:
-        print("2D array")
-    else:
-        image = image[:, :, :3]
-
-        # Convert to grayscale
-        image = skimage.color.rgb2gray(image)
-
-    # Convert to 8-bit
-    image = skimage.img_as_ubyte(image)
-
-    print("Image shape:", image.shape)
-    print("Mask shape:", mask.shape)
-
-    # Ensure the mask is binary
-    mask = mask > 0
-
-    # Apply the mask to the image
-    masked_image = image.copy()
-    masked_image[~mask] = 0
-
-    # Check if the image has an alpha channel (transparency)
-    if masked_image.ndim == 2:
-        print("2D array")
-    else:
-        masked_image = masked_image[:, :, :3]
-
-    # Save the masked image
-    io.imsave(output_path, skimage.img_as_ubyte(masked_image))
-
-
-###
-
-
-def tl_generate_mask(
-    path, output_dir, filename="mask.png", filter_size=5, threshold_value=5
-):
-    """
-    Generate a mask from a maximum projection of an input image.
-
-    Parameters:
-        path (str): Path to the input image.
-        output_dir (str): Directory to save the generated mask and quality control plot.
-        filename (str, optional): Name of the generated mask file (default is "mask.png").
-        filter_size (int, optional): Size of the filter disk used for image processing (default is 5).
-        threshold_value (int, optional): Threshold value for binary conversion (default is 5).
-
-    Returns:
-        None
-    """
-    # Load the image
-    image = io.imread(path)
-
-    # Perform Z projection using Maximum Intensity
-    z_projection = np.max(image, axis=0)
-
-    # Resize the image
-    width = 941
-    height = 907
-    resized_image = skimage.transform.resize(
-        z_projection, (height, width, 3), preserve_range=True
-    )
-    print("Resized image shape:", resized_image.shape)
-
-    # Remove alpha channel if present
-    if resized_image.shape[-1] == 4:
-        resized_image = resized_image[:, :, :3]
-
-    # Convert to grayscale
-    gray_image = skimage.color.rgb2gray(resized_image)
-
-    # Assuming gray_image has pixel values outside the range [0, 1]
-    # Normalize the pixel values to the range [0, 1]
-    gray_image_normalized = (gray_image - gray_image.min()) / (
-        gray_image.max() - gray_image.min()
-    )
-
-    # Convert to 8-bit
-    gray_image_8bit = skimage.img_as_ubyte(gray_image_normalized)
-
-    # Apply maximum filter
-    max_filtered = skimage.filters.rank.maximum(
-        gray_image_8bit, skimage.morphology.disk(filter_size)
-    )
-
-    # Apply minimum filter
-    min_filtered = skimage.filters.rank.minimum(
-        max_filtered, skimage.morphology.disk(filter_size)
-    )
-
-    # Apply median filter
-    median_filtered = skimage.filters.rank.median(
-        min_filtered, skimage.morphology.disk(filter_size)
-    )
-
-    # Manual Thresholding
-    binary = median_filtered > threshold_value
-
-    # Convert to mask
-    mask = skimage.morphology.closing(binary, skimage.morphology.square(3))
-
-    # Plotting
-    fig, axes = plt.subplots(2, 3, figsize=(12, 6))
-
-    axes[0, 0].imshow(gray_image, cmap="gray")
-    axes[0, 0].set_title("Grayscale Image")
-
-    axes[0, 1].imshow(gray_image_8bit, cmap="gray")
-    axes[0, 1].set_title("8-bit Image")
-
-    axes[0, 2].imshow(max_filtered, cmap="gray")
-    axes[0, 2].set_title("Maximum Filtered")
-
-    axes[1, 0].imshow(min_filtered, cmap="gray")
-    axes[1, 0].set_title("Minimum Filtered")
-
-    axes[1, 1].imshow(median_filtered, cmap="gray")
-    axes[1, 1].set_title("Median Filtered")
-
-    axes[1, 2].imshow(mask, cmap="gray")
-    axes[1, 2].set_title("Mask")
-
-    for ax in axes.ravel():
-        ax.axis("off")
-
-    plt.tight_layout()
-    fig.savefig(output_dir + filename + "_QC_plot.png", dpi=300, format="png")
-
-    plt.show()
-
-    # Save the result
-    io.imsave(output_dir + filename, mask)
-
-
-#####
-
-
-def tl_test_clustering_resolutions(
-    adata, clustering="leiden", n_neighbors=10, resolutions=[1]
-):
-    """
-    Test different resolutions for reclustering using Louvain or Leiden algorithm.
-
-    Parameters:
-        adata (AnnData): Anndata object containing the data.
-        clustering (str, optional): Clustering algorithm to use (default is 'leiden').
-        n_neighbors (int, optional): Number of nearest neighbors (default is 10).
-        resolutions (list, optional): List of resolutions to test (default is [1]).
-
-    Returns:
-        None
-    """
-    for res in tqdm(resolutions, desc="Testing resolutions"):
-        if "leiden" in clustering:
-            clustering(
-                adata,
-                clustering="leiden",
-                n_neighbors=n_neighbors,
-                res=res,
-                reclustering=True,
-            )
-        else:
-            clustering(
-                adata,
-                clustering="louvain",
-                n_neighbors=n_neighbors,
-                res=res,
-                reclustering=True,
-            )
-
-        sc.pl.umap(adata, color=f"{clustering}_{res}", legend_loc="on data")
-
-
 def neighborhood_analysis(
     adata,
     unique_region,
@@ -1273,14 +519,23 @@ def neighborhood_analysis(
     n_neighborhoods : int, optional
         Number of neighborhoods one ends up with, by default 30.
     elbow : bool, optional
-        Whether to test for optimal number of clusters and visulize as elbow plot or not, by default False. If set to true the funktion will test 1 to n_neighborhoods and plots the distortion score in an elbow plot to assist the user in finding the optimal number of clusters.
+        Whether to test for optimal number of clusters and visualize as elbow plot or not, by default False. If set to True, the function will test 1 to n_neighborhoods and plot the distortion score in an elbow plot to assist the user in finding the optimal number of clusters.
     metric : str, optional
-        The metric to use when calculating distance between instances in a feature array, by default "distortion".
+        The metric to use when calculating distance between instances in a feature array, by default "distortion". Other options include "silhouette" and "calinski_harabasz".
 
     Returns
     -------
     AnnData
         Annotated data matrix with updated neighborhood information.
+
+    Notes
+    -----
+    The function performs the following steps:
+    1. Extracts relevant columns from the input AnnData object.
+    2. Computes dummy variables for the cluster column.
+    3. Groups data by the unique region and computes neighborhoods.
+    4. Optionally performs k-means clustering and visualizes the elbow plot if `elbow` is set to True.
+    5. Updates the input AnnData object with neighborhood labels and centroids.
 
     """
     df = pd.DataFrame(adata.obs[[X, Y, cluster_col, unique_region]])
@@ -1502,60 +757,30 @@ def tl_format_for_squidpy(adata, x_col, y_col):
     AnnData
         Annotated data matrix formatted for Squidpy, with spatial data in the 'obsm' attribute.
     """
+    # Validate input types
+    if not isinstance(adata, ad.AnnData):
+        raise TypeError("adata must be an AnnData object")
+    if not isinstance(x_col, str) or not isinstance(y_col, str):
+        raise TypeError("x_col and y_col must be strings")
+
+    # Check if the columns exist in the 'obs' metadata
+    if x_col not in adata.obs.columns or y_col not in adata.obs.columns:
+        raise ValueError(f"Columns {x_col} and/or {y_col} not found in adata.obs")
+
     # Extract the count data from your original AnnData object
     counts = adata.X
 
     # Extract the spatial coordinates from the 'obs' metadata
     spatial_coordinates = adata.obs[[x_col, y_col]].values
 
+    # Ensure spatial coordinates are numeric
+    if not np.issubdtype(spatial_coordinates.dtype, np.number):
+        raise ValueError("Spatial coordinates must be numeric")
+
     # Create a new AnnData object with the expected format
     new_adata = ad.AnnData(counts, obsm={"spatial": spatial_coordinates})
 
     return new_adata
-
-
-def tl_corr_cell_ad(
-    adata, per_categ, grouping_col, rep, sub_column, normed=True, sub_list2=None
-):
-    """
-    Perform correlation analysis on a pandas DataFrame and plot correlation scatter plots.
-
-    Parameters
-    ----------
-    data : pandas DataFrame
-        The input DataFrame.
-    per_categ : str
-        The categorical column in the DataFrame to be used.
-    grouping_col : str
-        The grouping column in the DataFrame.
-    rep : str
-        The replicate column in the DataFrame.
-    sub_column : str
-        The subcategory column in the DataFrame.
-    normed : bool, optional
-        If the percentage should be normalized. Default is True.
-    sub_list2 : list, optional
-        A list of subcategories to be considered. Default is None.
-
-    Returns
-    -------
-    cmat : pandas DataFrame
-        The correlation matrix DataFrame.
-    cc : pandas DataFrame
-        The DataFrame after pivoting and formatting for correlation function.
-    """
-    data = adata.obs
-    cmat, cc = tl_corr_cell(
-        data,
-        per_categ,
-        grouping_col=grouping_col,
-        rep=rep,
-        sub_column=sub_column,
-        normed=normed,
-        sub_list2=sub_list2,
-    )
-
-    return cmat, cc
 
 
 def calculate_triangulation_distances(df_input, id, x_pos, y_pos, cell_type, region):
@@ -1640,6 +865,22 @@ def calculate_triangulation_distances(df_input, id, x_pos, y_pos, cell_type, reg
         (annotated_result["x2"] - annotated_result["x1"]) ** 2
         + (annotated_result["y2"] - annotated_result["y1"]) ** 2
     )
+
+    # Ensure symmetry by adding reversed pairs
+    reversed_pairs = annotated_result.copy()
+    reversed_pairs = reversed_pairs.rename(
+        columns={
+            "celltype1_index": "celltype2_index",
+            "celltype1": "celltype2",
+            "celltype1_X": "celltype2_X",
+            "celltype1_Y": "celltype2_Y",
+            "celltype2_index": "celltype1_index",
+            "celltype2": "celltype1",
+            "celltype2_X": "celltype1_X",
+            "celltype2_Y": "celltype1_Y",
+        }
+    )
+    annotated_result = pd.concat([annotated_result, reversed_pairs])
 
     # Reorder columns
     annotated_result = annotated_result[
@@ -1923,135 +1164,141 @@ def tl_iterate_tri_distances(
     return iterative_triangulation_distances
 
 
-def tl_iterate_tri_distances_ad(
-    adata,
-    id,
-    x_pos,
-    y_pos,
-    cell_type,
-    region,
-    num_cores=None,
-    num_iterations=1000,
-    key_name=None,
-    correct_dtype=True,
-):
-    """
-    Iterate over triangulation distances for each unique region in the input AnnData object.
+# def tl_iterate_tri_distances_ad(
+#    adata,
+#    id,
+#    x_pos,
+#    y_pos,
+#    cell_type,
+#    region,
+#    num_cores=None,
+#    num_iterations=1000,
+#    key_name=None,
+#    correct_dtype=True,
+# ):
+#    """
+#    Iterate over triangulation distances for each unique region in the input AnnData object
 
-    Parameters
-    ----------
-    adata : anndata.AnnData
-        Annotated data matrix.
-    id : str
-        Column name for cell id.
-    x_pos : str
-        Column name for x position of cells.
-    y_pos : str
-        Column name for y position of cells.
-    cell_type : str
-        Column name for cell type.
-    region : str
-        Column name for region.
-    num_cores : int, optional
-        Number of cores to use for parallel processing. If None, defaults to half of available cores.
-    num_iterations : int, optional
-        Number of iterations to perform. Defaults to 1000.
-    key_name : str, optional
-        Key name to use when saving the result to the AnnData object. If None, defaults to "iTriDist_" + str(num_iterations).
-    correct_dtype : bool, optional
-        If True, corrects the data type of the cell type and region columns to string. Defaults to True.
+#    Parameters
+#    ----------
+#    adata : anndata.AnnData
+#        Annotated data matrix.
+#    id : str
+#        Column name for cell id.
+#    x_pos : str
+#        Column name for x position of cells.
+#    y_pos : str
+#        Column name for y position of cells.
+#    cell_type : str
+#        Column name for cell type.
+#    region : str
+#        Column name for region.
+#    num_cores : int, optional
+#        Number of cores to use for parallel processing. If None, defaults to half of available cores.
+#    num_iterations : int, optional
+#        Number of iterations to perform. Defaults to 1000.
+#    key_name : str, optional
+#        Key name to use when saving the result to the AnnData object. If None, defaults to "iTriDist_" + str(num_iterations).
+#    correct_dtype : bool, optional
+#        If True, corrects the data type of the cell type and region columns to string. Defaults to True.
 
-    Returns
-    -------
-    pandas.DataFrame
-        Result dataframe with iterative triangulation distances for each unique region.
-    """
-    df_input = pd.DataFrame(adata.obs)
-    df_input[id] = df_input.index
+#    Returns
+#    -------
+#    pandas.DataFrame
+#        Result dataframe with iterative triangulation distances for each unique region.
+#    """
+#    df_input = pd.DataFrame(adata.obs)
+#    df_input[id] = df_input.index
 
-    if correct_dtype == True:
-        # change columns to pandas string
-        df_input[cell_type] = df_input[cell_type].astype(str)
-        df_input[region] = df_input[region].astype(str)
+#    if correct_dtype == True:
+#        # change columns to pandas string
+#        df_input[cell_type] = df_input[cell_type].astype(str)
+#        df_input[region] = df_input[region].astype(str)
 
-    # Check if x_pos and y_pos are integers, and if not, convert them
-    if not issubclass(df_input[x_pos].dtype.type, np.integer):
-        print("This function expects integer values for xy coordinates.")
-        print("Class will be changed to integer. Please check the generated output!")
-        df_input[x_pos] = df_input[x_pos].astype(int).values
-        df_input[y_pos] = df_input[y_pos].astype(int).values
+#    # Check if x_pos and y_pos are integers, and if not, convert them
+#    if not issubclass(df_input[x_pos].dtype.type, np.integer):
+#        print("This function expects integer values for xy coordinates.")
+#        print("Class will be changed to integer. Please check the generated output!")
+#        df_input[x_pos] = df_input[x_pos].astype(int).values
+#        df_input[y_pos] = df_input[y_pos].astype(int).values
 
-    unique_regions = df_input[region].unique()
-    # Use only the necessary columns
-    df_input = df_input.loc[:, [id, x_pos, y_pos, cell_type, region]]
+#    unique_regions = df_input[region].unique()
+#    # Use only the necessary columns
+#    df_input = df_input.loc[:, [id, x_pos, y_pos, cell_type, region]]
 
-    if num_cores is None:
-        num_cores = os.cpu_count() // 2  # Default to using half of available cores
+#    if num_cores is None:
+#        num_cores = os.cpu_count() // 2  # Default to using half of available cores
 
-    # Define a helper function to process each region and iteration
-    def process_iteration(region_name, iteration):
-        # Filter by region
-        subset = df_input.loc[df_input[region] == region_name, :].copy()
-        subset.loc[:, "uniqueID"] = (
-            subset[id].astype(str)
-            + "-"
-            + subset[x_pos].astype(str)
-            + "-"
-            + subset[y_pos].astype(str)
-        )
-        subset.loc[:, "XYcellID"] = (
-            subset[x_pos].astype(str) + "_" + subset[y_pos].astype(str)
-        )
+# Define a helper function to process each region and iteration
+#    def process_iteration(region_name, iteration):
+#        # Filter by region
+#        subset = df_input.loc[df_input[region] == region_name, :].copy()
+#        subset.loc[:, "uniqueID"] = (
+#            subset[id].astype(str)
+#            + "-"
+#            + subset[x_pos].astype(str)
+#            + "-"
+#            + subset[y_pos].astype(str)
+#        )
+#        subset.loc[:, "XYcellID"] = (
+#            subset[x_pos].astype(str) + "_" + subset[y_pos].astype(str)
+#        )
 
-        # Shuffle annotations
-        shuffled = shuffle_annotations(subset, cell_type, region, iteration)
+# Shuffle annotations
+#        shuffled = shuffle_annotations(subset, cell_type, region, iteration)
 
-        # Get triangulation distances
-        results = get_triangulation_distances(
-            df_input=shuffled,
-            id=id,
-            x_pos=x_pos,
-            y_pos=y_pos,
-            cell_type="random_annotations",
-            region=region,
-            num_cores=num_cores,
-            correct_dtype=False,
-        )
+# Get triangulation distances
+#        results = get_triangulation_distances(
+#            df_input=shuffled,
+#            id=id,
+#            x_pos=x_pos,
+#            y_pos=y_pos,
+#            cell_type="random_annotations",
+#            region=region,
+#            num_cores=num_cores,
+#            correct_dtype=False,
+#        )
 
-        # Summarize results
-        per_cell_summary = (
-            results.groupby(["celltype1_index", "celltype1", "celltype2"])
-            .distance.mean()
-            .reset_index(name="per_cell_mean_dist")
-        )
+#       # Summarize results
+#        per_cell_summary = (
+#            results.groupby(["celltype1_index", "celltype1", "celltype2"])
+#            .distance.mean()
+#            .reset_index(name="per_cell_mean_dist")
+#        )
 
-        per_celltype_summary = (
-            per_cell_summary.groupby(["celltype1", "celltype2"])
-            .per_cell_mean_dist.mean()
-            .reset_index(name="mean_dist")
-        )
-        per_celltype_summary[region] = region_name
-        per_celltype_summary["iteration"] = iteration
+#        # Ensure symmetry by aggregating distances in both directions
+#        per_cell_summary_reversed = per_cell_summary.rename(
+#            columns={"celltype1": "celltype2", "celltype2": "celltype1"}
+#        )
+#        per_cell_summary_combined = pd.concat([per_cell_summary, per_cell_summary_reversed])#
 
-        return per_celltype_summary
+#        per_celltype_summary = (
+#            per_cell_summary_combined.groupby(["celltype1", "celltype2"])
+#            .per_cell_mean_dist.mean()
+#            .reset_index(name="mean_dist")
+#        )
+#        per_celltype_summary[region] = region_name
+#        per_celltype_summary["iteration"] = iteration#
 
-    # Parallel processing for each region and iteration
-    results = Parallel(n_jobs=num_cores)(
-        delayed(process_iteration)(region_name, iteration)
-        for region_name in unique_regions
-        for iteration in range(1, num_iterations + 1)
-    )
+#       return per_celltype_summary
 
-    # Combine all results
-    iterative_triangulation_distances = pd.concat(results, ignore_index=True)
+# Parallel processing for each region and iteration
+#    results = Parallel(n_jobs=num_cores)(
+#        delayed(process_iteration)(region_name, iteration)
+#        for region_name in unique_regions
+#        for iteration in range(1, num_iterations + 1)
+#    )
 
-    # append result to adata
-    if key_name is None:
-        key_name = "iTriDist_" + str(num_iterations)
-    adata.uns[key_name] = iterative_triangulation_distances
-    print("Save iterative triangulation distance output to anndata.uns " + key_name)
+# Combine all results
+#    iterative_triangulation_distances = pd.concat(results, ignore_index=True)
 
-    return iterative_triangulation_distances
+# append result to adata
+#    if key_name is None:
+#        key_name = "iTriDist_" + str(num_iterations)
+#    adata.uns[key_name] = iterative_triangulation_distances
+#    print("Save iterative triangulation distance output to anndata.uns " + key_name)
+
+#    return iterative_triangulation_distances
 
 
 def add_missing_columns(
@@ -2126,14 +1373,13 @@ def identify_interactions(
     cell_type,
     region,
     comparison,
-    iTriDist_keyname=None,
-    triDist_keyname=None,
     min_observed=10,
     distance_threshold=128,
     num_cores=None,
     num_iterations=1000,
     key_name=None,
     correct_dtype=False,
+    aggregate_per_cell=True,
 ):
     """
     Identify interactions between cell types based on their spatial distances.
@@ -2200,7 +1446,7 @@ def identify_interactions(
     )
     if key_name is None:
         triDist_keyname = "triDist"
-    adata.uns["triDist_keyname"] = triangulation_distances
+    adata.uns[triDist_keyname] = triangulation_distances
     print("Save triangulation distances output to anndata.uns " + triDist_keyname)
 
     print("Permuting data labels to obtain the randomly distributed distances!")
@@ -2216,29 +1462,46 @@ def identify_interactions(
         num_iterations=num_iterations,
     )
 
-    # append result to adata
-    if triDist_keyname is None:
-        triDist_keyname = "iTriDist_" + str(num_iterations)
-    adata.uns[triDist_keyname] = iterative_triangulation_distances
-    print(
-        "Save iterative triangulation distance output to anndata.uns " + triDist_keyname
-    )
-
     metadata = df_input.loc[:, ["unique_region", comparison]].copy()
     # Reformat observed dataset
     triangulation_distances_long = add_missing_columns(
         triangulation_distances, metadata, shared_column=region
     )
-
-    observed_distances = (
-        triangulation_distances_long.query("distance <= @distance_threshold")
-        .groupby(["celltype1_index", "celltype1", "celltype2", comparison, region])
-        .agg(mean_per_cell=("distance", "mean"))
-        .reset_index()
-        .groupby(["celltype1", "celltype2", comparison])
-        .agg(observed=("mean_per_cell", list), observed_mean=("mean_per_cell", "mean"))
-        .reset_index()
-    )
+    if aggregate_per_cell == True:
+        observed_distances = (
+            triangulation_distances_long.query("distance <= @distance_threshold")
+            .groupby(["celltype1_index", "celltype1", "celltype2", comparison, region])
+            .agg(mean_per_cell=("distance", "mean"))
+            .reset_index()
+            .groupby(["celltype1", "celltype2", comparison])
+            .agg(
+                observed=("mean_per_cell", list),
+                observed_mean=("mean_per_cell", "mean"),
+            )
+            .reset_index()
+        )
+    else:
+        observed_distances = (
+            triangulation_distances_long.query("distance <= @distance_threshold")
+            .groupby(
+                [
+                    "celltype1_index",
+                    "celltype2_index",
+                    "celltype1",
+                    "celltype2",
+                    comparison,
+                    region,
+                ]
+            )
+            .agg(mean_per_cell=("distance", "mean"))
+            .reset_index()
+            .groupby(["celltype1", "celltype2", comparison])
+            .agg(
+                observed=("mean_per_cell", list),
+                observed_mean=("mean_per_cell", "mean"),
+            )
+            .reset_index()
+        )
 
     # Reformat expected dataset
     iterated_triangulation_distances_long = add_missing_columns(
@@ -2282,7 +1545,43 @@ def identify_interactions(
     # drop na from distance_pvals
     # distance_pvals = distance_pvals.dropna()
 
-    return distance_pvals
+    # append result to adata
+
+    # create dictionary for the results
+    triangulation_distances_dict = {
+        "distance_pvals": distance_pvals,
+        "triangulation_distances_observed": iterated_triangulation_distances_long,
+        "triangulation_distances_iterated": triangulation_distances_long,
+    }
+
+    return distance_pvals, triangulation_distances_dict
+
+
+def adata_cell_percentages(adata, column_percentage="cell_type"):
+    """
+    Calculate the percentage of each cell type in an AnnData object.
+
+    Parameters:
+    adata (AnnData): An AnnData object containing single-cell data.
+    column_percentage (str): The column name in adata.obs that contains cell type information. Default is 'cell_type'.
+
+    Returns:
+    DataFrame: A pandas DataFrame with two columns: the specified column name and 'percentage', representing the percentage of each cell type.
+    """
+    # Assuming 'adata' is an AnnData object and 'cell_type' is the column with cell type information
+    cell_type_counts = adata.obs[column_percentage].value_counts()
+    total_cells = len(adata)
+    cell_type_percentages = (cell_type_counts / total_cells) * 100
+
+    # Convert to DataFrame for better readability
+    cell_type_percentages_df = pd.DataFrame(
+        {
+            column_percentage: cell_type_counts.index,
+            "percentage": cell_type_percentages.values,
+        }
+    )
+
+    return cell_type_percentages_df
 
 
 def filter_interactions(
@@ -2350,26 +1649,71 @@ def filter_interactions(
     return dist_table, distance_pvals_sig_sub
 
 
+def remove_rare_cell_types(
+    adata, distance_pvals, cell_type_column="cell_type", min_cell_type_percentage=1
+):
+    """
+    Remove cell types with a percentage lower than the specified threshold from the distance_pvals DataFrame.
+
+    Parameters
+    ----------
+    adata : AnnData
+        Annotated data matrix.
+    distance_pvals : DataFrame
+        DataFrame containing distance p-values with columns 'celltype1' and 'celltype2'.
+    cell_type_column : str, optional
+        Column name in adata containing cell type information, by default "cell_type".
+    min_cell_type_percentage : float, optional
+        Minimum percentage threshold for cell types to be retained, by default 1.
+
+    Returns
+    -------
+    DataFrame
+        Filtered distance_pvals DataFrame with rare cell types removed.
+    """
+    cell_type_percentages_df = adata_cell_percentages(
+        adata, column_percentage=cell_type_column
+    )
+
+    # Identify cell types with less than the specified percentage of the total cells
+    rare_cell_types = cell_type_percentages_df[
+        cell_type_percentages_df["percentage"] < min_cell_type_percentage
+    ][cell_type_column].values
+
+    # Print the names of the cell types with less than the specified percentage of the total cells
+    print(
+        "Cell types that belong to less than "
+        + str(min_cell_type_percentage)
+        + "% of total cells:"
+    )
+    print(rare_cell_types)
+
+    # Remove rows from distance_pvals that contain rare cell types in column celltype1 or celltype2
+    distance_pvals = distance_pvals[
+        ~distance_pvals["celltype1"].isin(rare_cell_types)
+        & ~distance_pvals["celltype2"].isin(rare_cell_types)
+    ]
+
+    return distance_pvals
+
+
 # Function for patch identification
 ## Adjust clustering parameter to get the desired number of clusters
 def apply_dbscan_clustering(df, min_cluster_size=10):
     """
     Apply DBSCAN clustering to a dataframe and update the cluster labels in the original dataframe.
-
     Parameters
     ----------
     df : pandas.DataFrame
         The dataframe to be clustered.
     min_cluster_size : int, optional
         The number of samples in a neighborhood for a point to be considered as a core point, by default 10
-
     Returns
     -------
     None
     """
     # Initialize a new column for cluster labels
     df["cluster"] = -1
-
     # Apply DBSCAN clustering
     hdbscan = HDBSCAN(
         min_samples=None,
@@ -2379,166 +1723,16 @@ def apply_dbscan_clustering(df, min_cluster_size=10):
         metric="euclidean",
         alpha=1.0,
         cluster_selection_method="eom",
-        allow_single_cluster=False,
+        allow_single_cluster=True,
     )
     labels = hdbscan.fit_predict(df[["x", "y"]])
-
     # Number of clusters in labels, ignoring noise if present.
     n_clusters_ = len(set(labels)) - (1 if -1 in labels else 0)
     n_noise_ = list(labels).count(-1)
-
     print("Estimated number of clusters: %d" % n_clusters_)
     print("Estimated number of noise points: %d" % n_noise_)
-
     # Update the cluster labels in the original dataframe
     df.loc[df.index, "cluster"] = labels
-
-
-# plot points and identify points in radius of selected points
-def plot_selected_neighbors_with_shapes(
-    full_df,
-    selected_df,
-    target_df,
-    radius,
-    plot=True,
-    identification_column="community",
-):
-    # Get unique clusters from the full DataFrame
-    unique_clusters = full_df[identification_column].unique()
-
-    # DataFrame to store points within the circle but from a different cluster
-    all_in_circle_diff_cluster = []
-
-    # Loop through selected points
-    for _, row in selected_df.iterrows():
-        # Calculate distances from each point in the target DataFrame to the selected point
-        distances = np.linalg.norm(
-            target_df[["x", "y"]].values - np.array([row["x"], row["y"]]), axis=1
-        )
-
-        # Identify points within the circle and from a different cluster
-        in_circle = distances <= radius
-        diff_cluster = target_df[identification_column] != row[identification_column]
-        in_circle_diff_cluster = target_df[in_circle & diff_cluster]
-
-        # Append the result to the list
-        all_in_circle_diff_cluster.append(in_circle_diff_cluster)
-
-        # Plot the points with a different shape if plot is True
-        if plot:
-            plt.scatter(
-                in_circle_diff_cluster["x"],
-                in_circle_diff_cluster["y"],
-                facecolors="none",
-                edgecolors="#DC0000B2",
-                marker="*",
-                s=100,
-                zorder=5,
-                label="Cell within proximity",
-            )
-
-    # Concatenate the list of DataFrames into a single result DataFrame
-    all_in_circle_diff_cluster = pd.concat(
-        all_in_circle_diff_cluster, ignore_index=True
-    )
-
-    # Plot selected points in yellow and draw circles around them if plot is True
-    if plot:
-        plt.scatter(
-            selected_df["x"],
-            selected_df["y"],
-            color="#3C5488B2",
-            label="Boarder cells",
-            s=100,
-            edgecolor="black",
-            zorder=6,
-        )
-        for _, row in selected_df.iterrows():
-            circle = plt.Circle(
-                (row["x"], row["y"]),
-                radius,
-                color="#3C5488B2",
-                fill=False,
-                linestyle="--",
-                alpha=0.5,
-            )
-            plt.gca().add_patch(circle)
-
-        # Set plot labels and title
-        plt.xlabel("X")
-        plt.ylabel("Y")
-        plt.title(f"Cells within {radius} radius")
-        plt.grid(False)
-        plt.axis("equal")
-
-        # Place the legend outside the plot
-        handles, labels = plt.gca().get_legend_handles_labels()
-        by_label = dict(zip(labels, handles))
-        plt.legend(
-            by_label.values(),
-            by_label.keys(),
-            loc="center left",
-            bbox_to_anchor=(1, 0.5),
-        )
-        plt.tight_layout()
-        # set figure size
-        plt.gcf().set_size_inches(15, 5)
-
-        plt.show()
-
-    # Remove duplicates from the final DataFrame
-    all_in_circle_diff_cluster = all_in_circle_diff_cluster.drop_duplicates()
-
-    return all_in_circle_diff_cluster
-
-
-def process_cluster(args):
-    (
-        df,
-        cluster,
-        cluster_column,
-        x_column,
-        y_column,
-        concave_hull_length_threshold,
-        edge_neighbours,
-        full_df,
-        radius,
-        plot,
-        identification_column,
-    ) = args
-    # Filter DataFrame for the current cluster
-    subset = df.loc[df[cluster_column] == cluster]
-    points = subset[[x_column, y_column]].values
-
-    # Compute concave hull indexes
-    idxes = concave_hull_indexes(
-        points[:, :2],
-        length_threshold=concave_hull_length_threshold,
-    )
-
-    # Get hull points from the DataFrame
-    hull_points = pd.DataFrame(points[idxes], columns=["x", "y"])
-
-    # Find nearest neighbors of hull points in the original DataFrame
-    nbrs = NearestNeighbors(n_neighbors=edge_neighbours).fit(df[[x_column, y_column]])
-    distances, indices = nbrs.kneighbors(hull_points[["x", "y"]])
-
-    hull_nearest_neighbors = df.iloc[indices.flatten()]
-
-    # Plot selected neighbors and get the DataFrame with different clusters in the circle
-    prox_points = plot_selected_neighbors_with_shapes(
-        full_df=full_df,
-        selected_df=hull_nearest_neighbors,
-        target_df=full_df,
-        radius=radius,
-        plot=plot,
-        identification_column=identification_column,
-    )
-
-    # Add a 'patch_id' column to identify the cluster
-    prox_points["patch_id"] = cluster
-
-    return prox_points, hull_nearest_neighbors
 
 
 def identify_points_in_proximity(
@@ -2553,45 +1747,262 @@ def identify_points_in_proximity(
     plot=True,
     concave_hull_length_threshold=50,
 ):
+    """
+    Identify points in proximity within clusters and generate result and outline DataFrames.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        DataFrame containing the points to be processed.
+    full_df : pandas.DataFrame
+        Full DataFrame containing all points.
+    identification_column : str
+        Column name used for identification.
+    cluster_column : str, optional
+        Column name for cluster labels, by default "cluster".
+    x_column : str, optional
+        Column name for x-coordinates, by default "x".
+    y_column : str, optional
+        Column name for y-coordinates, by default "y".
+    radius : int, optional
+        Radius for proximity search, by default 200.
+    edge_neighbours : int, optional
+        Number of edge neighbours, by default 3.
+    plot : bool, optional
+        Whether to plot the results, by default True.
+    concave_hull_length_threshold : int, optional
+        Threshold for concave hull length, by default 50.
+
+    Returns
+    -------
+    result : pandas.DataFrame
+        DataFrame containing the result points.
+    outlines : pandas.DataFrame
+        DataFrame containing the outline points.
+    """
+
+    nbrs, unique_clusters = precompute(
+        df, x_column, y_column, full_df, identification_column, edge_neighbours
+    )
     num_processes = max(
-        1, os.cpu_count() - 2
+        1, os.cpu_count() - 1
     )  # Use all available CPUs minus 2, but at least 1
     with Pool(processes=num_processes) as pool:
-        results = pool.map(
+        results = pool.starmap(
             process_cluster,
             [
                 (
-                    df,
-                    cluster,
-                    cluster_column,
-                    x_column,
-                    y_column,
-                    concave_hull_length_threshold,
-                    edge_neighbours,
-                    full_df,
-                    radius,
-                    plot,
-                    identification_column,
+                    (
+                        df,
+                        cluster,
+                        cluster_column,
+                        x_column,
+                        y_column,
+                        concave_hull_length_threshold,
+                        edge_neighbours,
+                        full_df,
+                        radius,
+                        plot,
+                        identification_column,
+                    ),
+                    nbrs,
+                    unique_clusters,
                 )
                 for cluster in set(df[cluster_column]) - {-1}
             ],
         )
-
     # Unpack the results
     result_list, outline_list = zip(*results)
-
     # Concatenate the list of DataFrames into a single result DataFrame
     if len(result_list) > 0:
         result = pd.concat(result_list)
     else:
         result = pd.DataFrame(columns=["x", "y", "patch_id", identification_column])
-
     if len(outline_list) > 0:
         outlines = pd.concat(outline_list)
     else:
         outlines = pd.DataFrame(columns=["x", "y", "patch_id", identification_column])
-
     return result, outlines
+
+
+# Precompute nearest neighbors model and unique clusters
+def precompute(df, x_column, y_column, full_df, identification_column, edge_neighbours):
+    """
+    Precompute nearest neighbors and unique clusters.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        DataFrame containing the points to be processed.
+    x_column : str
+        Column name for x-coordinates.
+    y_column : str
+        Column name for y-coordinates.
+    full_df : pandas.DataFrame
+        Full DataFrame containing all points.
+    identification_column : str
+        Column name used for identification.
+    edge_neighbours : int
+        Number of edge neighbours.
+
+    Returns
+    -------
+    nbrs : sklearn.neighbors.NearestNeighbors
+        Fitted NearestNeighbors model.
+    unique_clusters : numpy.ndarray
+        Array of unique cluster identifiers.
+    """
+    nbrs = NearestNeighbors(n_neighbors=edge_neighbours).fit(df[[x_column, y_column]])
+    unique_clusters = full_df[identification_column].unique()
+    return nbrs, unique_clusters
+
+
+def process_cluster(args, nbrs, unique_clusters):
+    (
+        df,
+        cluster,
+        cluster_column,
+        x_column,
+        y_column,
+        concave_hull_length_threshold,
+        edge_neighbours,
+        full_df,
+        radius,
+        plot,
+        identification_column,
+    ) = args
+
+    """
+    Process a single cluster to identify points in proximity and generate hull points.
+
+    Parameters
+    ----------
+    args : tuple
+        Tuple containing the following elements:
+        - df : pandas.DataFrame
+            DataFrame containing the points to be processed.
+        - cluster : int
+            Cluster identifier.
+        - cluster_column : str
+            Column name for cluster labels.
+        - x_column : str
+            Column name for x-coordinates.
+        - y_column : str
+            Column name for y-coordinates.
+        - concave_hull_length_threshold : int
+            Threshold for concave hull length.
+        - edge_neighbours : int
+            Number of edge neighbours.
+        - full_df : pandas.DataFrame
+            Full DataFrame containing all points.
+        - radius : int
+            Radius for proximity search.
+        - plot : bool
+            Whether to plot the results.
+        - identification_column : str
+            Column name used for identification.
+    nbrs : sklearn.neighbors.NearestNeighbors
+        Fitted NearestNeighbors model.
+    unique_clusters : numpy.ndarray
+        Array of unique cluster identifiers.
+
+    Returns
+    -------
+    prox_points : pandas.DataFrame
+        DataFrame containing points within the proximity of the cluster.
+    hull_nearest_neighbors : pandas.DataFrame
+        DataFrame containing the nearest neighbors of the hull points.
+    """
+
+    # Filter DataFrame for the current cluster
+    subset = df.loc[df[cluster_column] == cluster]
+    points = subset[[x_column, y_column]].values
+    # Compute concave hull indexes
+    idxes = concave_hull_indexes(
+        points[:, :2],
+        length_threshold=concave_hull_length_threshold,
+    )
+    # Get hull points from the DataFrame
+    hull_points = pd.DataFrame(points[idxes], columns=["x", "y"])
+    # Find nearest neighbors of hull points in the original DataFrame
+    distances, indices = nbrs.kneighbors(hull_points[["x", "y"]])
+    hull_nearest_neighbors = df.iloc[indices.flatten()]
+    # DataFrame to store points within the circle but from a different cluster
+    all_in_circle_diff_cluster = []
+    # Extract hull points coordinates
+    hull_coords = hull_nearest_neighbors[["x", "y"]].values
+    # Calculate distances from all points in full_df to all hull points
+    distances = cdist(full_df[["x", "y"]].values, hull_coords)
+    # Identify points within the circle for each hull point
+    in_circle = distances <= radius
+    # Identify points from a different cluster for each hull point
+    diff_cluster = (
+        full_df[identification_column].values[:, np.newaxis]
+        != hull_nearest_neighbors[identification_column].values
+    )
+    # Combine the conditions
+    in_circle_diff_cluster = in_circle & diff_cluster
+    # Collect all points within the circle but from a different cluster
+    all_in_circle_diff_cluster = full_df[np.any(in_circle_diff_cluster, axis=1)]
+    # Plot the points with a different shape if plot is True
+    if plot:
+        plt.scatter(
+            all_in_circle_diff_cluster["x"],
+            all_in_circle_diff_cluster["y"],
+            facecolors="none",
+            edgecolors="#DC0000B2",
+            marker="*",
+            s=100,
+            zorder=5,
+            label="Cell within proximity",
+        )
+    # Remove duplicates from the final DataFrame
+    all_in_circle_diff_cluster = all_in_circle_diff_cluster.drop_duplicates()
+    # Plot selected points in yellow and draw circles around them if plot is True
+    if plot:
+        plt.scatter(
+            hull_nearest_neighbors["x"],
+            hull_nearest_neighbors["y"],
+            color="#3C5488B2",
+            label="Boarder cells",
+            s=100,
+            edgecolor="black",
+            zorder=6,
+        )
+        for _, row in hull_nearest_neighbors.iterrows():
+            circle = plt.Circle(
+                (row["x"], row["y"]),
+                radius,
+                color="#3C5488B2",
+                fill=False,
+                linestyle="--",
+                alpha=0.5,
+            )
+            plt.gca().add_patch(circle)
+        # Set plot labels and title
+        plt.xlabel("X")
+        plt.ylabel("Y")
+        plt.title(f"Cells within {radius} radius")
+        plt.grid(False)
+        plt.axis("equal")
+        # Place the legend outside the plot
+        handles, labels = plt.gca().get_legend_handles_labels()
+        by_label = dict(zip(labels, handles))
+        plt.legend(
+            by_label.values(),
+            by_label.keys(),
+            loc="center left",
+            bbox_to_anchor=(1, 0.5),
+        )
+        plt.tight_layout()
+        # set figure size
+        plt.gcf().set_size_inches(15, 5)
+        plt.show()
+    # Remove duplicates from the final DataFrame
+    prox_points = all_in_circle_diff_cluster.drop_duplicates()
+    # Add a 'patch_id' column to identify the cluster
+    prox_points["patch_id"] = cluster
+    return prox_points, hull_nearest_neighbors
 
 
 # This function analyzes what is in proximity of a selected group (CN, Celltype, etc...).
@@ -2720,23 +2131,43 @@ def patch_proximity_analysis(
     return final_results, outlines_results
 
 
-def stellar_get_tonsilbe_edge_index(pos, distance_thres):
+def stellar_get_edge_index(
+    pos, distance_thres, max_memory_usage=1.6e10, chunk_size=1000
+):
     """
     Constructs edge indexes in one region based on pairwise distances and a distance threshold.
 
     Parameters:
     pos (array-like): An array-like object of shape (n_samples, n_features) representing the positions.
     distance_thres (float): The distance threshold. Pairs of positions with distances less than this threshold will be considered as edges.
+    max_memory_usage (float): The maximum memory usage in bytes before switching to chunk processing.
+    chunk_size (int): The size of the chunks to process at a time.
 
     Returns:
     edge_list (list): A list of lists where each inner list contains two indices representing an edge.
     """
-    # construct edge indexes in one region
-    edge_list = []
-    dists = pairwise_distances(pos)
-    dists_mask = dists < distance_thres
-    np.fill_diagonal(dists_mask, 0)
-    edge_list = np.transpose(np.nonzero(dists_mask)).tolist()
+    n_samples = pos.shape[0]
+    estimated_memory_usage = (
+        n_samples * n_samples * 8
+    )  # Estimate memory usage for the distance matrix (float64)
+
+    if estimated_memory_usage > max_memory_usage:
+        print("Processing will be done in chunks to save memory.")
+        edge_list = []
+        for i in tqdm(range(0, n_samples, chunk_size), desc="Processing chunks"):
+            pos_chunk = pos[i : i + chunk_size]
+            dists_chunk = pairwise_distances(pos_chunk, pos)
+            dists_mask_chunk = dists_chunk < distance_thres
+            np.fill_diagonal(dists_mask_chunk[:, i : i + chunk_size], 0)
+            chunk_edge_list = np.transpose(np.nonzero(dists_mask_chunk)).tolist()
+            chunk_edge_list = [[i + edge[0], edge[1]] for edge in chunk_edge_list]
+            edge_list.extend(chunk_edge_list)
+    else:
+        dists = pairwise_distances(pos)
+        dists_mask = dists < distance_thres
+        np.fill_diagonal(dists_mask, 0)
+        edge_list = np.transpose(np.nonzero(dists_mask)).tolist()
+
     return edge_list
 
 
@@ -2768,6 +2199,10 @@ def adata_stellar(
     Returns:
     adata (AnnData): The unannotated data with the added key for the predicted results.
     """
+
+    print(
+        "Please consider to cite the following paper when using STELLAR: Brbić, M., Cao, K., Hickey, J.W. et al. Annotation of spatially resolved single-cell data with STELLAR. Nat Methods 19, 1411–1418 (2022). https://doi.org/10.1038/s41592-022-01651-8"
+    )
 
     sys.path.append(str(STELLAR_path))
     from datasets import GraphDataset
@@ -2830,10 +2265,8 @@ def adata_stellar(
 
     train_y = np.array([cell_type_dict[x] for x in train_y])
 
-    labeled_edges = stellar_get_tonsilbe_edge_index(
-        labeled_pos, distance_thres=distance_thres
-    )
-    unlabeled_edges = stellar_get_tonsilbe_edge_index(
+    labeled_edges = stellar_get_edge_index(labeled_pos, distance_thres=distance_thres)
+    unlabeled_edges = stellar_get_edge_index(
         unlabeled_pos, distance_thres=distance_thres
     )
 
@@ -2978,238 +2411,6 @@ def ml_predict(adata_val, svc, save_name="svm_pred", return_prob_mat=False):
         return svm_label_val
 
 
-class ImageProcessor:
-    """
-    A class used to process images and compute channel means and sums.
-
-    ...
-
-    Attributes
-    ----------
-    flatmasks : ndarray
-        2D numpy array containing masks for each cell.
-
-    Methods
-    -------
-    update_adjacency_value(adjacency_matrix, original, neighbor):
-        Updates the adjacency matrix based on the original and neighbor values.
-    update_adjacency_matrix(plane_mask_flattened, width, height, adjacency_matrix, index):
-        Updates the adjacency matrix based on the flattened plane mask.
-    compute_channel_means_sums_compensated(image):
-        Computes the channel means and sums for each cell and compensates them.
-    """
-
-    def __init__(self, flatmasks):
-        """
-        Constructs all the necessary attributes for the ImageProcessor object.
-
-        Parameters
-        ----------
-            flatmasks : ndarray
-                2D numpy array containing masks for each cell.
-        """
-        self.flatmasks = flatmasks
-
-    def update_adjacency_value(self, adjacency_matrix, original, neighbor):
-        # This function is copied from CellSeg
-        """
-        Updates the adjacency matrix based on the original and neighbor values.
-
-        Parameters
-        ----------
-            adjacency_matrix : ndarray
-                2D numpy array representing the adjacency matrix.
-            original : int
-                Original value.
-            neighbor : int
-                Neighbor value.
-
-        Returns
-        -------
-            bool
-                True if the original and neighbor values are different and not zero, False otherwise.
-        """
-        border = False
-
-        if original != 0 and original != neighbor:
-            border = True
-            if neighbor != 0:
-                adjacency_matrix[int(original - 1), int(neighbor - 1)] += 1
-        return border
-
-    def update_adjacency_matrix(
-        self, plane_mask_flattened, width, height, adjacency_matrix, index
-    ):
-        # This function is copied from CellSeg
-        """
-        Updates the adjacency matrix based on the flattened plane mask.
-
-        Parameters
-        ----------
-            plane_mask_flattened : ndarray
-                1D numpy array representing the flattened plane mask.
-            width : int
-                Width of the plane mask.
-            height : int
-                Height of the plane mask.
-            adjacency_matrix : ndarray
-                2D numpy array representing the adjacency matrix.
-            index : int
-                Index of the current cell in the flattened plane mask.
-        """
-        mod_value_width = index % width
-        origin_mask = plane_mask_flattened[index]
-        left, right, up, down = False, False, False, False
-
-        if mod_value_width != 0:
-            left = self.update_adjacency_value(
-                adjacency_matrix, origin_mask, plane_mask_flattened[index - 1]
-            )
-        if mod_value_width != width - 1:
-            right = self.update_adjacency_value(
-                adjacency_matrix, origin_mask, plane_mask_flattened[index + 1]
-            )
-        if index >= width:
-            up = self.update_adjacency_value(
-                adjacency_matrix, origin_mask, plane_mask_flattened[index - width]
-            )
-        if index <= len(plane_mask_flattened) - 1 - width:
-            down = self.update_adjacency_value(
-                adjacency_matrix, origin_mask, plane_mask_flattened[index + width]
-            )
-
-        if left or right or up or down:
-            adjacency_matrix[int(origin_mask - 1), int(origin_mask - 1)] += 1
-
-    def compute_channel_means_sums_compensated(self, image):
-        # This function is copied from CellSeg but modified to solve the least squares problem with torch instead of numpy
-        """
-        Computes the channel means and sums for each cell and compensates them.
-
-        Parameters
-        ----------
-            image : ndarray
-                3D numpy array representing the image.
-
-        Returns
-        -------
-            compensated_means : ndarray
-                2D numpy array representing the compensated means for each cell.
-            means : ndarray
-                2D numpy array representing the means for each cell.
-            channel_counts : ndarray
-                1D numpy array representing the counts for each cell.
-        """
-        height, width, n_channels = image.shape
-        mask_height, mask_width = self.flatmasks.shape
-        n_masks = len(np.unique(self.flatmasks)) - 1
-        channel_sums = np.zeros((n_masks, n_channels))
-        channel_counts = np.zeros((n_masks, n_channels))
-        if n_masks == 0:
-            return channel_sums, channel_sums, channel_counts
-
-        squashed_image = np.reshape(image, (height * width, n_channels))
-
-        # masklocs = np.nonzero(self.flatmasks)
-        # plane_mask = np.zeros((mask_height, mask_width), dtype = np.uint32)
-        # plane_mask[masklocs[0], masklocs[1]] = masklocs[2] + 1
-        # plane_mask = plane_mask.flatten()
-        plane_mask = self.flatmasks.flatten()
-
-        adjacency_matrix = np.zeros((n_masks, n_masks))
-        for i in range(len(plane_mask)):
-            self.update_adjacency_matrix(
-                plane_mask, mask_width, mask_height, adjacency_matrix, i
-            )
-
-            mask_val = plane_mask[i] - 1
-            if mask_val != -1:
-                channel_sums[mask_val.astype(np.int32)] += squashed_image[i]
-                channel_counts[mask_val.astype(np.int32)] += 1
-
-        # Normalize adjacency matrix
-        for i in range(n_masks):
-            adjacency_matrix[i] = adjacency_matrix[i] / (
-                max(adjacency_matrix[i, i], 1) * 2
-            )
-            adjacency_matrix[i, i] = 1
-
-        means = np.true_divide(
-            channel_sums,
-            channel_counts,
-            out=np.zeros_like(channel_sums, dtype="float"),
-            where=channel_counts != 0,
-        )
-        # Convert your numpy arrays to PyTorch tensors
-        adjacency_matrix_torch = torch.from_numpy(adjacency_matrix)
-        means_torch = torch.from_numpy(means)
-
-        # Solve the least squares problem
-        results_torch = torch.linalg.lstsq(adjacency_matrix_torch, means_torch).solution
-
-        # Convert the result back to a numpy array if needed
-        # Convert the result back to a numpy array if needed
-        results = results_torch.numpy()
-        compensated_means = np.maximum(results, np.zeros(results.shape))
-
-        return compensated_means, means, channel_counts[:, 0]
-
-
-def compensate_cell_matrix(df, image_dict, masks, overwrite=True):
-    """
-    Compensate cell matrix by computing channel means and sums.
-
-    Parameters
-    ----------
-    df : DataFrame
-        The DataFrame to which the compensated means will be added.
-    image_dict : dict
-        Dictionary containing images for each channel.
-    masks : ndarray
-        3D numpy array containing masks for each cell.
-    overwrite : bool, optional
-        If True, overwrite existing columns in df. If False, add new columns to df. Default is True.
-
-    Returns
-    -------
-    DataFrame
-        The DataFrame with added compensated means.
-
-    Notes
-    -----
-    The function computes the channel means and sums for each cell, compensates them, and adds them to the DataFrame.
-    The compensated means are added to the DataFrame with column names from the keys of the image_dict.
-    If overwrite is True, existing columns in the DataFrame are overwritten. If overwrite is False, new columns are added to the DataFrame.
-    """
-    masks = masks.squeeze()
-    image_list = [image_dict[channel_name] for channel_name in image_dict.keys()]
-
-    # Stack the 2D numpy arrays along the third dimension to create a 3D numpy array
-    image = np.stack(image_list, axis=-1)
-
-    # Now you can use `image` as the input for the function
-    processor = ImageProcessor(masks)
-    (
-        compensated_means,
-        means,
-        channel_counts,
-    ) = processor.compute_channel_means_sums_compensated(image)
-
-    # Get the keys
-    keys = list(image_dict.keys())
-
-    # Cycle over the keys
-    for i in range(len(keys)):
-        # Add the compensated_means to the DataFrame with column names from keys
-
-        if overwrite == True:
-            df[keys[i]] = compensated_means[:, i]
-        else:
-            df[keys[i] + "_compensated"] = compensated_means[:, i]
-
-    return df
-
-
 def masks_to_outlines_scikit_image(masks):
     """get outlines of masks as a 0-1 array
 
@@ -3240,20 +2441,140 @@ def masks_to_outlines_scikit_image(masks):
         return find_boundaries(masks, mode="inner")
 
 
+def download_file_tm(url, save_path):
+    """
+    Download a file from a given URL and save it to a specified path.
+
+    Parameters
+    ----------
+    url : str
+        The URL of the file to download.
+    save_path : str
+        The local path where the downloaded file will be saved.
+
+    Raises
+    ------
+    requests.exceptions.HTTPError
+        If the HTTP request returned an unsuccessful status code.
+    """
+    response = requests.get(url)
+    response.raise_for_status()  # Check if the request was successful
+
+    with open(save_path, "wb") as file:
+        file.write(response.content)
+
+
+def check_download_tm_plugins():
+    """
+    Check and download the TissUUmaps plugins if they are not already present.
+
+    This function checks if the required TissUUmaps plugins are present in the
+    appropriate directory within the active Conda environment. If any plugins
+    are missing, they are downloaded from the specified URLs.
+
+    Raises
+    ------
+    EnvironmentError
+        If the Conda environment is not activated.
+    """
+    urls = [
+        "https://tissuumaps.github.io/TissUUmaps/plugins/latest/ClassQC.js",
+        "https://tissuumaps.github.io/TissUUmaps/plugins/latest/Plot_Histogram.js",
+        "https://tissuumaps.github.io/TissUUmaps/plugins/latest/Points2Regions.js",
+        "https://tissuumaps.github.io/TissUUmaps/plugins/latest/Spot_Inspector.js",
+        "https://tissuumaps.github.io/TissUUmaps/plugins/latest/Feature_Space.js",
+    ]
+
+    conda_env_path = os.getenv("CONDA_PREFIX")
+    if not conda_env_path:
+        raise EnvironmentError("Conda environment is not activated.")
+
+    python_version = f"python{sys.version_info.major}.{sys.version_info.minor}"
+    save_directory = os.path.join(
+        conda_env_path, "lib", python_version, "site-packages", "tissuumaps", "plugins"
+    )
+
+    if not os.path.exists(save_directory):
+        save_directory_option = os.path.join(
+            conda_env_path, "lib", "site-packages", "tissuumaps", "plugins"
+        )
+        for url in urls:
+            file_name = os.path.basename(url)
+            save_path = os.path.join(save_directory_option, file_name)
+            if not os.path.exists(save_path):
+                download_file_tm(url, save_path)
+                print(f"Plug-in downloaded and saved to {save_path}")
+
+    else:
+        for url in urls:
+            file_name = os.path.basename(url)
+            save_path = os.path.join(save_directory, file_name)
+            if not os.path.exists(save_path):
+                download_file_tm(url, save_path)
+                print(f"Plug-in downloaded and saved to {save_path}")
+
+
 def tm_viewer(
     adata,
     images_pickle_path,
-    directory,
+    directory=None,
     region_column="unique_region",
     region="",
     xSelector="x",
     ySelector="y",
-    color_by="celltype_fine",
+    color_by="cell_type",
     keep_list=None,
     include_masks=True,
     open_viewer=True,
     add_UMAP=True,
+    use_jpg_compression=False,
 ):
+    """
+    Prepare and visualize spatial transcriptomics data using TissUUmaps.
+
+    Parameters
+    ----------
+    adata : AnnData
+        Annotated data matrix.
+    images_pickle_path : str
+        Path to the pickle file containing images and masks.
+    directory : str, optional
+        Directory to save the output files. If None, a temporary directory will be created.
+    region_column : str, optional
+        Column name in `adata.obs` that specifies the region, by default "unique_region".
+    region : str, optional
+        Specific region to process, by default "".
+    xSelector : str, optional
+        Column name for x coordinates, by default "x".
+    ySelector : str, optional
+        Column name for y coordinates, by default "y".
+    color_by : str, optional
+        Column name for coloring the points, by default "celltype_fine".
+    keep_list : list, optional
+        List of columns to keep from `adata.obs`, by default None.
+    include_masks : bool, optional
+        Whether to include masks in the output, by default True.
+    open_viewer : bool, optional
+        Whether to open the TissUUmaps viewer, by default True.
+    add_UMAP : bool, optional
+        Whether to add UMAP coordinates to the output, by default True.
+    use_jpg_compression : bool, optional
+        Whether to use JPEG compression for saving images, by default False.
+
+    Returns
+    -------
+    list
+        List of paths to the saved image files.
+    list
+        List of paths to the saved CSV files.
+    """
+
+    print(
+        "Please consider to cite the following paper when using TissUUmaps: TissUUmaps 3: Improvements in interactive visualization, exploration, and quality assessment of large-scale spatial omics data - Pielawski, Nicolas et al. 2023 - Heliyon, Volume 9, Issue 5, e15306"
+    )
+
+    check_download_tm_plugins()
+
     segmented_matrix = adata.obs
 
     with open(images_pickle_path, "rb") as f:
@@ -3262,10 +2583,13 @@ def tm_viewer(
     image_dict = seg_output["image_dict"]
     masks = seg_output["masks"]
 
-    if keep_list == None:
+    if keep_list is None:
         keep_list = [region_column, xSelector, ySelector, color_by]
 
     print("Preparing TissUUmaps input...")
+
+    if directory is None:
+        directory = tempfile.mkdtemp()
 
     cache_dir = pathlib.Path(directory) / region
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -3273,7 +2597,7 @@ def tm_viewer(
     # only keep columns in keep_list
     segmented_matrix = segmented_matrix[keep_list]
 
-    if add_UMAP == True:
+    if add_UMAP:
         # add UMAP coordinates to segmented_matrix
         segmented_matrix["UMAP_1"] = adata.obsm["X_umap"][:, 0]
         segmented_matrix["UMAP_2"] = adata.obsm["X_umap"][:, 1]
@@ -3291,12 +2615,18 @@ def tm_viewer(
 
     image_list = []
     # save every image as tif file in image directory from image_dict. name by key in image_dict
+    if use_jpg_compression == True:
+        print("Using jpg compression")
     for key, image in image_dict.items():
-        file_path = os.path.join(image_dir, f"{key}.tif")
-        imsave(file_path, image, check_contrast=False)
+        if use_jpg_compression == True:
+            file_path = os.path.join(image_dir, f"{key}.jpg")
+            imsave(file_path, image, quality=100)
+        else:
+            file_path = os.path.join(image_dir, f"{key}.tif")
+            imsave(file_path, image, check_contrast=False)
         image_list.append(file_path)
 
-    if include_masks == True:
+    if include_masks:
         # select first item from image_dict as reference image
         reference_image = list(image_dict.values())[0]
 
@@ -3312,7 +2642,7 @@ def tm_viewer(
         masks_3d = np.squeeze(masks)
         outlines = masks_to_outlines_scikit_image(masks_3d)
 
-        reference_image[outlines == True] = [255, 0, 0]
+        reference_image[outlines] = [255, 0, 0]
 
         file_path = os.path.join(image_dir, "masks.jpg")
 
@@ -3322,7 +2652,7 @@ def tm_viewer(
         imsave(file_path, reference_image)
         image_list.append(file_path)
 
-    if open_viewer == True:
+    if open_viewer:
         print("Opening TissUUmaps viewer...")
         tj.loaddata(
             images=image_list,
@@ -3354,6 +2684,115 @@ def tm_viewer(
         )
 
     return image_list, csv_paths
+
+
+def tm_viewer_catplot(
+    adata,
+    directory=None,
+    region_column="unique_region",
+    x="x",
+    y="y",
+    color_by="cell_type",
+    open_viewer=True,
+    add_UMAP=False,
+    keep_list=None,
+):
+    """
+    Generate and visualize categorical plots using TissUUmaps.
+
+    Parameters
+    ----------
+    adata : AnnData
+        Annotated data matrix.
+    directory : str, optional
+        Directory to save the output CSV files. If None, a temporary directory is created.
+    region_column : str, optional
+        Column name in `adata.obs` that contains region information. Default is "unique_region".
+    x : str, optional
+        Column name in `adata.obs` to be used for x-axis. Default is "x".
+    y : str, optional
+        Column name in `adata.obs` to be used for y-axis. Default is "y".
+    color_by : str, optional
+        Column name in `adata.obs` to be used for coloring the points. Default is "cell_type".
+    open_viewer : bool, optional
+        Whether to open the TissUUmaps viewer after generating the CSV files. Default is True.
+    add_UMAP : bool, optional
+        Whether to add UMAP coordinates to the output data. Default is False.
+    keep_list : list of str, optional
+        List of columns to keep from `adata.obs`. If None, defaults to [region_column, x, y, color_by].
+
+    Returns
+    -------
+    list of str
+        List of paths to the generated CSV files.
+    """
+
+    check_download_tm_plugins()
+    segmented_matrix = adata.obs
+
+    if keep_list is None:
+        keep_list = [region_column, x, y, color_by]
+
+    print("Preparing TissUUmaps input...")
+
+    if directory is None:
+        print(
+            "Creating temporary directory... If you want to save the files, please specify a directory."
+        )
+        directory = tempfile.mkdtemp()
+
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+    # only keep columns in keep_list
+    segmented_matrix = segmented_matrix[keep_list]
+
+    if add_UMAP:
+        # add UMAP coordinates to segmented_matrix
+        segmented_matrix["UMAP_1"] = adata.obsm["X_umap"][:, 0]
+        segmented_matrix["UMAP_2"] = adata.obsm["X_umap"][:, 1]
+
+    csv_paths = []
+    # separate matrix by region and save every region as single csv file
+    unique_regions = segmented_matrix[region_column].unique()
+    for region in unique_regions:
+        region_matrix = segmented_matrix.loc[segmented_matrix[region_column] == region]
+        region_csv_path = os.path.join(directory, region + ".csv")
+        region_matrix.to_csv(region_csv_path)
+        csv_paths.append(region_csv_path)
+
+    if open_viewer:
+        print("Opening TissUUmaps viewer...")
+        tj.loaddata(
+            images=[],
+            csvFiles=[str(p) for p in csv_paths],
+            xSelector=x,
+            ySelector=y,
+            keySelector=color_by,
+            nameSelector=color_by,
+            colorSelector=color_by,
+            piechartSelector=None,
+            shapeSelector=None,
+            scaleSelector=None,
+            fixedShape=None,
+            scaleFactor=1,
+            colormap=None,
+            compositeMode="source-over",
+            boundingBox=None,
+            port=5100,
+            host="localhost",
+            height=900,
+            tmapFilename="project",
+            plugins=[
+                "Plot_Histogram",
+                "Points2Regions",
+                "Spot_Inspector",
+                "Feature_Space",
+                "ClassQC",
+            ],
+        )
+
+    return csv_paths
 
 
 def install_gpu_leiden(CUDA="12"):
@@ -3512,7 +2951,7 @@ def anndata_to_CPU(
 
 def install_stellar(CUDA=12):
     if CUDA == 12:
-        subprocess.run(["pip3", "install", "torch"], check=True)
+        subprocess.run(["pip", "install", "torch"], check=True)
         subprocess.run(["pip", "install", "torch_geometric"], check=True)
         subprocess.run(
             [
@@ -3559,3 +2998,483 @@ def install_stellar(CUDA=12):
         print(
             "If neither is working for you check the installation guide at: https://pytorch.org/get-started/locally/ and https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html"
         )
+
+
+def launch_interactive_clustering(adata=None, output_dir=None):
+    """
+    Launch an interactive clustering application for single-cell data analysis.
+
+    Parameters
+    ----------
+    adata : AnnData, optional
+        An AnnData object containing single-cell data. If provided, the data will be loaded automatically.
+    output_dir : str, optional
+        The directory where the annotated AnnData object will be saved. Required if `adata` is provided.
+
+    Returns
+    -------
+    main_layout : panel.layout.Row
+        The main layout of the interactive clustering application.
+
+    Raises
+    ------
+    ValueError
+        If `adata` is provided but `output_dir` is not specified, or if `output_dir` is not a string.
+    """
+    warnings.filterwarnings("ignore")
+    pn.extension("deckgl", design="bootstrap", theme="default", template="bootstrap")
+    pn.state.template.config.raw_css.append(
+        """
+    #main {
+    padding: 0;
+    }"""
+    )
+
+    # check if output_dir is provided if adata is provided
+    if adata is not None and not output_dir:
+        raise ValueError(
+            "Please provide an output directory to save the annotated AnnData object."
+        )
+        # exit the function if output_dir is not provided
+        return
+
+    else:
+        # check if output_dir is a string
+        if output_dir and not isinstance(output_dir, str):
+            raise ValueError("output_dir must be a string.")
+
+        # check if output directory exists and create if not:
+        if output_dir and not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+
+    # Define the app
+    def create_clustering_app():
+
+        # Callback to load data
+        def load_data(event=None):
+            if adata is not None:
+                adata_container["adata"] = adata
+                marker_list_input.options = list(adata.var_names)
+                output_area.object = "**AnnData object loaded successfully.**"
+                return
+            if not input_path.value or not os.path.isfile(input_path.value):
+                output_area.object = "**Please enter a valid AnnData file path.**"
+                return
+            loaded_adata = sc.read_h5ad(input_path.value)
+            adata_container["adata"] = loaded_adata
+            marker_list_input.options = list(loaded_adata.var_names)
+            output_area.object = "**AnnData file loaded successfully.**"
+
+        # Callback to run clustering
+        def run_clustering(event):
+            adata = adata_container.get("adata", None)
+            if adata is None:
+                output_area.object = "**Please load an AnnData file first.**"
+                return
+            marker_list = (
+                list(marker_list_input.value) if marker_list_input.value else None
+            )
+            key_added = (
+                key_added_input.value
+                if key_added_input.value
+                else clustering_method.value + "_" + str(resolution.value)
+            )
+            # Start loading indicator
+            loading_indicator.active = True
+            output_area.object = "**Clustering in progress...**"
+            # Run clustering
+            try:
+                adata = clustering(
+                    adata,
+                    clustering=clustering_method.value,
+                    marker_list=marker_list,
+                    resolution=resolution.value,
+                    n_neighbors=n_neighbors.value,
+                    reclustering=reclustering.value,
+                    key_added=key_added,
+                    key_filter=None,
+                    subset_cluster=None,
+                    seed=42,
+                    fs_xdim=fs_xdim.value,
+                    fs_ydim=fs_ydim.value,
+                    fs_rlen=fs_rlen.value,
+                )
+
+                adata_container["adata"] = adata
+                output_area.object = "**Clustering completed.**"
+                # Automatically generate visualization
+                key_to_visualize = key_added
+                tabs = []
+                sc.pl.umap(adata, color=[key_to_visualize], show=False)
+                umap_fig = plt.gcf()
+                plt.close()
+                tabs.append(("UMAP", pn.pane.Matplotlib(umap_fig, dpi=100)))
+                if marker_list:
+                    sc.pl.dotplot(
+                        adata,
+                        marker_list,
+                        groupby=key_to_visualize,
+                        dendrogram=True,
+                        show=False,
+                    )
+                    dotplot_fig = plt.gcf()
+                    plt.close()
+                    tabs.append(("Dotplot", pn.pane.Matplotlib(dotplot_fig, dpi=100)))
+                # Generate histogram plot
+                cluster_counts = adata.obs[key_to_visualize].value_counts()
+                cluster_counts.sort_index(inplace=True)
+                cluster_counts.plot(kind="bar")
+                plt.xlabel("Cluster")
+                plt.ylabel("Number of Cells")
+                plt.title(f"Cluster Counts for {key_to_visualize}")
+                hist_fig = plt.gcf()
+                plt.close()
+                tabs.append(("Histogram", pn.pane.Matplotlib(hist_fig, dpi=100)))
+                # Add new tabs to visualization area
+                for name, pane in tabs:
+                    visualization_area.append((name, pane))
+                # Update cluster annotations
+                clusters = adata.obs[key_to_visualize].unique().astype(str)
+                annotations_df = pd.DataFrame(
+                    {"Cluster": clusters, "Annotation": [""] * len(clusters)}
+                )
+                cluster_annotation.value = annotations_df
+            except Exception as e:
+                output_area.object = f"**Error during clustering: {e}**"
+            finally:
+                # Stop loading indicator
+                loading_indicator.active = False
+
+        # Callback to run subclustering
+        def run_subclustering(event):
+            adata = adata_container.get("adata", None)
+            if adata is None:
+                output_area.object = "**Please run clustering first.**"
+                return
+            if not subcluster_key.value or not subcluster_values.value:
+                output_area.object = "**Please provide subcluster key and values.**"
+                return
+            clusters = [c.strip() for c in subcluster_values.value.split(",")]
+            key_added = subcluster_key.value + "_subcluster"
+            # Start loading indicator for subclustering
+            loading_indicator_subcluster.active = True
+            output_area.object = "**Subclustering in progress...**"
+            try:
+                sc.tl.leiden(
+                    adata,
+                    seed=seed.value,
+                    restrict_to=(subcluster_key.value, clusters),
+                    resolution=subcluster_resolution.value,
+                    key_added=key_added,
+                )
+                adata_container["adata"] = adata
+                output_area.object = "**Subclustering completed.**"
+                # Update visualization
+                tabs = []
+                sc.pl.umap(adata, color=[key_added], show=False)
+                umap_fig = plt.gcf()
+                plt.close()
+                tabs.append(("UMAP_Sub", pn.pane.Matplotlib(umap_fig, dpi=100)))
+                marker_list = (
+                    list(marker_list_input.value) if marker_list_input.value else None
+                )
+                if marker_list:
+                    sc.pl.dotplot(
+                        adata,
+                        marker_list,
+                        groupby=key_added,
+                        dendrogram=True,
+                        show=False,
+                    )
+                    dotplot_fig = plt.gcf()
+                    plt.close()
+                    tabs.append(
+                        ("Dotplot_Sub", pn.pane.Matplotlib(dotplot_fig, dpi=100))
+                    )
+                # Generate histogram plot
+                cluster_counts = adata.obs[key_added].value_counts()
+                cluster_counts.sort_index(inplace=True)
+                cluster_counts.plot(kind="bar")
+                plt.xlabel("Subcluster")
+                plt.ylabel("Number of Cells")
+                plt.title(f"Subcluster Counts for {key_added}")
+                hist_fig = plt.gcf()
+                plt.close()
+                tabs.append(("Histogram_Sub", pn.pane.Matplotlib(hist_fig, dpi=100)))
+                # Add new tabs to visualization area
+                for name, pane in tabs:
+                    visualization_area.append((name, pane))
+                # Update cluster annotations
+                clusters = adata.obs[key_added].unique().astype(str)
+                annotations_df = pd.DataFrame(
+                    {"Cluster": clusters, "Annotation": [""] * len(clusters)}
+                )
+                cluster_annotation.value = annotations_df
+            except Exception as e:
+                output_area.object = f"**Error during subclustering: {e}**"
+            finally:
+                # Stop loading indicator for subclustering
+                loading_indicator_subcluster.active = False
+
+        # Callback to save annotations
+        def save_annotations(event):
+            adata = adata_container.get("adata", None)
+            if adata is None:
+                output_area.object = "**No AnnData object to annotate.**"
+                return
+            annotation_dict = dict(
+                zip(
+                    cluster_annotation.value["Cluster"],
+                    cluster_annotation.value["Annotation"],
+                )
+            )
+            key_to_annotate = (
+                key_added_input.value
+                if key_added_input.value
+                else clustering_method.value + "_" + str(resolution.value)
+            )
+            adata.obs["cell_type"] = (
+                adata.obs[key_to_annotate]
+                .astype(str)
+                .map(annotation_dict)
+                .astype("category")
+            )
+            output_area.object = "**Annotations saved to AnnData object.**"
+
+        def save_adata(event):
+            adata = adata_container.get("adata", None)
+            if adata is None:
+                output_area.object = "**No AnnData object to save.**"
+                return
+            if not output_dir_widget.value:
+                output_area.object = "**Please specify an output directory.**"
+                return
+            os.makedirs(output_dir_widget.value, exist_ok=True)
+            output_filepath = os.path.join(
+                output_dir_widget.value, "adata_annotated.h5ad"
+            )
+            adata.write(output_filepath)
+            output_area.object = f"**AnnData saved to {output_filepath}.**"
+
+        # Callback to run spatial visualization
+        def run_spatial_visualization(event):
+            adata = adata_container.get("adata", None)
+            if adata is None:
+                output_area.object = "**Please load an AnnData file first.**"
+                return
+            try:
+                catplot(
+                    adata,
+                    color=spatial_color.value,
+                    unique_region=spatial_unique_region.value,
+                    X=spatial_x.value,
+                    Y=spatial_y.value,
+                    n_columns=spatial_n_columns.value,
+                    palette=spatial_palette.value,
+                    savefig=spatial_savefig.value,
+                    output_fname=spatial_output_fname.value,
+                    output_dir=output_dir_widget.value,
+                    figsize=spatial_figsize.value,
+                    size=spatial_size.value,
+                )
+                spatial_fig = plt.gcf()
+                plt.close()
+                # Add new tab to visualization area
+                visualization_area.append(
+                    ("Spatial Visualization", pn.pane.Matplotlib(spatial_fig, dpi=100))
+                )
+                output_area.object = "**Spatial visualization completed.**"
+            except Exception as e:
+                output_area.object = f"**Error during spatial visualization: {e}**"
+
+        # File paths
+        input_path = pn.widgets.TextInput(
+            name="AnnData File Path", placeholder="Enter path to .h5ad file"
+        )
+        output_dir_widget = pn.widgets.TextInput(
+            name="Output Directory",
+            placeholder="Enter output directory path",
+            value=output_dir if output_dir else "",
+        )
+        load_data_button = pn.widgets.Button(name="Load Data", button_type="primary")
+
+        # Clustering parameters
+        clustering_method = pn.widgets.Select(
+            name="Clustering Method",
+            options=["leiden", "louvain", "flowSOM", "leiden_gpu"],
+        )
+        resolution = pn.widgets.FloatInput(name="Resolution", value=1.0)
+        n_neighbors = pn.widgets.IntInput(name="Number of Neighbors", value=10)
+        reclustering = pn.widgets.Checkbox(name="Reclustering", value=False)
+        seed = pn.widgets.IntInput(name="Random Seed", value=42)
+        key_added_input = pn.widgets.TextInput(
+            name="Key Added", placeholder="Enter key to add to AnnData.obs", value=""
+        )
+        marker_list_input = pn.widgets.MultiChoice(
+            name="Marker List", options=[], width=950
+        )
+
+        # Subclustering parameters
+        subcluster_key = pn.widgets.TextInput(
+            name="Subcluster Key",
+            placeholder='Enter key to filter on (e.g., "leiden_1")',
+        )
+        subcluster_values = pn.widgets.TextInput(
+            name="Subcluster Values",
+            placeholder="Enter clusters to subset (comma-separated)",
+        )
+        subcluster_resolution = pn.widgets.FloatInput(
+            name="Subcluster Resolution", value=0.3
+        )
+        subcluster_button = pn.widgets.Button(
+            name="Run Subclustering", button_type="primary"
+        )
+
+        # Cluster annotation
+        cluster_annotation = pn.widgets.DataFrame(
+            pd.DataFrame(columns=["Cluster", "Annotation"]),
+            name="Cluster Annotations",
+            autosize_mode="fit_columns",
+        )
+        save_annotations_button = pn.widgets.Button(
+            name="Save Annotations", button_type="success"
+        )
+
+        fs_xdim = pn.widgets.IntInput(name="FlowSOM xdim", value=10)
+        fs_ydim = pn.widgets.IntInput(name="FlowSOM ydim", value=10)
+        fs_rlen = pn.widgets.IntInput(name="FlowSOM rlen", value=10)
+
+        # Buttons
+        run_clustering_button = pn.widgets.Button(
+            name="Run Clustering", button_type="primary"
+        )
+        save_adata_button = pn.widgets.Button(
+            name="Save AnnData", button_type="success"
+        )
+
+        # Loading indicators
+        loading_indicator = pn.widgets.Progress(
+            name="Clustering Progress", active=False, bar_color="primary"
+        )
+        loading_indicator_subcluster = pn.widgets.Progress(
+            name="Subclustering Progress", active=False, bar_color="primary"
+        )
+
+        # Output areas
+        output_area = pn.pane.Markdown()
+        visualization_area = pn.Tabs()  # Changed to pn.Tabs to hold multiple plots
+
+        # Global variable to hold the AnnData object
+        adata_container = {}
+
+        # Spatial visualization parameters
+        spatial_color = pn.widgets.TextInput(
+            name="Color By Column",
+            placeholder="Enter group column name (e.g., cell_type_coarse)",
+        )
+        spatial_unique_region = pn.widgets.TextInput(
+            name="Unique Region Column", value="unique_region"
+        )
+        spatial_x = pn.widgets.TextInput(name="X Coordinate Column", value="x")
+        spatial_y = pn.widgets.TextInput(name="Y Coordinate Column", value="y")
+        spatial_n_columns = pn.widgets.IntInput(name="Number of Columns", value=2)
+        spatial_palette = pn.widgets.TextInput(name="Color Palette", value="tab20")
+        spatial_figsize = pn.widgets.FloatInput(name="Figure Size", value=17)
+        spatial_size = pn.widgets.FloatInput(name="Point Size", value=20)
+        spatial_savefig = pn.widgets.Checkbox(name="Save Figure", value=False)
+        spatial_output_fname = pn.widgets.TextInput(
+            name="Output Filename", placeholder="Enter output filename"
+        )
+        run_spatial_visualization_button = pn.widgets.Button(
+            name="Run Spatial Visualization", button_type="primary"
+        )
+
+        # Link callbacks
+        load_data_button.on_click(load_data)
+        run_clustering_button.on_click(run_clustering)
+        subcluster_button.on_click(run_subclustering)
+        save_annotations_button.on_click(save_annotations)
+        save_adata_button.on_click(save_adata)
+        run_spatial_visualization_button.on_click(run_spatial_visualization)
+
+        # Clustering Tab Layout
+        clustering_tab = pn.Column(
+            pn.pane.Markdown("### Load Data"),
+            (
+                pn.Row(input_path, output_dir_widget, load_data_button)
+                if adata is None
+                else pn.pane.Markdown("AnnData object loaded.")
+            ),
+            pn.layout.Divider(),
+            pn.pane.Markdown("### Clustering Parameters"),
+            pn.Row(clustering_method, resolution, n_neighbors),
+            pn.Row(seed, reclustering),
+            pn.Row(fs_xdim, fs_ydim, fs_rlen),
+            key_added_input,
+            marker_list_input,
+            pn.layout.Divider(),
+            pn.Row(run_clustering_button, loading_indicator),
+            output_area,
+        )
+
+        # Subclustering Tab Layout
+        subclustering_tab = pn.Column(
+            pn.pane.Markdown("### Subclustering Parameters"),
+            pn.Row(subcluster_key, subcluster_values, subcluster_resolution),
+            pn.layout.Divider(),
+            pn.Row(subcluster_button, loading_indicator_subcluster),
+            output_area,
+        )
+
+        # Annotation Tab Layout
+        annotation_tab = pn.Column(
+            pn.pane.Markdown("### Cluster Annotation"),
+            cluster_annotation,
+            pn.layout.Divider(),
+            save_annotations_button,
+            output_area,
+        )
+
+        # Save Tab Layout
+        save_tab = pn.Column(
+            pn.pane.Markdown("### Save Data"), save_adata_button, output_area
+        )
+
+        # Spatial Visualization Tab Layout
+        spatial_visualization_tab = pn.Column(
+            pn.pane.Markdown("### Spatial Visualization Parameters"),
+            pn.Row(spatial_color, spatial_palette),
+            pn.Row(spatial_unique_region, spatial_n_columns),
+            pn.Row(spatial_x, spatial_y),
+            pn.Row(spatial_figsize, spatial_size),
+            pn.layout.Divider(),
+            pn.Row(spatial_savefig, spatial_output_fname),
+            pn.layout.Divider(),
+            pn.Row(run_spatial_visualization_button),
+            output_area,
+        )
+
+        # Assemble Tabs
+        tabs = pn.Tabs(
+            ("Clustering", clustering_tab),
+            ("Subclustering", subclustering_tab),
+            ("Annotation", annotation_tab),
+            ("Spatial Visualization", spatial_visualization_tab),
+            ("Save", save_tab),
+        )
+
+        # Main Layout with Visualization Area
+        main_layout = pn.Row(tabs, visualization_area, sizing_mode="stretch_both")
+
+        # Automatically load data if adata is provided
+        if adata is not None:
+            load_data()
+
+        return main_layout
+
+    # Run the app
+    main_layout = create_clustering_app()
+
+    main_layout.servable(title="SPACEc Clustering App")
+
+    return main_layout
