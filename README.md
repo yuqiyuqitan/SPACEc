@@ -17,6 +17,7 @@
 
 **Note**: We currently support Python==`3.9` and `3.10`.
 * The **example tonsil data** is available on [dryad](https://datadryad.org/stash/share/OXTHu8fAybiINGD1S3tIVUIcUiG4nOsjjeWmrvJV-dQ)
+* The **extensive tutorial** is available [here](https://spacec.readthedocs.io/en/latest/?badge=latest)
 
 ### Install
 
