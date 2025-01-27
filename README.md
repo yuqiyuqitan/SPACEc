@@ -188,13 +188,13 @@ If you encounter installation issues or prefer a containerized setup, use the SP
 ```bash
 # Run CPU version:
 docker build -f ../Docker/spacec_cpu_build.dockerfile -t spacec:cpu .
-docker run -p 8888:8888 -p 5100:5100 tkempchen/spacec:cpu
+docker run -p 8888:8888 -p 5100:5100 spacec:cpu
 
 # If running an amd64 image on apple silicon, use the following command:
-docker run --platform linux/amd64 -p 8888:8888 -p 5100:5100 tkempchen/spacec:cpu
+docker run --platform linux/amd64 -p 8888:8888 -p 5100:5100 spacec:cpu
 
 # Or run GPU version:
 docker build -f ../Docker/spacec_gpu_build.dockerfile -t spacec:gpu .
-docker run --gpus all -p 8888:8888 -p 5100:5100 tkempchen/spacec:gpu
+docker run --gpus all -p 8888:8888 -p 5100:5100 spacec:gpu
 ```
 </details>
