@@ -961,7 +961,7 @@ def process_region(df, unique_region, id, x_pos, y_pos, cell_type, region):
 
 
 def get_triangulation_distances(
-    df_input, id, x_pos, y_pos, cell_type, region, num_cores=None, correct_dtype=True
+    df_input, id, x_pos, y_pos, cell_type, region, num_cores=None, correct_dtype=True, nested = False
 ):
     """
     Calculate triangulation distances for each unique region in the input dataframe.
@@ -1014,8 +1014,11 @@ def get_triangulation_distances(
     df_input = df_input.loc[:, [id, x_pos, y_pos, cell_type, region]]
 
     # Set up parallelization
-    if num_cores is None:
-        num_cores = os.cpu_count() // 2  # default to using half of available cores
+    if nested:
+        num_cores = 1  # Use single core if called from parallel context
+    elif num_cores is None:
+        num_cores = max(1, os.cpu_count() // 2)
+
 
     # Parallel processing using joblib
     results = Parallel(n_jobs=num_cores)(
@@ -1129,6 +1132,7 @@ def tl_iterate_tri_distances(
             region=region,
             num_cores=num_cores,
             correct_dtype=False,
+            nested=True,
         )
 
         # Summarize results
@@ -1162,144 +1166,6 @@ def tl_iterate_tri_distances(
     iterative_triangulation_distances = pd.concat(results, ignore_index=True)
     # iterative_triangulation_distances = iterative_triangulation_distances.dropna()
     return iterative_triangulation_distances
-
-
-# def tl_iterate_tri_distances_ad(
-#    adata,
-#    id,
-#    x_pos,
-#    y_pos,
-#    cell_type,
-#    region,
-#    num_cores=None,
-#    num_iterations=1000,
-#    key_name=None,
-#    correct_dtype=True,
-# ):
-#    """
-#    Iterate over triangulation distances for each unique region in the input AnnData object
-
-#    Parameters
-#    ----------
-#    adata : anndata.AnnData
-#        Annotated data matrix.
-#    id : str
-#        Column name for cell id.
-#    x_pos : str
-#        Column name for x position of cells.
-#    y_pos : str
-#        Column name for y position of cells.
-#    cell_type : str
-#        Column name for cell type.
-#    region : str
-#        Column name for region.
-#    num_cores : int, optional
-#        Number of cores to use for parallel processing. If None, defaults to half of available cores.
-#    num_iterations : int, optional
-#        Number of iterations to perform. Defaults to 1000.
-#    key_name : str, optional
-#        Key name to use when saving the result to the AnnData object. If None, defaults to "iTriDist_" + str(num_iterations).
-#    correct_dtype : bool, optional
-#        If True, corrects the data type of the cell type and region columns to string. Defaults to True.
-
-#    Returns
-#    -------
-#    pandas.DataFrame
-#        Result dataframe with iterative triangulation distances for each unique region.
-#    """
-#    df_input = pd.DataFrame(adata.obs)
-#    df_input[id] = df_input.index
-
-#    if correct_dtype == True:
-#        # change columns to pandas string
-#        df_input[cell_type] = df_input[cell_type].astype(str)
-#        df_input[region] = df_input[region].astype(str)
-
-#    # Check if x_pos and y_pos are integers, and if not, convert them
-#    if not issubclass(df_input[x_pos].dtype.type, np.integer):
-#        print("This function expects integer values for xy coordinates.")
-#        print("Class will be changed to integer. Please check the generated output!")
-#        df_input[x_pos] = df_input[x_pos].astype(int).values
-#        df_input[y_pos] = df_input[y_pos].astype(int).values
-
-#    unique_regions = df_input[region].unique()
-#    # Use only the necessary columns
-#    df_input = df_input.loc[:, [id, x_pos, y_pos, cell_type, region]]
-
-#    if num_cores is None:
-#        num_cores = os.cpu_count() // 2  # Default to using half of available cores
-
-# Define a helper function to process each region and iteration
-#    def process_iteration(region_name, iteration):
-#        # Filter by region
-#        subset = df_input.loc[df_input[region] == region_name, :].copy()
-#        subset.loc[:, "uniqueID"] = (
-#            subset[id].astype(str)
-#            + "-"
-#            + subset[x_pos].astype(str)
-#            + "-"
-#            + subset[y_pos].astype(str)
-#        )
-#        subset.loc[:, "XYcellID"] = (
-#            subset[x_pos].astype(str) + "_" + subset[y_pos].astype(str)
-#        )
-
-# Shuffle annotations
-#        shuffled = shuffle_annotations(subset, cell_type, region, iteration)
-
-# Get triangulation distances
-#        results = get_triangulation_distances(
-#            df_input=shuffled,
-#            id=id,
-#            x_pos=x_pos,
-#            y_pos=y_pos,
-#            cell_type="random_annotations",
-#            region=region,
-#            num_cores=num_cores,
-#            correct_dtype=False,
-#        )
-
-#       # Summarize results
-#        per_cell_summary = (
-#            results.groupby(["celltype1_index", "celltype1", "celltype2"])
-#            .distance.mean()
-#            .reset_index(name="per_cell_mean_dist")
-#        )
-
-#        # Ensure symmetry by aggregating distances in both directions
-#        per_cell_summary_reversed = per_cell_summary.rename(
-#            columns={"celltype1": "celltype2", "celltype2": "celltype1"}
-#        )
-#        per_cell_summary_combined = pd.concat([per_cell_summary, per_cell_summary_reversed])#
-
-#        per_celltype_summary = (
-#            per_cell_summary_combined.groupby(["celltype1", "celltype2"])
-#            .per_cell_mean_dist.mean()
-#            .reset_index(name="mean_dist")
-#        )
-#        per_celltype_summary[region] = region_name
-#        per_celltype_summary["iteration"] = iteration#
-
-#       return per_celltype_summary
-
-# Parallel processing for each region and iteration
-#    results = Parallel(n_jobs=num_cores)(
-#        delayed(process_iteration)(region_name, iteration)
-#        for region_name in unique_regions
-#        for iteration in range(1, num_iterations + 1)
-#    )
-
-# Combine all results
-#    iterative_triangulation_distances = pd.concat(results, ignore_index=True)
-
-# append result to adata
-#    if key_name is None:
-#        key_name = "iTriDist_" + str(num_iterations)
-#    adata.uns[key_name] = iterative_triangulation_distances
-#    print("Save iterative triangulation distance output to anndata.uns " + key_name)
-
-#    return iterative_triangulation_distances
-
 
 def add_missing_columns(
     triangulation_distances, metadata, shared_column="unique_region"
@@ -1531,9 +1397,6 @@ def identify_interactions(
         observed_distances, on=["celltype1", "celltype2", comparison], how="left"
     )
 
-    distance_pvals = expected_distances.merge(
-        observed_distances, on=["celltype1", "celltype2", comparison], how="left"
-    )
     distance_pvals["pvalue"] = distance_pvals.apply(calculate_pvalue, axis=1)
     distance_pvals["logfold_group"] = np.log2(
         distance_pvals["observed_mean"] / distance_pvals["expected_mean"]
