@@ -961,7 +961,15 @@ def process_region(df, unique_region, id, x_pos, y_pos, cell_type, region):
 
 
 def get_triangulation_distances(
-    df_input, id, x_pos, y_pos, cell_type, region, num_cores=None, correct_dtype=True, nested = False
+    df_input,
+    id,
+    x_pos,
+    y_pos,
+    cell_type,
+    region,
+    num_cores=None,
+    correct_dtype=True,
+    nested=False,
 ):
     """
     Calculate triangulation distances for each unique region in the input dataframe.
@@ -1018,7 +1026,6 @@ def get_triangulation_distances(
         num_cores = 1  # Use single core if called from parallel context
     elif num_cores is None:
         num_cores = max(1, os.cpu_count() // 2)
-
 
     # Parallel processing using joblib
     results = Parallel(n_jobs=num_cores)(
@@ -1166,6 +1173,7 @@ def tl_iterate_tri_distances(
     iterative_triangulation_distances = pd.concat(results, ignore_index=True)
     # iterative_triangulation_distances = iterative_triangulation_distances.dropna()
     return iterative_triangulation_distances
+
 
 def add_missing_columns(
     triangulation_distances, metadata, shared_column="unique_region"
@@ -1562,15 +1570,47 @@ def remove_rare_cell_types(
 
 # Function for patch identification
 ## Adjust clustering parameter to get the desired number of clusters
-def apply_dbscan_clustering(df, min_cluster_size=10):
+def apply_dbscan_clustering(
+    df,
+    x_column="x",
+    y_column="y",
+    min_cluster_size=10,
+    metric="euclidean",
+    cluster_selection_epsilon=0.0,
+    cluster_selection_method="eom",
+    alpha=1.0,
+    allow_single_cluster=True,
+    max_cluster_size=None,
+    min_samples=None,
+):
     """
     Apply DBSCAN clustering to a dataframe and update the cluster labels in the original dataframe.
+
     Parameters
     ----------
     df : pandas.DataFrame
         The dataframe to be clustered.
+    x_column : str, optional
+        The name of the column containing the x coordinates, by default 'x'.
+    y_column : str, optional
+        The name of the column containing the y coordinates, by default 'y'.
     min_cluster_size : int, optional
-        The number of samples in a neighborhood for a point to be considered as a core point, by default 10
+        The number of samples in a neighborhood for a point to be considered as a core point, by default 10.
+    metric : str, optional
+        The distance metric to use for the clustering, by default 'euclidean'.
+    cluster_selection_epsilon : float, optional
+        The distance threshold for merging clusters, by default 0.0.
+    cluster_selection_method : str, optional
+        The method for selecting clusters, by default 'eom'.
+    alpha : float, optional
+        The alpha parameter for the clustering algorithm, by default 1.0.
+    allow_single_cluster : bool, optional
+        Whether to allow a single cluster, by default True.
+    max_cluster_size : int, optional
+        The maximum size of clusters, by default None.
+    min_samples : int, optional
+        The minimum number of samples in a neighborhood for a point to be considered as a core point, by default None.
+
     Returns
     -------
     None
@@ -1579,16 +1619,16 @@ def apply_dbscan_clustering(df, min_cluster_size=10):
     df["cluster"] = -1
     # Apply DBSCAN clustering
     hdbscan = HDBSCAN(
-        min_samples=None,
+        min_samples=min_samples,
         min_cluster_size=min_cluster_size,
-        cluster_selection_epsilon=0.0,
-        max_cluster_size=None,
-        metric="euclidean",
-        alpha=1.0,
-        cluster_selection_method="eom",
-        allow_single_cluster=True,
+        cluster_selection_epsilon=cluster_selection_epsilon,
+        max_cluster_size=max_cluster_size,
+        metric=metric,
+        alpha=alpha,
+        cluster_selection_method=cluster_selection_method,
+        allow_single_cluster=allow_single_cluster,
     )
-    labels = hdbscan.fit_predict(df[["x", "y"]])
+    labels = hdbscan.fit_predict(df[[x_column, y_column]])
     # Number of clusters in labels, ignoring noise if present.
     n_clusters_ = len(set(labels)) - (1 if -1 in labels else 0)
     n_noise_ = list(labels).count(-1)
@@ -1786,16 +1826,16 @@ def process_cluster(args, nbrs, unique_clusters):
         length_threshold=concave_hull_length_threshold,
     )
     # Get hull points from the DataFrame
-    hull_points = pd.DataFrame(points[idxes], columns=["x", "y"])
+    hull_points = pd.DataFrame(points[idxes], columns=[x_column, y_column])
     # Find nearest neighbors of hull points in the original DataFrame
-    distances, indices = nbrs.kneighbors(hull_points[["x", "y"]])
+    distances, indices = nbrs.kneighbors(hull_points[[x_column, y_column]])
     hull_nearest_neighbors = df.iloc[indices.flatten()]
     # DataFrame to store points within the circle but from a different cluster
     all_in_circle_diff_cluster = []
     # Extract hull points coordinates
-    hull_coords = hull_nearest_neighbors[["x", "y"]].values
+    hull_coords = hull_nearest_neighbors[[x_column, y_column]].values
     # Calculate distances from all points in full_df to all hull points
-    distances = cdist(full_df[["x", "y"]].values, hull_coords)
+    distances = cdist(full_df[[x_column, y_column]].values, hull_coords)
     # Identify points within the circle for each hull point
     in_circle = distances <= radius
     # Identify points from a different cluster for each hull point
@@ -1810,8 +1850,8 @@ def process_cluster(args, nbrs, unique_clusters):
     # Plot the points with a different shape if plot is True
     if plot:
         plt.scatter(
-            all_in_circle_diff_cluster["x"],
-            all_in_circle_diff_cluster["y"],
+            all_in_circle_diff_cluster[x_column],
+            all_in_circle_diff_cluster[y_column],
             facecolors="none",
             edgecolors="#DC0000B2",
             marker="*",
@@ -1824,8 +1864,8 @@ def process_cluster(args, nbrs, unique_clusters):
     # Plot selected points in yellow and draw circles around them if plot is True
     if plot:
         plt.scatter(
-            hull_nearest_neighbors["x"],
-            hull_nearest_neighbors["y"],
+            hull_nearest_neighbors[x_column],
+            hull_nearest_neighbors[y_column],
             color="#3C5488B2",
             label="Boarder cells",
             s=100,
@@ -1834,7 +1874,7 @@ def process_cluster(args, nbrs, unique_clusters):
         )
         for _, row in hull_nearest_neighbors.iterrows():
             circle = plt.Circle(
-                (row["x"], row["y"]),
+                (row[x_column], row[y_column]),
                 radius,
                 color="#3C5488B2",
                 fill=False,
@@ -1843,8 +1883,8 @@ def process_cluster(args, nbrs, unique_clusters):
             )
             plt.gca().add_patch(circle)
         # Set plot labels and title
-        plt.xlabel("X")
-        plt.ylabel("Y")
+        plt.xlabel(x_column)
+        plt.ylabel(y_column)
         plt.title(f"Cells within {radius} radius")
         plt.grid(False)
         plt.axis("equal")
@@ -1935,7 +1975,12 @@ def patch_proximity_analysis(
             if plot:
                 df_filtered = df_community[df_community["cluster"] != -1]
                 fig, ax = plt.subplots(figsize=(10, 10))
-                ax.scatter(df_filtered["x"], df_filtered["y"], c=plot_color, alpha=0.5)
+                ax.scatter(
+                    df_filtered[x_column],
+                    df_filtered[y_column],
+                    c=plot_color,
+                    alpha=0.5,
+                )
                 ax.set_title(f"HDBSCAN Clusters for {region}_{group}")
                 ax.set_xlabel(x_column)
                 ax.set_ylabel(y_column)
