@@ -199,5 +199,8 @@ docker run --gpus all -p 8888:8888 -p 5100:5100 spacec:gpu
 ```
 </details>
 
-
-<body><script type='text/javascript' id='clustrmaps' src='//cdn.clustrmaps.com/map_v2.js?cl=ffffff&w=a&t=n&d=TCWqqKKTPFNUPE2ZRNAxpQ39Kw327SSoaKp_oOF9H8g'></script></body>
+<p align="center">
+    <a href="https://clustrmaps.com/site/1c47e" title="ClustrMaps">
+        <img width = "200" src="//www.clustrmaps.com/map_v2.png?d=TCWqqKKTPFNUPE2ZRNAxpQ39Kw327SSoaKp_oOF9H8g&cl=ffffff" />
+    </a>
+</p>
