@@ -207,5 +207,5 @@ docker run --gpus all -p 8888:8888 -p 5100:5100 tkempchen/spacec:gpu
 </p>
 
 <p>
-    <script type="text/javascript" id="clustrmaps" src="//clustrmaps.com/map_v2.js?d=TCWqqKKTPFNUPE2ZRNAxpQ39Kw327SSoaKp_oOF9H8g&cl=ffffff&w=a"></script>
+    <a href="https://clustrmaps.com/site/1c47e" title="ClustrMaps"><img src="//www.clustrmaps.com/map_v2.png?d=TCWqqKKTPFNUPE2ZRNAxpQ39Kw327SSoaKp_oOF9H8g&cl=ffffff"></a>
 </p>
