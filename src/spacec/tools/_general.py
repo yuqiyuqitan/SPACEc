@@ -1,6 +1,13 @@
 # load required packages
 from __future__ import annotations
 
+# Filter out specific FutureWarnings from anndata and tm
+import warnings
+warnings.filterwarnings('ignore', category=FutureWarning, 
+                       module='anndata.utils')
+import logging
+logging.disable(logging.CRITICAL)  # disables all logging messages at and below CRITICAL level
+
 import os
 import platform
 import subprocess
