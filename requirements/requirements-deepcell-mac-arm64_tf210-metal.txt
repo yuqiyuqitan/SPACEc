@@ -1,4 +1,4 @@
-cellpose==3.0.8
+cellpose==3.0.11
 
 # DeepCell requirements
 deepcell-toolbox>=0.12.1
