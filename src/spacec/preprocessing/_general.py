@@ -10,6 +10,7 @@ import pandas as pd
 import scanpy as sc
 import seaborn as sns
 from scipy.stats import norm, zscore
+import torch
 
 
 # read the data frame output from the segmentation functions
@@ -494,7 +495,7 @@ class ImageProcessor:
     def update_adjacency_matrix(
         self, plane_mask_flattened, width, height, adjacency_matrix, index
     ):
-        # This function is copied from CellSeg
+        # This function uses code from CellSeg
         """
         Updates the adjacency matrix based on the flattened plane mask.
 
@@ -536,75 +537,149 @@ class ImageProcessor:
             adjacency_matrix[int(origin_mask - 1), int(origin_mask - 1)] += 1
 
     def compute_channel_means_sums_compensated(self, image):
-        # This function is copied from CellSeg but modified to solve the least squares problem with torch instead of numpy
         """
-        Computes the channel means and sums for each cell and compensates them.
+        Computes and compensates channel means and sums for each cell in a multi-channel image using
+        vectorized operations and GPU acceleration when available.
+
+        This method processes a multi-channel image and its corresponding cell masks to:
+        1. Calculate mean intensities for each channel in each cell
+        2. Build an adjacency matrix representing cell neighborhoods
+        3. Compensate for potential intensity bleeding between adjacent cells using least squares optimization
 
         Parameters
         ----------
-            image : ndarray
-                3D numpy array representing the image.
+        image : np.ndarray
+            A 3D array of shape (height, width, n_channels) containing the multi-channel image data.
+            Values should be in float32 format.
 
         Returns
         -------
-            compensated_means : ndarray
-                2D numpy array representing the compensated means for each cell.
-            means : ndarray
-                2D numpy array representing the means for each cell.
-            channel_counts : ndarray
-                1D numpy array representing the counts for each cell.
+        compensated_means : np.ndarray
+            A 2D array of shape (n_masks, n_channels) containing the compensated mean intensities
+            for each cell (mask) across all channels.
+        means : np.ndarray
+            A 2D array of shape (n_masks, n_channels) containing the original (uncompensated)
+            mean intensities for each cell across all channels.
+        channel_counts : np.ndarray
+            A 1D array of length n_masks containing the number of pixels in each cell mask.
+
+        Notes
+        -----
+        The method uses the instance's `flatmasks` attribute which should be a 2D array where
+        each unique positive integer represents a different cell mask (0 represents background).
+
+        The compensation process involves:
+        - Computing mean intensities per channel for each cell
+        - Creating an adjacency matrix representing cell neighborhoods
+        - Solving a least squares optimization problem to adjust for intensity bleeding
+        - Using GPU acceleration (CUDA or MPS) when available
+
+        The adjacency matrix is built considering:
+        - Direct neighbors (left, right, up, down)
+        - Diagonal contributions for border pixels
+        - Self-connections for cells with borders
+
+        See Also
+        --------
+        torch.linalg.lstsq : The underlying least squares solver used for compensation
+        numpy.bincount : Used for efficient computation of channel sums
+
+        Examples
+        --------
+        >>> processor = ImageProcessor(masks)
+        >>> image_data = np.random.rand(100, 100, 3).astype(np.float32)
+        >>> comp_means, orig_means, counts = processor.compute_channel_means_sums_compensated(image_data)
         """
         height, width, n_channels = image.shape
-        mask_height, mask_width = self.flatmasks.shape
-        n_masks = len(np.unique(self.flatmasks)) - 1
-        channel_sums = np.zeros((n_masks, n_channels))
-        channel_counts = np.zeros((n_masks, n_channels))
+        M = self.flatmasks  # shape: (mask_height, mask_width)
+        mask_height, mask_width = M.shape
+        n_masks = len(np.unique(M)) - 1
         if n_masks == 0:
-            return channel_sums, channel_sums, channel_counts
+            zeros = np.zeros((n_masks, n_channels), dtype=np.float32)
+            zeros_counts = np.zeros(n_masks, dtype=np.float32)
+            return zeros, zeros, zeros_counts
 
-        squashed_image = np.reshape(image, (height * width, n_channels))
+        # Reshape the image and mask for vectorized operations
+        squashed_image = image.reshape(-1, n_channels)
+        flat_mask = M.flatten()
 
-        # masklocs = np.nonzero(self.flatmasks)
-        # plane_mask = np.zeros((mask_height, mask_width), dtype = np.uint32)
-        # plane_mask[masklocs[0], masklocs[1]] = masklocs[2] + 1
-        # plane_mask = plane_mask.flatten()
-        plane_mask = self.flatmasks.flatten()
+        valid = flat_mask > 0
+        mask_ids = flat_mask[valid].astype(np.int32) - 1
+        image_valid = squashed_image[valid]
 
-        adjacency_matrix = np.zeros((n_masks, n_masks))
-        for i in range(len(plane_mask)):
-            self.update_adjacency_matrix(
-                plane_mask, mask_width, mask_height, adjacency_matrix, i
-            )
-
-            mask_val = plane_mask[i] - 1
-            if mask_val != -1:
-                channel_sums[mask_val.astype(np.int32)] += squashed_image[i]
-                channel_counts[mask_val.astype(np.int32)] += 1
-
-        # Normalize adjacency matrix
-        for i in range(n_masks):
-            adjacency_matrix[i] = adjacency_matrix[i] / (
-                max(adjacency_matrix[i, i], 1) * 2
-            )
-            adjacency_matrix[i, i] = 1
+        channel_sums = np.zeros((n_masks, n_channels), dtype=np.float32)
+        for ch in range(n_channels):
+            channel_sums[:, ch] = np.bincount(mask_ids, weights=image_valid[:, ch], minlength=n_masks)
+        counts = np.bincount(mask_ids, minlength=n_masks)
+        channel_counts = np.tile(counts, (n_channels, 1)).T
 
         means = np.true_divide(
             channel_sums,
             channel_counts,
-            out=np.zeros_like(channel_sums, dtype="float"),
+            out=np.zeros_like(channel_sums, dtype=np.float32),
             where=channel_counts != 0,
         )
-        # Convert your numpy arrays to PyTorch tensors
-        adjacency_matrix_torch = torch.from_numpy(adjacency_matrix)
-        means_torch = torch.from_numpy(means)
+        means = means.astype(np.float32)
 
-        # Solve the least squares problem
+        # Build adjacency matrix using vectorized numpy operations.
+        adj = np.zeros((n_masks, n_masks), dtype=np.float32)
+        h, w = M.shape
+
+        # Left neighbors
+        orig = M[:, 1:]
+        left_val = M[:, :-1]
+        cond = (orig != 0) & (left_val != 0) & (orig != left_val)
+        rows = (orig[cond] - 1).astype(np.int32)
+        cols = (left_val[cond] - 1).astype(np.int32)
+        np.add.at(adj, (rows, cols), 1)
+
+        # Right neighbors
+        orig = M[:, :-1]
+        right_val = M[:, 1:]
+        cond = (orig != 0) & (right_val != 0) & (orig != right_val)
+        rows = (orig[cond] - 1).astype(np.int32)
+        cols = (right_val[cond] - 1).astype(np.int32)
+        np.add.at(adj, (rows, cols), 1)
+
+        # Up neighbors
+        orig = M[1:, :]
+        up_val = M[:-1, :]
+        cond = (orig != 0) & (up_val != 0) & (orig != up_val)
+        rows = (orig[cond] - 1).astype(np.int32)
+        cols = (up_val[cond] - 1).astype(np.int32)
+        np.add.at(adj, (rows, cols), 1)
+
+        # Down neighbors
+        orig = M[:-1, :]
+        down_val = M[1:, :]
+        cond = (orig != 0) & (down_val != 0) & (orig != down_val)
+        rows = (orig[cond] - 1).astype(np.int32)
+        cols = (down_val[cond] - 1).astype(np.int32)
+        np.add.at(adj, (rows, cols), 1)
+
+        # Diagonal contributions for pixels bordering a different cell
+        has_border = np.zeros_like(M, dtype=bool)
+        has_border[:, 1:] |= (M[:, 1:] != 0) & (M[:, 1:] != M[:, :-1])
+        has_border[:, :-1] |= (M[:, :-1] != 0) & (M[:, :-1] != M[:, 1:])
+        has_border[1:, :] |= (M[1:, :] != 0) & (M[1:, :] != M[:-1, :])
+        has_border[:-1, :] |= (M[:-1, :] != 0) & (M[:-1, :] != M[1:, :])
+        diag_ids = (M[has_border][M[has_border] != 0] - 1).astype(np.int32)
+        np.add.at(adj, (diag_ids, diag_ids), 1)
+
+        diag = np.diag(adj)
+        denom = np.maximum(diag, 1)
+        adj = adj / (denom[:, None] * 2)
+        np.fill_diagonal(adj, 1)
+
+        # Run the least squares solver using torch on CUDA if available, otherwise use MPS on Mac, else CPU.
+        device = torch.device(
+            "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")
+        )
+        adjacency_matrix_torch = torch.from_numpy(adj).to(device)
+        means_torch = torch.from_numpy(means).to(device)
         results_torch = torch.linalg.lstsq(adjacency_matrix_torch, means_torch).solution
-
-        # Convert the result back to a numpy array if needed
-        # Convert the result back to a numpy array if needed
-        results = results_torch.numpy()
-        compensated_means = np.maximum(results, np.zeros(results.shape))
+        results = results_torch.cpu().numpy()  # Move results back to CPU for further computations
+        compensated_means = np.maximum(results, 0)
 
         return compensated_means, means, channel_counts[:, 0]
 
@@ -641,7 +716,11 @@ def compensate_cell_matrix(df, image_dict, masks, overwrite=True):
     )
 
     masks = masks.squeeze()
-    image_list = [image_dict[channel_name] for channel_name in image_dict.keys()]
+    image_list = [
+        image_dict[channel_name]
+        for channel_name in image_dict.keys()
+        if channel_name != "segmentation_channel"
+    ]
 
     # Stack the 2D numpy arrays along the third dimension to create a 3D numpy array
     image = np.stack(image_list, axis=-1)
@@ -655,15 +734,14 @@ def compensate_cell_matrix(df, image_dict, masks, overwrite=True):
     ) = processor.compute_channel_means_sums_compensated(image)
 
     # Get the keys
-    keys = list(image_dict.keys())
+    keys = [channel for channel in image_dict.keys() if channel != "segmentation_channel"]
 
-    # Cycle over the keys
-    for i in range(len(keys)):
-        # Add the compensated_means to the DataFrame with column names from keys
-
-        if overwrite == True:
-            df[keys[i]] = compensated_means[:, i]
-        else:
-            df[keys[i] + "_compensated"] = compensated_means[:, i]
+    if overwrite:
+        new_cols = pd.DataFrame(compensated_means, columns=keys, index=df.index)
+        df.update(new_cols)
+    else:
+        new_keys = [k + "_compensated" for k in keys]
+        new_cols = pd.DataFrame(compensated_means, columns=new_keys, index=df.index)
+        df = pd.concat([df, new_cols], axis=1)
 
     return df
