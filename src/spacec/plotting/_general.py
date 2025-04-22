@@ -3735,6 +3735,8 @@ def plot_top_n_distances(
     dist_data_filt,
     n=5,
     colors=None,
+    interaction_col="interaction",
+    condition_col="condition",
     dodge=False,
     savefig=False,
     output_fname="",
@@ -3768,9 +3770,9 @@ def plot_top_n_distances(
     if errorbars == True:
         g = sns.catplot(
             data=exploded_df,
-            x="condition",
+            x=condition_col,
             y="observed",
-            hue="interaction",
+            hue=interaction_col,
             capsize=0.2,
             palette=colors,
             errorbar="se",
@@ -3782,9 +3784,9 @@ def plot_top_n_distances(
     else:
         g = sns.catplot(
             data=exploded_df,
-            x="condition",
+            x=condition_col,
             y="observed",
-            hue="interaction",
+            hue=interaction_col,
             capsize=0.2,
             palette=colors,
             kind="point",

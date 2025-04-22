@@ -1328,11 +1328,11 @@ def add_missing_columns(
         triangulation_distances[column] = pd.NA
         # Create a mapping from unique_region to tissue in metadata
         region_to_tissue = pd.Series(
-            metadata[column].values, index=metadata["unique_region"]
+            metadata[column].values, index=metadata[shared_column]
         ).to_dict()
 
         # Apply this mapping to the triangulation_distances dataframe to create/update the tissue column
-        triangulation_distances[column] = triangulation_distances["unique_region"].map(
+        triangulation_distances[column] = triangulation_distances[shared_column].map(
             region_to_tissue
         )
 
@@ -1373,11 +1373,11 @@ def identify_interactions(
     cell_type,
     region,
     comparison,
+    triDist_keyname=None,
     min_observed=10,
     distance_threshold=128,
     num_cores=None,
     num_iterations=1000,
-    key_name=None,
     correct_dtype=False,
     aggregate_per_cell=True,
 ):
@@ -1400,8 +1400,6 @@ def identify_interactions(
         Column name for region.
     comparison : str
         Column name for comparison.
-    iTriDist_keyname : str, optional
-        Key name for iterative triangulation distances, by default None
     triDist_keyname : str, optional
         Key name for triangulation distances, by default None
     min_observed : int, optional
@@ -1412,15 +1410,16 @@ def identify_interactions(
         Number of cores to use for computation, by default None
     num_iterations : int, optional
         Number of iterations for computation, by default 1000
-    key_name : str, optional
-        Key name for output, by default None
     correct_dtype : bool, optional
         Whether to correct data type or not, by default False
 
     Returns
     -------
-    DataFrame
-        DataFrame with p-values and logfold changes for interactions.
+    dict
+        Dictionary with the following keys and values:
+          "distance_pvals": DataFrame with p-values and logfold changes for interactions.
+          "triangulation_distances_observed": DataFrame with the observed cell-cell distances computed from the triangulation
+          "triangulation_distances_iterated": DataFrame with the cell-cell distances computed from the triangulation following random iteration
     """
     df_input = pd.DataFrame(adata.obs)
     if cellid in df_input.columns:
@@ -1444,7 +1443,7 @@ def identify_interactions(
         num_cores=num_cores,
         correct_dtype=correct_dtype,
     )
-    if key_name is None:
+    if triDist_keyname is None:
         triDist_keyname = "triDist"
     adata.uns[triDist_keyname] = triangulation_distances
     print("Save triangulation distances output to anndata.uns " + triDist_keyname)
@@ -1462,7 +1461,7 @@ def identify_interactions(
         num_iterations=num_iterations,
     )
 
-    metadata = df_input.loc[:, ["unique_region", comparison]].copy()
+    metadata = df_input.loc[:, [region, comparison]].copy()
     # Reformat observed dataset
     triangulation_distances_long = add_missing_columns(
         triangulation_distances, metadata, shared_column=region
@@ -1550,11 +1549,11 @@ def identify_interactions(
     # create dictionary for the results
     triangulation_distances_dict = {
         "distance_pvals": distance_pvals,
-        "triangulation_distances_observed": iterated_triangulation_distances_long,
-        "triangulation_distances_iterated": triangulation_distances_long,
+        "triangulation_distances_observed": triangulation_distances_long,
+        "triangulation_distances_iterated": iterated_triangulation_distances_long,
     }
 
-    return distance_pvals, triangulation_distances_dict
+    return triangulation_distances_dict
 
 
 def adata_cell_percentages(adata, column_percentage="cell_type"):
