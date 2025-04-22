@@ -419,9 +419,17 @@ def cell_segmentation(
             nuclei_channel
         ].shape  # or any other channel
         # Resize the masks back to the original size
-        masks = cv2.resize(
-            masks, (original_width, original_height), interpolation=cv2.INTER_NEAREST
+        # Use float32 instead of unit 32 when dealing with image containing ober 65535 cells.
+        # Refer to MouseLand/cellpose issue 938.
+        if masks.dtype == 'uint32':
+            masks = cv2.resize(
+                    masks.astype("float32"), (original_width, original_height),
+                    interpolation=cv2.INTER_NEAREST).round().astype("uint32")
+        else:
+            masks = cv2.resize(
+                    masks, (original_width, original_height), interpolation=cv2.INTER_NEAREST
         )
+        
         print("Quantifying features after segmentation!")
         extract_features(
             image_dict=image_dict,  # image dictionary
