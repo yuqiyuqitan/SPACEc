@@ -79,7 +79,6 @@ extensions = [
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
 
-
 # Enable markdown
 # extensions.append("myst_parser")
 extensions.append("myst_nb")
@@ -143,7 +142,8 @@ release = version
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", ".venv"]
+# Note: Exclude the archive subpackage from documentation: `spacec.archive.rst`
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", ".venv", "api/spacec.archive.rst"]
 
 # The reST default role (used for this markup: `text`) to use for all documents.
 # default_role = None
@@ -171,6 +171,7 @@ pygments_style = "sphinx"
 # If this is True, todo emits a warning for each TODO entries. The default is False.
 todo_emit_warnings = True
 
+autodoc_mock_imports = ['tensorflow']
 
 # -- Options for HTML output -------------------------------------------------
 
@@ -329,6 +330,8 @@ def copy_notebooks(folder):
 
     notebooks_dir = os.path.join(__location__, folder)
     if not os.path.exists(notebooks_dir):
+        # create notebooks directory
+        print(f"creating {notebooks_dir} ...", file=sys.stderr)
         os.mkdir(notebooks_dir)
     else:
         # remove old notebooks
@@ -336,7 +339,9 @@ def copy_notebooks(folder):
             if notebook.endswith(".ipynb"):
                 os.remove(os.path.join(notebooks_dir, notebook))
 
+    print(f"copying {len(notebooks)} notebooks to {notebooks_dir} ...", file=sys.stderr)
     for notebook in notebooks:
+        print(notebook, file=sys.stderr)
         shutil.copy(notebook, notebooks_dir)
 
     print("done!", file=sys.stderr)
