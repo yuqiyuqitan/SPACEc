@@ -79,7 +79,6 @@ extensions = [
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
 
-
 # Enable markdown
 # extensions.append("myst_parser")
 extensions.append("myst_nb")
@@ -97,7 +96,7 @@ myst_enable_extensions = [
     "substitution",
     "tasklist"
 ]
-jupyter_execute_notebooks = "off"
+nb_execution_mode = "off"
 
 # The suffix of source filenames.
 source_suffix = [".rst", ".md"]
@@ -110,7 +109,7 @@ master_doc = "index"
 
 # General information about the project.
 project = "SPACEc"
-copyright = "2024, Yuqi Tan, Tim Kempchen, Martin Becker"
+copyright = "2025, Yuqi Tan, Tim Kempchen, Martin Becker"
 author = "Yuqi Tan, Tim Kempchen, Martin Becker"
 
 # The version info for the project you're documenting, acts as replacement for
@@ -127,7 +126,7 @@ except ImportError:
     version = ""
 
 if not version or version.lower() == "unknown":
-    version = os.getenv("READTHEDOCS_VERSION", "unknown")  # automatically set by RTD
+    version = os.getenv("READTHEDOCS_VERSION", "")  # automatically set by RTD
 
 release = version
 
@@ -143,7 +142,8 @@ release = version
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", ".venv"]
+# Note: Exclude the archive subpackage from documentation: `spacec.archive.rst`
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", ".venv", "api/spacec.archive.rst"]
 
 # The reST default role (used for this markup: `text`) to use for all documents.
 # default_role = None
@@ -171,6 +171,7 @@ pygments_style = "sphinx"
 # If this is True, todo emits a warning for each TODO entries. The default is False.
 todo_emit_warnings = True
 
+autodoc_mock_imports = ['tensorflow', 'deepcell']
 
 # -- Options for HTML output -------------------------------------------------
 
@@ -184,7 +185,10 @@ html_theme = "sphinx_rtd_theme"
 html_theme_options = {
     # "sidebar_width": "300px",
     # "page_width": "1200px"
+    'logo_only': True,
 }
+
+html_css_files = ["custom.css"]
 
 # Add any paths that contain custom themes here, relative to this directory.
 # html_theme_path = []
@@ -308,17 +312,39 @@ intersphinx_mapping = {
 
 print(f"loading configurations for {project} {version} ...", file=sys.stderr)
 
-# copy notebooks to docs
-print("copying notebooks to docs ...", file=sys.stderr)
-notebooks_dir = os.path.join(__location__, "../notebooks")
-notebooks = os.listdir(notebooks_dir)
-notebooks = [notebook for notebook in notebooks if notebook.endswith(".ipynb")]
-notebooks = [os.path.join(notebooks_dir, notebook) for notebook in notebooks]
 
-notebooks_dir = os.path.join(__location__, "tutorials")
-if not os.path.exists(notebooks_dir):
-    os.mkdir(notebooks_dir)
+def copy_notebooks(folder):
 
-for notebook in notebooks:
-    shutil.copy(notebook, notebooks_dir)
-print("done!", file=sys.stderr)
+    # copy notebooks to docs
+    print("copying notebooks to docs ...", file=sys.stderr)
+
+    # get filenames
+    notebooks_dir = os.path.join(__location__, "..", "notebooks", folder)
+    notebooks = os.listdir(notebooks_dir)
+
+    # filter notebooks
+    notebooks = [notebook for notebook in notebooks if notebook.endswith(".ipynb")]
+
+    # get full paths to notebooks
+    notebooks = [os.path.join(notebooks_dir, notebook) for notebook in notebooks]
+
+    notebooks_dir = os.path.join(__location__, folder)
+    if not os.path.exists(notebooks_dir):
+        # create notebooks directory
+        print(f"creating {notebooks_dir} ...", file=sys.stderr)
+        os.mkdir(notebooks_dir)
+    else:
+        # remove old notebooks
+        for notebook in os.listdir(notebooks_dir):
+            if notebook.endswith(".ipynb"):
+                os.remove(os.path.join(notebooks_dir, notebook))
+
+    print(f"copying {len(notebooks)} notebooks to {notebooks_dir} ...", file=sys.stderr)
+    for notebook in notebooks:
+        print(notebook, file=sys.stderr)
+        shutil.copy(notebook, notebooks_dir)
+
+    print("done!", file=sys.stderr)
+
+copy_notebooks("tutorials")
+copy_notebooks("examples")

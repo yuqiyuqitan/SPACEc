@@ -6,6 +6,7 @@ tests/models
 tests/example_data
 models
 docs/tutorials
+docs/examples
 
 .DS_Store
 # Byte-compiled / optimized / DLL files

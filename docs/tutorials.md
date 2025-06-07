@@ -5,8 +5,4 @@
 :glob:
 
 tutorials/*
-<<<<<<< HEAD
 ```
-=======
-```
->>>>>>> master

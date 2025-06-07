@@ -5,17 +5,25 @@ This is SPACEc (SPatial Analysis for CodEX data).
 ## Contents
 
 ```{toctree}
+:caption: General
 :maxdepth: 3
 
 Overview <readme>
 
+API <api/modules>
+
 Tutorials <tutorials>
+Examples <examples>
+```
+
+```{toctree}
+:caption: Other
+:maxdepth: 3
 
 Contributions & Help <contributing>
 License <license>
 Authors <authors>
 Changelog <changelog>
-Module Reference <api/modules>
 ```
 
 ## Indices and tables
