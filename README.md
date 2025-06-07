@@ -15,7 +15,8 @@
 
 ## In-depth introduction to SPACEc
 
-<iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/dmbzcxnABDY?si=R1U4FOZVsbnF9P7C" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+For an in-depth introduction to SPACEc, take a look at this [YouTube video](https://www.youtube.com/watch?v=dmbzcxnABDY).
+<a href="https://www.youtube.com/watch?v=dmbzcxnABDY"><img src="https://raw.githubusercontent.com/yuqiyuqitan/SPACEc/master/docs/youtube.jpg"></a>
 
 ## Installation notes
 
