@@ -1,7 +1,5 @@
-============
-Contributors
-============
+# Contributors
 
-* yuqiyuqitan <tanyuqi527@gmail.com>
-* Martin Becker <martin.becker@uni-rostock.de>
+* Yuqi Tan <tanyuqi527@gmail.com>
+* Martin Becker <becker@informatik.uni-wuerzburg.de>
 * Tim Kempchen <tim.kempchen@gmail.com>
