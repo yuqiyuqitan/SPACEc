@@ -1,0 +1,5 @@
+# exclude
+prune tests
+prune notebooks
+prune Docker
+prune docs
