@@ -13,6 +13,12 @@
 
 ![SPACEc](https://raw.githubusercontent.com/yuqiyuqitan/SPACEc/master/docs/overview.png)
 
+## In-depth introduction to SPACEc
+
+For an in-depth introduction to SPACEc, take a look at this [YouTube video](https://www.youtube.com/watch?v=dmbzcxnABDY).
+
+<a href="https://www.youtube.com/watch?v=dmbzcxnABDY"><img src="https://raw.githubusercontent.com/yuqiyuqitan/SPACEc/master/docs/youtube.jpg"></a>
+
 ## Installation notes
 
 **Note**: We currently support Python==`3.9` and `3.10`.
