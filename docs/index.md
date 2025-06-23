@@ -1,8 +1,9 @@
 # SPACEc
 
-This is SPACEc (SPatial Analysis for CodEX data).
-
-## Contents
+```{include} ../README.md
+:relative-docs: docs/
+:relative-images:
+```
 
 ```{toctree}
 :caption: General
