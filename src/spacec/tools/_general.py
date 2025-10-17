@@ -1303,9 +1303,9 @@ def add_missing_columns(
     for column in missing_columns:
         triangulation_distances[column] = pd.NA
         region_to_tissue = pd.Series(
-            metadata[column].values, index=metadata["unique_region"]
+            metadata[column].values, index=metadata[shared_column]
         ).to_dict()
-        triangulation_distances[column] = triangulation_distances["unique_region"].map(
+        triangulation_distances[column] = triangulation_distances[shared_column].map(
             region_to_tissue
         )
         triangulation_distances[column].fillna("Unknown", inplace=True)
