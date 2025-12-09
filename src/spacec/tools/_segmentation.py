@@ -14,7 +14,7 @@ import skimage
 import skimage.io
 import tensorflow as tf
 import tifffile
-from cellpose import models  # Renamed import
+from cellpose import models as cellpose_models # fixed
 from cellpose import io
 from deepcell.applications import Mesmer
 from deepcell.utils.plot_utils import create_rgb_image, make_outline_overlay
