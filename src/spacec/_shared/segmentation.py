@@ -2,7 +2,7 @@ import os
 
 import numpy as np
 from skimage import io
-
+import pathlib
 
 def create_multichannel_tiff(input_dir, output_dir, output_filename):
     """
@@ -284,3 +284,4 @@ def format_CODEX(
     except Exception as e:
         print(f"Error during image formatting ({input_format}): {e}")
         return None, None
+
