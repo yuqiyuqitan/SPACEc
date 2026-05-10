@@ -48,7 +48,9 @@ def apply_publication_style() -> None:
     )
 
 
-def get_categorical_palette(n_colors: int, palette: str = DEFAULT_DISCRETE_PALETTE):
+def get_categorical_palette(
+    n_colors: int, palette: str = DEFAULT_DISCRETE_PALETTE
+) -> list[tuple[float, float, float]]:
     """Return a deterministic categorical palette."""
     return sns.color_palette(palette, n_colors=n_colors)
 
@@ -81,6 +83,11 @@ def save_figure(
         Whether the background is transparent, by default True.
     bbox_inches : str, optional
         Bounding box mode, by default "tight".
+
+    Returns
+    -------
+    list[pathlib.Path]
+        Paths of all written figure files.
     """
     outdir = Path(output_dir)
     outdir.mkdir(parents=True, exist_ok=True)

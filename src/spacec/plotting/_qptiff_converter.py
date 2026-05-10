@@ -50,6 +50,11 @@ def tissue_lables(
     else:
         plt.show()
 
+
+def tissue_labels(*args, **kwargs):
+    """Alias for :func:`tissue_lables` with corrected spelling."""
+    return tissue_lables(*args, **kwargs)
+
     fig, ax = plt.subplots()
     ax.scatter(centroids["x"], centroids["y"])
     ax.invert_yaxis()
