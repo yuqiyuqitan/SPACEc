@@ -12,6 +12,8 @@ import seaborn as sns
 import torch
 from scipy.stats import norm, zscore
 
+from ..config import SPACEC_CONFIG
+
 
 # read the data frame output from the segmentation functions
 def read_segdf(
@@ -181,7 +183,14 @@ def filter_data(
     return df_nuc
 
 
-def format(data, list_out, list_keep, method="zscore", ArcSin_cofactor=150):
+def format(
+    data,
+    list_out,
+    list_keep,
+    method="zscore",
+    arcsin_cofactor=SPACEC_CONFIG.preprocessing.arcsin_cofactor,
+    **kwargs,
+):
     """
     This function formats the data based on the specified method. It supports four methods: "zscore", "double_zscore", "MinMax", and "ArcSin".
 
@@ -195,7 +204,7 @@ def format(data, list_out, list_keep, method="zscore", ArcSin_cofactor=150):
         The list of columns to be kept in the data.
     method : str, optional
         The method to be used for normalizing the data. It can be "zscore", "double_zscore", "MinMax", or "ArcSin". By default, it is "zscore".
-    ArcSin_cofactor : int, optional
+    arcsin_cofactor : int, optional
         The cofactor to be used in the ArcSin transformation. By default, it is 150.
 
     Returns
@@ -208,6 +217,11 @@ def format(data, list_out, list_keep, method="zscore", ArcSin_cofactor=150):
     ValueError
         If the specified method is not supported.
     """
+
+    if "ArcSin_cofactor" in kwargs:
+        arcsin_cofactor = kwargs.pop("ArcSin_cofactor")
+    if kwargs:
+        raise TypeError(f"Unexpected keyword arguments: {', '.join(kwargs)}")
 
     list = ["zscore", "double_zscore", "MinMax", "ArcSin"]
 
@@ -232,7 +246,7 @@ def format(data, list_out, list_keep, method="zscore", ArcSin_cofactor=150):
 
         # parameters seit in function
         # Only decrease the background if the median is higher than the background
-        dfa = dfas.apply(lambda x: np.arcsinh(x / ArcSin_cofactor))
+        dfa = dfas.apply(lambda x: np.arcsinh(x / arcsin_cofactor))
 
         # Add back labels for normalization type
         dfz_all = pd.concat([dfa, df_loc], axis=1, join="inner")
@@ -336,7 +350,7 @@ def format(data, list_out, list_keep, method="zscore", ArcSin_cofactor=150):
 
 # Only useful for "classic CODEX" where samples are covered by multiple regions
 # Could also be used for montages of multiple samples (tiles arraged in grid)
-def xycorr(data, y_rows, x_columns, X_pix, Y_pix):
+def xycorr(data, y_rows, x_columns, x_pix, y_pix, **kwargs):
     """
     Corrects the x and y coordinates of the data for "classic CODEX" where samples are covered by multiple regions.
     This function could also be used for montages of multiple samples (tiles arranged in a grid).
@@ -349,9 +363,9 @@ def xycorr(data, y_rows, x_columns, X_pix, Y_pix):
         The number of rows in the y direction.
     x_columns : int
         The number of columns in the x direction.
-    X_pix : int
+    x_pix : int
         The number of pixels in the x direction.
-    Y_pix : int
+    y_pix : int
         The number of pixels in the y direction.
 
     Returns
@@ -359,6 +373,13 @@ def xycorr(data, y_rows, x_columns, X_pix, Y_pix):
     DataFrame
         The corrected data with added 'Xcorr' and 'Ycorr' columns representing the corrected x and y coordinates respectively.
     """
+    if "X_pix" in kwargs:
+        x_pix = kwargs.pop("X_pix")
+    if "Y_pix" in kwargs:
+        y_pix = kwargs.pop("Y_pix")
+    if kwargs:
+        raise TypeError(f"Unexpected keyword arguments: {', '.join(kwargs)}")
+
     # Make a copy for xy correction
     df_XYcorr = data.copy()
     df_XYcorr["Xcorr"] = 0
@@ -378,13 +399,13 @@ def xycorr(data, y_rows, x_columns, X_pix, Y_pix):
     for reg_num in list(df_XYcorr["regloop"].unique()):
         df_XYcorr["Xcorr"].loc[df_XYcorr["regloop"] == reg_num] = (
             df_XYcorr["x"].loc[df_XYcorr["regloop"] == reg_num]
-            + dict_corr[reg_num][1] * X_pix
+            + dict_corr[reg_num][1] * x_pix
         )
 
     for reg_num in list(df_XYcorr["regloop"].unique()):
         df_XYcorr["Ycorr"].loc[df_XYcorr["regloop"] == reg_num] = (
             df_XYcorr["y"].loc[df_XYcorr["regloop"] == reg_num]
-            + dict_corr[reg_num][0] * Y_pix
+            + dict_corr[reg_num][0] * y_pix
         )
 
     df_XYcorr.drop(columns=["regloop"], inplace=True)

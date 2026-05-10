@@ -31,7 +31,7 @@ from tqdm.notebook import (
 from .._shared.segmentation import (
     combine_channels,
     create_multichannel_tiff,
-    format_CODEX,
+    format_codex,
 )
 
 
@@ -66,13 +66,13 @@ def load_image_dictionary(file_name, channel_file, input_format, nuclei_channel)
     try:
         if input_format == "Channels":
             # file_name is the directory path
-            # format_CODEX now uses tifffile internally for 'Channels'
-            image_dict, channel_names_list = format_CODEX(
+            # format_codex now uses tifffile internally for 'Channels'
+            image_dict, channel_names_list = format_codex(
                 image=file_name,
                 input_format=input_format,
             )
             if image_dict is None:
-                raise ValueError("Image formatting failed.")  # Check format_CODEX error
+                raise ValueError("Image formatting failed.")  # Check format_codex error
 
             if nuclei_channel not in image_dict:
                 raise ValueError(
@@ -117,7 +117,7 @@ def load_image_dictionary(file_name, channel_file, input_format, nuclei_channel)
                     f"Inferred CODEX params: Cycles={number_cycles}, Channels/Cycle={images_per_cycle}"
                 )
 
-            image_dict, channel_names_list = format_CODEX(
+            image_dict, channel_names_list = format_codex(
                 image=loaded_img,
                 channel_names=channel_names_from_file,
                 number_cycles=number_cycles,
@@ -125,7 +125,7 @@ def load_image_dictionary(file_name, channel_file, input_format, nuclei_channel)
                 input_format=input_format,
             )
             if image_dict is None:
-                raise ValueError("Image formatting failed.")  # Check format_CODEX error
+                raise ValueError("Image formatting failed.")  # Check format_codex error
 
             if nuclei_channel not in image_dict:
                 raise ValueError(

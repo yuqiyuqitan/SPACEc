@@ -13,7 +13,7 @@ from ._general import (
     stacked_bar_plot,
     zcount_thres,
 )
-from ._qptiff_converter import tissue_lables
+from ._qptiff_converter import tissue_labels, tissue_lables
 from ._segmentation import segmentation_ch, show_masks
 
 __all__ = [
@@ -35,6 +35,7 @@ __all__ = [
     "plot_top_n_distances",
     "distance_graph",
     # qptiff converter
+    "tissue_labels",
     "tissue_lables",
     "ppa_res_donut",
 ]

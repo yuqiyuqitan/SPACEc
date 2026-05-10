@@ -1,3 +1,5 @@
+import warnings
+
 # this file contains legacy code that is no longer used in the project
 # it is kept here for reference purposes
 
@@ -77,7 +79,7 @@ def tl_cell_types_de(
 #########
 
 
-def tl_Create_neighborhoods(
+def tl_create_neighborhoods(
     df, n_num, cluster_col, X, Y, regions, sum_cols=None, keep_cols=None, ks=[20]
 ):
     if sum_cols == None:
@@ -94,10 +96,31 @@ def tl_Create_neighborhoods(
     return (windows, sum_cols)
 
 
+def tl_Create_neighborhoods(
+    df, n_num, cluster_col, X, Y, regions, sum_cols=None, keep_cols=None, ks=[20]
+):
+    warnings.warn(
+        "`tl_Create_neighborhoods` is deprecated; use `tl_create_neighborhoods`.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return tl_create_neighborhoods(
+        df=df,
+        n_num=n_num,
+        cluster_col=cluster_col,
+        X=X,
+        Y=Y,
+        regions=regions,
+        sum_cols=sum_cols,
+        keep_cols=keep_cols,
+        ks=ks,
+    )
+
+
 ######
 
 
-def tl_Chose_window_size(
+def tl_choose_window_size(
     windows, n_num, n_neighborhoods, sum_cols, n2_name="neigh_ofneigh"
 ):
     # Choose the windows size to continue with
@@ -111,6 +134,23 @@ def tl_Chose_window_size(
     w[n2_name] = labels
 
     return (w, k_centroids)
+
+
+def tl_Chose_window_size(
+    windows, n_num, n_neighborhoods, sum_cols, n2_name="neigh_ofneigh"
+):
+    warnings.warn(
+        "`tl_Chose_window_size` is deprecated; use `tl_choose_window_size`.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return tl_choose_window_size(
+        windows=windows,
+        n_num=n_num,
+        n_neighborhoods=n_neighborhoods,
+        sum_cols=sum_cols,
+        n2_name=n2_name,
+    )
 
 
 #######
@@ -172,7 +212,14 @@ def tl_spatial_context_stats(
     return (simp_df_tissue1, simp_df_tissue2)
 
 
-def tl_xycorr(df, sample_col, y_rows, x_columns, X_pix, Y_pix):
+def tl_xycorr(df, sample_col, y_rows, x_columns, x_pix, y_pix, **kwargs):
+    if "X_pix" in kwargs:
+        x_pix = kwargs.pop("X_pix")
+    if "Y_pix" in kwargs:
+        y_pix = kwargs.pop("Y_pix")
+    if kwargs:
+        raise TypeError(f"Unexpected keyword arguments: {', '.join(kwargs)}")
+
     # Make a copy for xy correction
     df_XYcorr = df.copy()
 
@@ -197,7 +244,7 @@ def tl_xycorr(df, sample_col, y_rows, x_columns, X_pix, Y_pix):
                 df_XYcorr["x"].loc[
                     (df_XYcorr["region"] == x) & (df_XYcorr[sample_col] == sample)
                 ]
-                + dict_corr[x][1] * X_pix
+                + dict_corr[x][1] * x_pix
             )
 
         for x in range(1, region_num + 1, 1):
@@ -207,7 +254,7 @@ def tl_xycorr(df, sample_col, y_rows, x_columns, X_pix, Y_pix):
                 df_XYcorr["y"].loc[
                     (df_XYcorr["region"] == x) & (df_XYcorr[sample_col] == sample)
                 ]
-                + dict_corr[x][0] * Y_pix
+                + dict_corr[x][0] * y_pix
             )
 
     return df_XYcorr

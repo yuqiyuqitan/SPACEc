@@ -94,6 +94,7 @@ from yellowbrick.cluster import KElbowVisualizer
 if TYPE_CHECKING:
     from anndata import AnnData
 
+from ..config import SPACEC_CONFIG
 from ..helperfunctions._general import *
 from ..plotting._general import catplot
 
@@ -330,7 +331,7 @@ def clustering(
     if reclustering:
         if clustering == "leiden_gpu":
             print("Clustering on GPU")
-            anndata_to_GPU(adata)  # moves `.X` to the GPU
+            anndata_to_gpu(adata)  # moves `.X` to the GPU
             rsc.tl.leiden(
                 adata,
                 resolution=resolution,
@@ -338,7 +339,7 @@ def clustering(
                 random_state=seed,
                 **cluster_kwargs,
             )
-            anndata_to_CPU(adata)  # moves `.X` to the CPU
+            anndata_to_cpu(adata)  # moves `.X` to the CPU
         else:
             print("Clustering")
             if clustering == "leiden":
@@ -381,7 +382,7 @@ def clustering(
                     adata.obs[key_added] = clusters
     else:
         if clustering == "leiden_gpu":
-            anndata_to_GPU(adata)  # moves `.X` to the GPU
+            anndata_to_gpu(adata)  # moves `.X` to the GPU
             print("Computing neighbors and UMAP on GPU")
             rsc.pp.neighbors(adata, n_neighbors=n_neighbors)
             # UMAP computation
@@ -391,7 +392,7 @@ def clustering(
             rsc.tl.leiden(
                 adata, resolution=resolution, key_added=key_added, random_state=seed
             )
-            anndata_to_CPU(adata)  # moves `.X` to the CPU
+            anndata_to_cpu(adata)  # moves `.X` to the CPU
 
         else:
 
@@ -2648,7 +2649,7 @@ def tm_viewer_catplot(
     return csv_paths
 
 
-def install_gpu_leiden(CUDA="12"):
+def install_gpu_leiden(CUDA=SPACEC_CONFIG.runtime.cuda_version):
     """
     Install the necessary packages for GPU-accelerated Leiden clustering.
 
@@ -2699,7 +2700,7 @@ def install_gpu_leiden(CUDA="12"):
                 print(f"Error:\n{stderr.decode()}")
 
 
-def anndata_to_GPU(
+def anndata_to_gpu(
     adata: AnnData,
     layer: str | None = None,
     convert_all: bool = False,
@@ -2726,10 +2727,10 @@ def anndata_to_GPU(
     adata_gpu = adata.copy()
 
     if convert_all:
-        anndata_to_GPU(adata_gpu)
+        anndata_to_gpu(adata_gpu)
         if adata_gpu.layers:
             for key in adata_gpu.layers.keys():
-                anndata_to_GPU(adata_gpu, layer=key)
+                anndata_to_gpu(adata_gpu, layer=key)
     else:
         X = _get_obs_rep(adata_gpu, layer=layer)
         if isspmatrix_csr_cpu(X):
@@ -2749,7 +2750,7 @@ def anndata_to_GPU(
     return adata_gpu
 
 
-def anndata_to_CPU(
+def anndata_to_cpu(
     adata: AnnData,
     layer: str | None = None,
     convert_all: bool = False,
@@ -2781,10 +2782,10 @@ def anndata_to_CPU(
         adata = adata.copy()
 
     if convert_all:
-        anndata_to_CPU(adata)
+        anndata_to_cpu(adata)
         if adata.layers:
             for key in adata.layers.keys():
-                anndata_to_CPU(adata, layer=key)
+                anndata_to_cpu(adata, layer=key)
     else:
         X = _get_obs_rep(adata, layer=layer)
         if isspmatrix_csr_gpu(X):
@@ -2802,7 +2803,41 @@ def anndata_to_CPU(
         return adata
 
 
-def install_stellar(CUDA=12):
+def anndata_to_GPU(
+    adata: AnnData,
+    layer: str | None = None,
+    convert_all: bool = False,
+) -> AnnData:
+    warnings.warn(
+        "`anndata_to_GPU` is deprecated and will be removed in a future release. "
+        "Use `anndata_to_gpu` instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return anndata_to_gpu(adata=adata, layer=layer, convert_all=convert_all)
+
+
+def anndata_to_CPU(
+    adata: AnnData,
+    layer: str | None = None,
+    convert_all: bool = False,
+    copy: bool = False,
+) -> AnnData | None:
+    warnings.warn(
+        "`anndata_to_CPU` is deprecated and will be removed in a future release. "
+        "Use `anndata_to_cpu` instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return anndata_to_cpu(
+        adata=adata,
+        layer=layer,
+        convert_all=convert_all,
+        copy=copy,
+    )
+
+
+def install_stellar(CUDA=int(SPACEC_CONFIG.runtime.cuda_version)):
     if CUDA == 12:
         subprocess.run(["pip", "install", "torch"], check=True)
         subprocess.run(["pip", "install", "torch_geometric"], check=True)

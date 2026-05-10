@@ -2,6 +2,7 @@
 import os as os
 import pathlib
 import textwrap
+import warnings
 
 import matplotlib.colors as mcolors
 import matplotlib.patches as mpatches
@@ -17,6 +18,7 @@ from scipy import stats
 from statsmodels.stats.multicomp import pairwise_tukeyhsd
 from tensorly.decomposition import non_negative_tucker
 
+from ..config import SPACEC_CONFIG
 from ..helperfunctions._general import *
 
 # Setup
@@ -1224,12 +1226,12 @@ Overall, this function provides a way to visually represent the relationships be
 """
 
 
-def pl_Visulize_CCA_results(
-    CCA_results,
+def pl_visualize_cca_results(
+    cca_results,
     output_dir,
     save_fig=False,
-    p_thresh=0.1,
-    save_name="CCA_vis.png",
+    p_thresh=SPACEC_CONFIG.plotting.cca_p_threshold,
+    save_name=SPACEC_CONFIG.plotting.cca_save_name,
     colors=None,
 ):
     """
@@ -1237,7 +1239,7 @@ def pl_Visulize_CCA_results(
 
     Parameters
     ----------
-    CCA_results : dict
+    cca_results : dict
         Dictionary containing the CCA results, where the keys are cell type pairs and
         the values are tuples of (observed correlation, permuted correlations).
     output_dir : str
@@ -1258,17 +1260,19 @@ def pl_Visulize_CCA_results(
 
     # Visualization of CCA
     g1 = nx.petersen_graph()
-    for cn_pair, cc in CCA_results.items():
+    for cn_pair, cc in cca_results.items():
         s, t = cn_pair
         obs, perms = cc
         p = np.mean(obs > perms)
         if p > p_thresh:
             g1.add_edge(s, t, weight=p)
 
-    if colors != None:
+    if colors is not None:
         pal = colors
     else:
-        pal = sns.color_palette("bright", 50)
+        pal = sns.color_palette(
+            SPACEC_CONFIG.plotting.cca_palette, SPACEC_CONFIG.plotting.cca_palette_size
+        )
 
     pos = nx.nx_agraph.graphviz_layout(g1, prog="neato")
     for k, v in pos.items():
@@ -1296,7 +1300,7 @@ def pl_Visulize_CCA_results(
             alpha=alpha,
             linewidth=3 * p**3,
         )
-    if save_fig == True:
+    if save_fig is True:
         plt.savefig(
             output_dir + "/" + save_name,
             format="png",
@@ -1304,6 +1308,30 @@ def pl_Visulize_CCA_results(
             transparent=True,
             bbox_inches="tight",
         )
+
+
+def pl_Visulize_CCA_results(
+    CCA_results,
+    output_dir,
+    save_fig=False,
+    p_thresh=SPACEC_CONFIG.plotting.cca_p_threshold,
+    save_name=SPACEC_CONFIG.plotting.cca_save_name,
+    colors=None,
+):
+    warnings.warn(
+        "`pl_Visulize_CCA_results` is deprecated and will be removed in a future "
+        "release. Use `pl_visualize_cca_results` instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return pl_visualize_cca_results(
+        cca_results=CCA_results,
+        output_dir=output_dir,
+        save_fig=save_fig,
+        p_thresh=p_thresh,
+        save_name=save_name,
+        colors=colors,
+    )
 
 
 #######

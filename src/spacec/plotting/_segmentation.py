@@ -6,7 +6,7 @@ import numpy as np
 import skimage.io
 from deepcell.utils.plot_utils import create_rgb_image, make_outline_overlay
 
-from .._shared.segmentation import combine_channels, format_CODEX
+from .._shared.segmentation import combine_channels, format_codex
 
 
 def segmentation_ch(
@@ -54,14 +54,14 @@ def segmentation_ch(
         with open(channel_file, "r") as f:
             channel_names = f.read().splitlines()
         # Function reads channels and stores them as a dictionary and returns the processed channel names
-        image_dict, _ = format_CODEX(
+        image_dict, _ = format_codex(
             image=img,
             channel_names=channel_names,
             input_format=input_format,
         )
     else:
         # In Channels format, file_name is the directory containing individual channel files
-        image_dict, _ = format_CODEX(
+        image_dict, _ = format_codex(
             image=file_name,
             channel_names=None,
             input_format=input_format,

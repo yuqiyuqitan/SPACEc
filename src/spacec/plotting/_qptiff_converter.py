@@ -1,7 +1,10 @@
 import matplotlib.pyplot as plt
+import warnings
+
+from ..config import SPACEC_CONFIG
 
 
-def tissue_lables(tissueframe, region="region1"):
+def tissue_labels(tissueframe, region=SPACEC_CONFIG.plotting.default_region_label):
     """
     Plot the tissue and region labels of the given DataFrame.
 
@@ -38,3 +41,13 @@ def tissue_lables(tissueframe, region="region1"):
 
     plt.title("Region labels")
     plt.show()
+
+
+def tissue_lables(tissueframe, region=SPACEC_CONFIG.plotting.default_region_label):
+    warnings.warn(
+        "`tissue_lables` is deprecated and will be removed in a future release. "
+        "Use `tissue_labels` instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return tissue_labels(tissueframe=tissueframe, region=region)

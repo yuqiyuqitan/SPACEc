@@ -1,5 +1,6 @@
 import os
 import pathlib
+import warnings
 
 import numpy as np
 from skimage import io
@@ -138,7 +139,7 @@ def combine_channels(image_dict, channel_list, new_channel_name):
     return image_dict
 
 
-def format_CODEX(
+def format_codex(
     image,
     channel_names=None,
     number_cycles=None,  # Required for CODEX format
@@ -148,24 +149,6 @@ def format_CODEX(
     """
     Formats image data into a dictionary based on the specified input format.
     Automatically detects number_cycles and images_per_cycle from image shape if not provided for CODEX format.
-
-    Memory Consideration:
-    - 'CODEX': Assumes 'image' (4D) is already loaded. Creates 2D slices, potentially duplicating data references.
-    - 'Multichannel': Assumes 'image' (3D) is already loaded. Creates 2D slices.
-    - 'Channels': Reads individual files using tifffile. Can be memory-intensive if many large files.
-
-    Parameters:
-        image (ndarray or str): Input image data (NumPy array for CODEX/Multichannel) or directory path (for Channels).
-        channel_names (list, optional): List of channel names. Required for CODEX/Multichannel.
-        number_cycles (int, optional): Number of cycles. If None for CODEX, inferred from image.shape[0].
-        images_per_cycle (int, optional): Number of channels per cycle. If None for CODEX, inferred from image.shape[3].
-        input_format (str): 'CODEX', 'Multichannel', or 'Channels'.
-
-    Returns:
-        tuple: (image_dict, channel_names_list)
-               image_dict (dict): Dictionary mapping channel names to 2D NumPy arrays.
-               channel_names_list (list): List of channel names processed.
-               Returns (None, None) on error.
     """
     image_dict = {}
     processed_channel_names = []
@@ -179,14 +162,11 @@ def format_CODEX(
                     f"CODEX input image must be 4D. Got shape: {image.shape}"
                 )
 
-            # --- Auto-detect cycles and images_per_cycle if not provided ---
             inferred_params = False
             if number_cycles is None:
                 number_cycles = image.shape[0]
                 inferred_params = True
             if images_per_cycle is None:
-                # Assuming CODEX format is (cycles, H, W, images_per_cycle)
-                # Adjust index if your CODEX format is different (e.g., (cycles, images_per_cycle, H, W))
                 images_per_cycle = image.shape[3]
                 inferred_params = True
 
@@ -194,9 +174,7 @@ def format_CODEX(
                 print(
                     f"Inferred CODEX parameters: Cycles={number_cycles}, Channels/Cycle={images_per_cycle} from image shape {image.shape}"
                 )
-            # --- End Auto-detection ---
 
-            # Validate dimensions after potential inference
             if image.shape[0] != number_cycles or image.shape[3] != images_per_cycle:
                 raise ValueError(
                     f"CODEX image shape {image.shape} incompatible with cycles={number_cycles}, images_per_cycle={images_per_cycle}. Expected (cycles, H, W, images_per_cycle)."
@@ -207,7 +185,6 @@ def format_CODEX(
                 print(
                     f"Warning: Provided {len(channel_names)} channel names, but expected {total_expected_images} based on cycles/images_per_cycle."
                 )
-                # Truncate expected images to match available names
                 total_expected_images = len(channel_names)
 
             print(
@@ -217,11 +194,9 @@ def format_CODEX(
             for i in range(number_cycles):
                 for n in range(images_per_cycle):
                     if idx >= total_expected_images:
-                        break  # Stop if we run out of channel names
+                        break
                     channel_name = channel_names[idx]
-                    # Extract the 2D image for this channel
-                    img_slice = image[i, :, :, n]
-                    image_dict[channel_name] = img_slice
+                    image_dict[channel_name] = image[i, :, :, n]
                     processed_channel_names.append(channel_name)
                     idx += 1
                 if idx >= total_expected_images:
@@ -240,7 +215,7 @@ def format_CODEX(
             print(f"Formatting Multichannel image ({len(channel_names)} channels)...")
             for i, name in enumerate(channel_names):
                 image_dict[name] = image[i, :, :]
-            processed_channel_names = list(channel_names)  # Use provided names
+            processed_channel_names = list(channel_names)
             print(f"Formatted {len(image_dict)} Multichannel channels.")
             return image_dict, processed_channel_names
 
@@ -251,7 +226,6 @@ def format_CODEX(
                 )
 
             print(f"Formatting 'Channels' from directory: {image}")
-            # Get sorted list of TIFF files
             tiff_files = sorted(
                 [f for f in os.listdir(image) if f.lower().endswith((".tiff", ".tif"))]
             )
@@ -261,14 +235,11 @@ def format_CODEX(
             channel_names_from_files = [os.path.splitext(f)[0] for f in tiff_files]
             print(f"Found channels: {channel_names_from_files}")
 
-            # Read images directly into dict using tifffile (Memory intensive if many large files)
             for i, f in enumerate(tiff_files):
                 channel_name = channel_names_from_files[i]
                 try:
                     img_path = os.path.join(image, f)
-                    image_dict[channel_name] = skimage.io.imread(
-                        img_path
-                    )  # Use tifffile
+                    image_dict[channel_name] = io.imread(img_path)
                     processed_channel_names.append(channel_name)
                 except Exception as e:
                     print(
@@ -285,3 +256,25 @@ def format_CODEX(
     except Exception as e:
         print(f"Error during image formatting ({input_format}): {e}")
         return None, None
+
+
+def format_CODEX(
+    image,
+    channel_names=None,
+    number_cycles=None,
+    images_per_cycle=None,
+    input_format="Multichannel",
+):
+    warnings.warn(
+        "`format_CODEX` is deprecated and will be removed in a future release. "
+        "Use `format_codex` instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return format_codex(
+        image=image,
+        channel_names=channel_names,
+        number_cycles=number_cycles,
+        images_per_cycle=images_per_cycle,
+        input_format=input_format,
+    )

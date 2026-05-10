@@ -50,7 +50,7 @@ def test_qptiff_converter():
         # Running the second cell relabels the region assignment of the specified tissue piece.
 
         # %%
-        sp.pl.tissue_lables(tissueframe=tissueframe, region="region1")
+        sp.pl.tissue_labels(tissueframe=tissueframe, region="region1")
 
         # %%
         # Rename the regions based on annotations
@@ -67,7 +67,7 @@ def test_qptiff_converter():
         tissueframe["region"] = tissueframe["region1"].map(tiss_num).copy()
         tiss_num
 
-        sp.pl.tissue_lables(tissueframe=tissueframe, region="region")
+        sp.pl.tissue_labels(tissueframe=tissueframe, region="region")
 
         tissueframe["region"].value_counts()
 
