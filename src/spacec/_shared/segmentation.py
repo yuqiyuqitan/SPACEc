@@ -3,7 +3,7 @@ import pathlib
 import warnings
 
 import numpy as np
-from skimage import io
+import skimage.io
 
 
 def create_multichannel_tiff(input_dir, output_dir, output_filename):
@@ -239,7 +239,7 @@ def format_codex(
                 channel_name = channel_names_from_files[i]
                 try:
                     img_path = os.path.join(image, f)
-                    image_dict[channel_name] = io.imread(img_path)
+                    image_dict[channel_name] = skimage.io.imread(img_path)
                     processed_channel_names.append(channel_name)
                 except Exception as e:
                     print(

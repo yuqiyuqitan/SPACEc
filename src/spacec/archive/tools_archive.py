@@ -82,10 +82,10 @@ def tl_cell_types_de(
 def tl_create_neighborhoods(
     df, n_num, cluster_col, X, Y, regions, sum_cols=None, keep_cols=None, ks=[20]
 ):
-    if sum_cols == None:
+    if sum_cols is None:
         sum_cols = df[cluster_col].unique()
 
-    if keep_cols == None:
+    if keep_cols is None:
         keep_cols = df.columns.values.tolist()
 
     Neigh = Neighborhoods(
