@@ -6,8 +6,10 @@ deepcell-tracking~=0.6.5
 jupyterlab
 
 # added for basic SPACEc functionality
-leidenalg
-louvain
+# pip installations on macOS arm64 frequently fail for these two packages.
+# keep them out of this environment and install manually if needed.
+leidenalg; sys_platform != "darwin" or platform_machine != "arm64"
+louvain; sys_platform != "darwin" or platform_machine != "arm64"
 matplotlib
 
 # Protobuf version override needed because
@@ -18,5 +20,5 @@ scikit-image>=0.19.3
 scipy>=1.2.3,<2
 spektral
 
-tensorflow-macos==2.10.0
-tensorflow-metal==0.6.0
+tensorflow-macos==2.10.0; python_version < "3.11"
+tensorflow-metal==0.6.0; python_version < "3.11"

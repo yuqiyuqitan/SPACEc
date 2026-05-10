@@ -9,3 +9,6 @@ Currently these files are mostly required for installations on Apple Silicon. Th
 - `requirements-deepcell-mac-arm64_tf210-metal.txt`: For Apple silicon (arm64), if you want `tensorflow==2.10.0`
 
 - `requirements-deepcell-mac-arm64_tf210.txt`: For Apple silicon (arm64) without support for `tensorflow-metal` (e.g., the macos runner on Github Actions). Uses `tensorflow==2.10.0`. We use this to enable to run our tests on Github Actions.
+
+These requirement files intentionally skip `leidenalg` and `louvain` on Apple silicon because pip installation is unreliable there.
+They also constrain `tensorflow-macos` / `tensorflow-metal` to Python `<3.11` to avoid unsupported wheel resolution.
