@@ -5,6 +5,8 @@ import pytest
 
 TEST_DIR = pathlib.Path(__file__).parent
 
+pytestmark = pytest.mark.slow
+
 
 def test_preprocessing_compensation():
     print("Testing compensation")

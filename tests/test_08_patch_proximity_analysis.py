@@ -1,6 +1,10 @@
 import pathlib
 
+import pytest
+
 TEST_DIR = pathlib.Path(__file__).parent
+
+pytestmark = pytest.mark.slow
 
 
 # @pytest.mark.slow

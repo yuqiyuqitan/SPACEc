@@ -1,7 +1,11 @@
 import pathlib
 from tempfile import TemporaryDirectory
 
+import pytest
+
 TEST_DIR = pathlib.Path(__file__).parent
+
+pytestmark = pytest.mark.slow
 
 
 def test_cell_annotation_ml():

@@ -16,6 +16,36 @@ def downscale_tissue(
     output_fname="",
     figsize=(10, 5),  # new parameter for figure size
 ):
+    """Load and downscale a qptiff nuclear channel image.
+
+    Parameters
+    ----------
+    file_path : str or pathlib.Path
+        Path to the input qptiff file.
+    DNAslice : int, default=0
+        Index of the channel to use as the nuclear image.
+    downscale_factor : int, default=64
+        Integer factor used to reduce image size in each spatial dimension.
+    sigma : float, default=5.0
+        Standard deviation for Gaussian smoothing after resizing.
+    padding : int, default=50
+        Unused legacy argument retained for backward compatibility.
+    savefig : bool, default=False
+        Whether to save the preview figure to disk.
+    showfig : bool, default=True
+        Whether to create and display/save the preview figure.
+    output_dir : str, default="./"
+        Output directory used when ``savefig=True``.
+    output_fname : str, default=""
+        Prefix used when writing the preview figure.
+    figsize : tuple[int, int], default=(10, 5)
+        Figure size used for preview plots.
+
+    Returns
+    -------
+    numpy.ndarray
+        The resized and smoothed nuclear image.
+    """
     print("Reading in the qptiff file, might take awhile!")
     currim = tifffile.imread(file_path)
     nucim = currim[DNAslice]
