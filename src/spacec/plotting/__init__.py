@@ -15,6 +15,9 @@ from ._general import (
 )
 from ._qptiff_converter import tissue_lables
 from ._segmentation import segmentation_ch, show_masks
+from ._style import apply_publication_style, get_categorical_palette, save_figure
+
+apply_publication_style()
 
 __all__ = [
     # segmentation
@@ -37,4 +40,7 @@ __all__ = [
     # qptiff converter
     "tissue_lables",
     "ppa_res_donut",
+    "apply_publication_style",
+    "save_figure",
+    "get_categorical_palette",
 ]

@@ -1,7 +1,19 @@
 import matplotlib.pyplot as plt
 
+from ._style import apply_publication_style, save_figure
 
-def tissue_lables(tissueframe, region="region1"):
+apply_publication_style()
+
+
+def tissue_lables(
+    tissueframe,
+    region="region1",
+    savefig=False,
+    output_dir="./",
+    output_fname="tissue_labels",
+    export_formats=("pdf", "svg", "png"),
+    dpi=300,
+):
     """
     Plot the tissue and region labels of the given DataFrame.
 
@@ -26,7 +38,17 @@ def tissue_lables(tissueframe, region="region1"):
         ax.annotate(txt, (list(centroids["x"])[i], list(centroids["y"])[i]))
 
     plt.title("Tissue piece labels")
-    plt.show()
+    if savefig:
+        save_figure(
+            fig=fig,
+            output_dir=output_dir,
+            output_fname=f"{output_fname}_tissue",
+            formats=export_formats,
+            dpi=dpi,
+        )
+        plt.close(fig)
+    else:
+        plt.show()
 
     fig, ax = plt.subplots()
     ax.scatter(centroids["x"], centroids["y"])
@@ -37,4 +59,14 @@ def tissue_lables(tissueframe, region="region1"):
         ax.annotate(int(txt), (list(centroids["x"])[i], list(centroids["y"])[i]))
 
     plt.title("Region labels")
-    plt.show()
+    if savefig:
+        save_figure(
+            fig=fig,
+            output_dir=output_dir,
+            output_fname=f"{output_fname}_region",
+            formats=export_formats,
+            dpi=dpi,
+        )
+        plt.close(fig)
+    else:
+        plt.show()

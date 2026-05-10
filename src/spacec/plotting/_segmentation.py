@@ -7,6 +7,9 @@ import skimage.io
 from deepcell.utils.plot_utils import create_rgb_image, make_outline_overlay
 
 from .._shared.segmentation import combine_channels, format_CODEX
+from ._style import apply_publication_style, save_figure
+
+apply_publication_style()
 
 
 def segmentation_ch(
@@ -18,6 +21,8 @@ def segmentation_ch(
     extra_seg_ch_list=None,  # channels used for membrane segmentation
     nuclei_channel="DAPI",
     input_format="Multichannel",
+    export_formats=("pdf", "svg", "png"),
+    dpi=300,
 ):
     """
     Plot the channel selected for segmentation.
@@ -97,16 +102,16 @@ def segmentation_ch(
     if savefig:
         # Ensure output directory exists
         os.makedirs(output_dir, exist_ok=True)
-        # Use os.path.join for proper path handling
-        output_path = os.path.join(output_dir, f"{output_fname}.pdf")
-        plt.savefig(
-            output_path,
-            format="pdf",
-            dpi=300,
+        save_figure(
+            fig=fig,
+            output_dir=output_dir,
+            output_fname=output_fname or "segmentation_channels",
+            formats=export_formats,
+            dpi=dpi,
             transparent=True,
             bbox_inches="tight",
         )
-        print(f"Saved figure to: {output_path}")
+        plt.close(fig)
     else:
         plt.show()
 

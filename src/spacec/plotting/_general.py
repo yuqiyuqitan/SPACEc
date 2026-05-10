@@ -18,9 +18,9 @@ from statsmodels.stats.multicomp import pairwise_tukeyhsd
 from tensorly.decomposition import non_negative_tucker
 
 from ..helperfunctions._general import *
+from ._style import apply_publication_style, get_categorical_palette, save_figure
 
-# Setup
-sns.set_style("ticks")
+apply_publication_style()
 
 
 # plotting functions
@@ -2801,9 +2801,7 @@ def catplot(
 
     if palette is None:
         if color + "_colors" not in adata.uns.keys():
-            ct_colors = hf_generate_random_colors(
-                len(adata.obs[color].unique()), rand_seed=rand_seed
-            )
+            ct_colors = get_categorical_palette(len(adata.obs[color].unique()))
             palette = dict(zip(np.sort(adata.obs[color].unique()), ct_colors))
             adata.uns[color + "_colors"] = ct_colors
         else:
@@ -3023,9 +3021,7 @@ def stacked_bar_plot(
             )
     if palette is None:
         if color + "_colors" not in adata.uns.keys():
-            ct_colors = hf_generate_random_colors(
-                len(adata.obs[color].unique()), rand_seed=rand_seed
-            )
+            ct_colors = get_categorical_palette(len(adata.obs[color].unique()))
             palette = dict(zip(np.sort(adata.obs[color].unique()), ct_colors))
             adata.uns[color + "_colors"] = ct_colors
         else:
@@ -3112,13 +3108,16 @@ def stacked_bar_plot(
         loc="center left", bbox_to_anchor=(1.0, 0.5), ncol=1, frameon=False
     )
     if savefig:
-        plt.savefig(
-            output_dir + output_fname + ".pdf",
-            format="pdf",
+        save_figure(
+            fig=ax1.get_figure(),
+            output_dir=output_dir,
+            output_fname=output_fname or "stacked_barplot",
+            formats=("pdf", "svg", "png"),
             dpi=300,
             transparent=True,
             bbox_inches="tight",
         )
+        plt.close(ax1.get_figure())
     else:
         plt.show()
     return melt_test_piv, plot_order
@@ -3419,13 +3418,16 @@ def create_pie_charts(
     # Adjust spacing between subplots
     fig.tight_layout()
     if savefig:
-        plt.savefig(
-            output_dir + output_fname + "_piechart.pdf",
-            format="pdf",
+        save_figure(
+            fig=fig,
+            output_dir=output_dir,
+            output_fname=(output_fname or "grouped") + "_piechart",
+            formats=("pdf", "svg", "png"),
             dpi=300,
             transparent=True,
             bbox_inches="tight",
         )
+        plt.close(fig)
     else:
         # Show the plot
         plt.show()
@@ -3482,9 +3484,7 @@ def cn_exp_heatmap(
     if palette is None:
         if cn_col + "_colors" not in adata.uns.keys():
             # Create a color dictionary if not provided
-            cn_colors = hf_generate_random_colors(
-                len(adata.obs[cn_col].unique()), rand_seed=rand_seed
-            )
+            cn_colors = get_categorical_palette(len(adata.obs[cn_col].unique()))
             palette = dict(zip(np.sort(adata.obs[cn_col].unique()), cn_colors))
             adata.uns[cn_col + "_colors"] = cn_colors
         else:
@@ -3548,7 +3548,14 @@ def cn_exp_heatmap(
     )
 
     if savefig:
-        s.figure.savefig(output_dir / (output_fname + ".pdf"), bbox_inches="tight")
+        save_figure(
+            fig=s.figure,
+            output_dir=output_dir,
+            output_fname=output_fname or "cn_expression_heatmap",
+            formats=("pdf", "svg", "png"),
+            dpi=300,
+        )
+        plt.close(s.figure)
 
 
 def pl_area_nuc_cutoff(
@@ -4069,7 +4076,7 @@ def coordinates_on_image(
             plt.scatter(df[x], df[y], c=df[color], s=dot_size, cmap=cmap)
 
     else:
-        plt.scatter(df[x], df["y"], s=dot_size)
+        plt.scatter(df[x], df[y], s=dot_size)
 
     # add colorbar
     plt.colorbar()
@@ -4080,9 +4087,14 @@ def coordinates_on_image(
 
     # Show the plot
     if savefig:
-        plt.savefig(
-            output_dir + output_fname + "_seg_masks_overlay.pdf", bbox_inches="tight"
+        save_figure(
+            fig=plt.gcf(),
+            output_dir=output_dir,
+            output_fname=(output_fname or "coordinates") + "_seg_masks_overlay",
+            formats=("pdf", "svg", "png"),
+            dpi=300,
         )
+        plt.close(plt.gcf())
     else:
         plt.show()
 
@@ -4140,9 +4152,14 @@ def count_patch_proximity_res(
     ax.set_xticks(tick_positions)
     ax.set_xticklabels(tick_labels, rotation=90)
     if savefig:
-        plt.savefig(
-            output_dir + output_fname + "_count_ppa_result.pdf", bbox_inches="tight"
+        save_figure(
+            fig=ax.get_figure(),
+            output_dir=output_dir,
+            output_fname=(output_fname or "patch_proximity") + "_count_ppa_result",
+            formats=("pdf", "svg", "png"),
+            dpi=300,
         )
+        plt.close(ax.get_figure())
     else:
         plt.show()
 
@@ -4311,12 +4328,16 @@ def BC_projection(
     plt.axis("off")
 
     if savefig:
-        plt.savefig(
-            output_dir + output_fname + "_bc_proj.pdf",
+        save_figure(
+            fig=plt.gcf(),
+            output_dir=output_dir,
+            output_fname=(output_fname or "bc_projection") + "_bc_proj",
+            formats=("pdf", "svg", "png"),
             dpi=dpi,
             transparent=True,
             bbox_inches="tight",
         )
+        plt.close(plt.gcf())
     else:
         plt.show()
 
@@ -4508,11 +4529,15 @@ def distance_graph(
     plt.legend(bbox_to_anchor=(0.5, -0.2), loc="lower center", ncol=2)
 
     if savefig:
-        plt.savefig(
-            output_dir + output_fname + "_dist_graph.pdf",
+        save_figure(
+            fig=plt.gcf(),
+            output_dir=output_dir,
+            output_fname=(output_fname or "distance") + "_dist_graph",
+            formats=("pdf", "svg", "png"),
             dpi=dpi,
             bbox_inches="tight",
         )
+        plt.close(plt.gcf())
     else:
         plt.show()
 
@@ -4953,17 +4978,10 @@ def ppa_res_donut(
       distance values. The innermost ring corresponds to the smallest distance,
       and the outermost ring corresponds to the largest distance.
     """
-    import os
     import textwrap
 
     import matplotlib.pyplot as plt
     import numpy as np
-
-    # Define helper function for color generation if using generate_random_colors
-    def hf_generate_random_colors(n, rand_seed=1):
-        """Generate random colors for n categories."""
-        np.random.seed(rand_seed)
-        return [plt.cm.tab20(i % 20) for i in range(n)]
 
     # extract key from adata
     region_results = adata.uns[key_name]
@@ -4984,9 +5002,7 @@ def ppa_res_donut(
     # generate reproducable colors if no palette is provided
     if palette is None:
         if cat_col + "_colors" not in adata.uns.keys():
-            ct_colors = hf_generate_random_colors(
-                len(adata.obs[cat_col].unique()), rand_seed=rand_seed
-            )
+            ct_colors = get_categorical_palette(len(adata.obs[cat_col].unique()))
             palette = dict(zip(np.sort(adata.obs[cat_col].unique()), ct_colors))
             adata.uns[cat_col + "_colors"] = ct_colors
         else:
@@ -5205,9 +5221,14 @@ def ppa_res_donut(
     if savefig is None:
         pass
     elif savefig:
-        plt.savefig(
-            os.path.join(output_dir, f"{output_fname}.pdf"), bbox_inches="tight"
+        save_figure(
+            fig=fig,
+            output_dir=output_dir,
+            output_fname=output_fname or "ppa_donut",
+            formats=("pdf", "svg", "png"),
+            dpi=300,
         )
+        plt.close(fig)
     else:
         plt.show()
 
