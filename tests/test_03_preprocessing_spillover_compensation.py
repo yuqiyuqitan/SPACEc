@@ -7,6 +7,13 @@ TEST_DIR = pathlib.Path(__file__).parent
 
 
 def test_preprocessing_compensation():
+    """TODO: Add description.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     print("Testing compensation")
 
     import spacec as sp
@@ -51,6 +58,13 @@ def test_preprocessing_compensation():
 
 @pytest.mark.gpu
 def test_preprocessing_compensation_gpu_autoselect():
+    """TODO: Add description.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     print("Testing compensation")
 
     import spacec as sp

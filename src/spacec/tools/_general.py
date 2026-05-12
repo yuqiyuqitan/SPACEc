@@ -1262,6 +1262,18 @@ def tl_iterate_tri_distances(
         region2edges_df[reg_name] = edges_df
 
     def process_one_region(r):
+        """TODO: Add description.
+        
+        Parameters
+        ----------
+        r : Any
+            TODO: Describe this parameter.
+        
+        Returns
+        -------
+        Any
+            TODO: Describe return value.
+        """
         subset = region2df[r]
         edges_df = region2edges_df[r]
         return _process_region_iterations(
@@ -2803,6 +2815,18 @@ def anndata_to_CPU(
 
 
 def install_stellar(CUDA=12):
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    CUDA : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     if CUDA == 12:
         subprocess.run(["pip", "install", "torch"], check=True)
         subprocess.run(["pip", "install", "torch_geometric"], check=True)
@@ -2904,7 +2928,26 @@ def launch_interactive_clustering(adata=None, output_dir=None):
     def create_clustering_app():
 
         # Callback to load data
+        """TODO: Add description.
+        
+        Returns
+        -------
+        Any
+            TODO: Describe return value.
+        """
         def load_data(event=None):
+            """TODO: Add description.
+            
+            Parameters
+            ----------
+            event : Any
+                TODO: Describe this parameter.
+            
+            Returns
+            -------
+            Any
+                TODO: Describe return value.
+            """
             if adata is not None:
                 adata_container["adata"] = adata
                 marker_list_input.options = list(adata.var_names)
@@ -2920,6 +2963,18 @@ def launch_interactive_clustering(adata=None, output_dir=None):
 
         # Callback to run clustering
         def run_clustering(event):
+            """TODO: Add description.
+            
+            Parameters
+            ----------
+            event : Any
+                TODO: Describe this parameter.
+            
+            Returns
+            -------
+            Any
+                TODO: Describe return value.
+            """
             adata = adata_container.get("adata", None)
             if adata is None:
                 output_area.object = "**Please load an AnnData file first.**"
@@ -3000,6 +3055,18 @@ def launch_interactive_clustering(adata=None, output_dir=None):
 
         # Callback to run subclustering
         def run_subclustering(event):
+            """TODO: Add description.
+            
+            Parameters
+            ----------
+            event : Any
+                TODO: Describe this parameter.
+            
+            Returns
+            -------
+            Any
+                TODO: Describe return value.
+            """
             adata = adata_container.get("adata", None)
             if adata is None:
                 output_area.object = "**Please run clustering first.**"
@@ -3071,6 +3138,18 @@ def launch_interactive_clustering(adata=None, output_dir=None):
 
         # Callback to save annotations
         def save_annotations(event):
+            """TODO: Add description.
+            
+            Parameters
+            ----------
+            event : Any
+                TODO: Describe this parameter.
+            
+            Returns
+            -------
+            Any
+                TODO: Describe return value.
+            """
             adata = adata_container.get("adata", None)
             if adata is None:
                 output_area.object = "**No AnnData object to annotate.**"
@@ -3095,6 +3174,18 @@ def launch_interactive_clustering(adata=None, output_dir=None):
             output_area.object = "**Annotations saved to AnnData object.**"
 
         def save_adata(event):
+            """TODO: Add description.
+            
+            Parameters
+            ----------
+            event : Any
+                TODO: Describe this parameter.
+            
+            Returns
+            -------
+            Any
+                TODO: Describe return value.
+            """
             adata = adata_container.get("adata", None)
             if adata is None:
                 output_area.object = "**No AnnData object to save.**"
@@ -3111,6 +3202,18 @@ def launch_interactive_clustering(adata=None, output_dir=None):
 
         # Callback to run spatial visualization
         def run_spatial_visualization(event):
+            """TODO: Add description.
+            
+            Parameters
+            ----------
+            event : Any
+                TODO: Describe this parameter.
+            
+            Returns
+            -------
+            Any
+                TODO: Describe return value.
+            """
             adata = adata_container.get("adata", None)
             if adata is None:
                 output_area.object = "**Please load an AnnData file first.**"
@@ -3501,6 +3604,22 @@ def precompute(df, x_column, y_column, full_df, identification_column, edge_neig
 
 
 def process_cluster(args, nbrs, unique_clusters):
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    args : Any
+        TODO: Describe this parameter.
+    nbrs : Any
+        TODO: Describe this parameter.
+    unique_clusters : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     (
         df,
         cluster,

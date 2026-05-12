@@ -266,6 +266,44 @@ def pl_swarm_box(
     flip=False,
 ):
     # Find Percentage of cell type
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    data : Any
+        TODO: Describe this parameter.
+    grouping : Any
+        TODO: Describe this parameter.
+    per_cat : Any
+        TODO: Describe this parameter.
+    replicate : Any
+        TODO: Describe this parameter.
+    sub_col : Any
+        TODO: Describe this parameter.
+    sub_list : Any
+        TODO: Describe this parameter.
+    output_dir : Any
+        TODO: Describe this parameter.
+    norm : Any
+        TODO: Describe this parameter.
+    figure_sizing : Any
+        TODO: Describe this parameter.
+    save_name : Any
+        TODO: Describe this parameter.
+    plot_order : Any
+        TODO: Describe this parameter.
+    col_in : Any
+        TODO: Describe this parameter.
+    color_dic : Any
+        TODO: Describe this parameter.
+    flip : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     test = data.copy()
     sub_list1 = sub_list.copy()
 
@@ -680,6 +718,24 @@ def pl_cell_type_composition_vis(
 
 def pl_regions_per_sample(data, sample_col, region_col, bar_color="grey"):
     # Group the dataframe by the specified sample column and count the unique regions
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    data : Any
+        TODO: Describe this parameter.
+    sample_col : Any
+        TODO: Describe this parameter.
+    region_col : Any
+        TODO: Describe this parameter.
+    bar_color : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     region_counts = data.groupby(sample_col)[region_col].nunique()
 
     # Create a bar chart with the specified color
@@ -1965,6 +2021,22 @@ def pl_cor_subplot(mp, sub_list, output_dir, save_name=None):
 
 
 def annotate(data, names, **kws):
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    data : Any
+        TODO: Describe this parameter.
+    names : Any
+        TODO: Describe this parameter.
+    **kws : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     r, p = sp.stats.pearsonr(data[names[0]], data[names[1]])
     ax = plt.gca()
     ax.text(
@@ -2280,6 +2352,28 @@ def pl_spatial_context_stats_vis(
     figsize=(5, 5),
 ):
     # Set Neigh and make comparison
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    neigh_comb : Any
+        TODO: Describe this parameter.
+    simp_df_tissue1 : Any
+        TODO: Describe this parameter.
+    simp_df_tissue2 : Any
+        TODO: Describe this parameter.
+    pal_tis : Any
+        TODO: Describe this parameter.
+    plot_order : Any
+        TODO: Describe this parameter.
+    figsize : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     neigh_comb = (9,)
 
     df1 = simp_df_tissue1.loc[[neigh_comb]].T
@@ -2489,6 +2583,24 @@ def pl_catplot(
 
 
 def pl_comb_num_freq(data_list, plot_order=None, pal_tis=None, figsize=(5, 5)):
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    data_list : Any
+        TODO: Describe this parameter.
+    plot_order : Any
+        TODO: Describe this parameter.
+    pal_tis : Any
+        TODO: Describe this parameter.
+    figsize : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     df_new = []
     for df in data_list:
         df.reset_index(inplace=True)
@@ -2630,6 +2742,34 @@ def pl_mono_cluster_spatial(
     alpha=0.5,
     figsize=(15, 12),
 ):
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    df : Any
+        TODO: Describe this parameter.
+    sample_col : Any
+        TODO: Describe this parameter.
+    cluster_col : Any
+        TODO: Describe this parameter.
+    x : Any
+        TODO: Describe this parameter.
+    y : Any
+        TODO: Describe this parameter.
+    color_dict : Any
+        TODO: Describe this parameter.
+    s : Any
+        TODO: Describe this parameter.
+    alpha : Any
+        TODO: Describe this parameter.
+    figsize : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     for i in df[sample_col].unique():
         df_sub = df[df[sample_col] == i]
         print(i)
@@ -2675,6 +2815,30 @@ def pl_visualize_2D_density_plot(
     y_column,
 ):
     # Subset the DataFrame based on region_column and selected_region
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    df : Any
+        TODO: Describe this parameter.
+    region_column : Any
+        TODO: Describe this parameter.
+    selected_region : Any
+        TODO: Describe this parameter.
+    subsetting_column : Any
+        TODO: Describe this parameter.
+    values_list : Any
+        TODO: Describe this parameter.
+    x_column : Any
+        TODO: Describe this parameter.
+    y_column : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     subset_df1 = df[df[region_column] == selected_region]
 
     # Subset the DataFrame based on subsetting_column and values_list
@@ -2702,6 +2866,22 @@ def pl_visualize_2D_density_plot(
 
 def pl_create_cluster_celltype_heatmap(dataframe, cluster_column, celltype_column):
     # Create a frequency table using pandas crosstab
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    dataframe : Any
+        TODO: Describe this parameter.
+    cluster_column : Any
+        TODO: Describe this parameter.
+    celltype_column : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     frequency_table = pd.crosstab(dataframe[cluster_column], dataframe[celltype_column])
 
     # Create the heatmap using seaborn
@@ -2875,6 +3055,34 @@ def pl_generate_CN_comb_map(
     savefig=False,
     output_dir="./",
 ):
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    graph : Any
+        TODO: Describe this parameter.
+    tops : Any
+        TODO: Describe this parameter.
+    e0 : Any
+        TODO: Describe this parameter.
+    e1 : Any
+        TODO: Describe this parameter.
+    simp_freqs : Any
+        TODO: Describe this parameter.
+    palette : Any
+        TODO: Describe this parameter.
+    figsize : Any
+        TODO: Describe this parameter.
+    savefig : Any
+        TODO: Describe this parameter.
+    output_dir : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     draw = graph
     pos = nx.drawing.nx_pydot.graphviz_layout(draw, prog="dot")
     height = 8
@@ -3141,6 +3349,44 @@ def pl_swarm_box_ad(
     flip=False,
 ):
     # extract information form adata
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    adata : Any
+        TODO: Describe this parameter.
+    grouping : Any
+        TODO: Describe this parameter.
+    per_cat : Any
+        TODO: Describe this parameter.
+    replicate : Any
+        TODO: Describe this parameter.
+    sub_col : Any
+        TODO: Describe this parameter.
+    sub_list : Any
+        TODO: Describe this parameter.
+    output_dir : Any
+        TODO: Describe this parameter.
+    norm : Any
+        TODO: Describe this parameter.
+    figure_sizing : Any
+        TODO: Describe this parameter.
+    save_name : Any
+        TODO: Describe this parameter.
+    plot_order : Any
+        TODO: Describe this parameter.
+    col_in : Any
+        TODO: Describe this parameter.
+    color_dic : Any
+        TODO: Describe this parameter.
+    flip : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     data = adata.obs
 
     # Find Percentage of cell type
@@ -3564,6 +3810,36 @@ def pl_area_nuc_cutoff(
     log_scale=True,
 ):
     # Custom the inside plot: options are: “scatter” | “reg” | “resid” | “kde” | “hex”
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    df : Any
+        TODO: Describe this parameter.
+    cutoff_area : Any
+        TODO: Describe this parameter.
+    cutoff_nuc : Any
+        TODO: Describe this parameter.
+    cellsize_column : Any
+        TODO: Describe this parameter.
+    nuc_marker_column : Any
+        TODO: Describe this parameter.
+    color_by : Any
+        TODO: Describe this parameter.
+    palette : Any
+        TODO: Describe this parameter.
+    alpha : Any
+        TODO: Describe this parameter.
+    size : Any
+        TODO: Describe this parameter.
+    log_scale : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     g = sns.jointplot(
         x=df[nuc_marker_column],
         y=df[cellsize_column],
@@ -3589,6 +3865,28 @@ def pl_area_nuc_cutoff(
 
 
 def pl_plot_scatter_correlation(data, x, y, xlabel=None, ylabel=None, save_path=None):
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    data : Any
+        TODO: Describe this parameter.
+    x : Any
+        TODO: Describe this parameter.
+    y : Any
+        TODO: Describe this parameter.
+    xlabel : Any
+        TODO: Describe this parameter.
+    ylabel : Any
+        TODO: Describe this parameter.
+    save_path : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     g = sns.lmplot(x=x, y=y, data=data, height=5, aspect=1)
     g.map_dataframe(hf_annotate_cor_plot, x=x, y=y, data=data)
 
@@ -3610,6 +3908,28 @@ def pl_plot_scatter_correlation(data, x, y, xlabel=None, ylabel=None, save_path=
 def pl_plot_scatter_correlation_ad(
     adata, x, y, xlabel=None, ylabel=None, save_path=None
 ):
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    adata : Any
+        TODO: Describe this parameter.
+    x : Any
+        TODO: Describe this parameter.
+    y : Any
+        TODO: Describe this parameter.
+    xlabel : Any
+        TODO: Describe this parameter.
+    ylabel : Any
+        TODO: Describe this parameter.
+    save_path : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     data = adata.obs
 
     g = sns.lmplot(x=x, y=y, data=data, height=5, aspect=1)
@@ -3636,6 +3956,18 @@ def pl_plot_scatter_correlation_ad(
 def pl_plot_correlation_matrix(cmat):
     # plot correlation matrix as heatmap
     # Create a mask to hide the upper triangle
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    cmat : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     mask = np.triu(np.ones_like(cmat, dtype=bool))
 
     fig, ax = plt.subplots(figsize=(20, 20))
@@ -3744,6 +4076,38 @@ def plot_top_n_distances(
     errorbars=True,
 ):
     # Calculate the aspect ratio based on the desired figure size
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    dist_table_filt : Any
+        TODO: Describe this parameter.
+    dist_data_filt : Any
+        TODO: Describe this parameter.
+    n : Any
+        TODO: Describe this parameter.
+    colors : Any
+        TODO: Describe this parameter.
+    dodge : Any
+        TODO: Describe this parameter.
+    savefig : Any
+        TODO: Describe this parameter.
+    output_fname : Any
+        TODO: Describe this parameter.
+    output_dir : Any
+        TODO: Describe this parameter.
+    figsize : Any
+        TODO: Describe this parameter.
+    unit : Any
+        TODO: Describe this parameter.
+    errorbars : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     aspect = figsize[0] / figsize[1]
 
     # calculate abs distance

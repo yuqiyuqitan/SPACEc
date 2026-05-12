@@ -26,6 +26,22 @@ from tqdm import tqdm
 
 def overlay_masks_on_image(image, masks, gamma=1.5):
     # Convert image to grayscale
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    image : Any
+        TODO: Describe this parameter.
+    masks : Any
+        TODO: Describe this parameter.
+    gamma : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     gray_image = rgb2gray(image)
 
     # Increase brightness using gamma correction
@@ -49,6 +65,24 @@ def check_segmentation(overlay, grayscale, n=10, tilesize=1000):
     #    raise ValueError("The two images should have the same shape")
 
     # Calculate the number of tiles in x and y directions
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    overlay : Any
+        TODO: Describe this parameter.
+    grayscale : Any
+        TODO: Describe this parameter.
+    n : Any
+        TODO: Describe this parameter.
+    tilesize : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     y_tiles, x_tiles = overlay.shape[0] // tilesize, overlay.shape[1] // tilesize
 
     # Split images into tiles

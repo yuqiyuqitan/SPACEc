@@ -11,6 +11,13 @@ def test_cell_annotation_STELLAR():
     # import standard packages
 
     # import standard packages
+    """TODO: Add description.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     import os
     import sys
     from pathlib import Path

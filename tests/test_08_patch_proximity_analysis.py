@@ -6,6 +6,13 @@ TEST_DIR = pathlib.Path(__file__).parent
 # @pytest.mark.slow
 def test_patch_proximity_analysis():
     # Set up environment
+    """TODO: Add description.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     import matplotlib
     import scanpy as sc
 

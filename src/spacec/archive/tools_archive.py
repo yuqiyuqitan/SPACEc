@@ -15,6 +15,32 @@ def tl_cell_types_de(
 ):
     # data prep
     # normalized overall cell type frequencies
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    ct_freq : Any
+        TODO: Describe this parameter.
+    all_freqs : Any
+        TODO: Describe this parameter.
+    neighborhood_num : Any
+        TODO: Describe this parameter.
+    nbs : Any
+        TODO: Describe this parameter.
+    patients : Any
+        TODO: Describe this parameter.
+    group : Any
+        TODO: Describe this parameter.
+    cells : Any
+        TODO: Describe this parameter.
+    cells1 : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     X_cts = hf_normalize(
         ct_freq.reset_index().set_index("patients").loc[patients, cells]
     )
@@ -80,6 +106,34 @@ def tl_cell_types_de(
 def tl_Create_neighborhoods(
     df, n_num, cluster_col, X, Y, regions, sum_cols=None, keep_cols=None, ks=[20]
 ):
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    df : Any
+        TODO: Describe this parameter.
+    n_num : Any
+        TODO: Describe this parameter.
+    cluster_col : Any
+        TODO: Describe this parameter.
+    X : Any
+        TODO: Describe this parameter.
+    Y : Any
+        TODO: Describe this parameter.
+    regions : Any
+        TODO: Describe this parameter.
+    sum_cols : Any
+        TODO: Describe this parameter.
+    keep_cols : Any
+        TODO: Describe this parameter.
+    ks : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     if sum_cols == None:
         sum_cols = df[cluster_col].unique()
 
@@ -101,6 +155,26 @@ def tl_Chose_window_size(
     windows, n_num, n_neighborhoods, sum_cols, n2_name="neigh_ofneigh"
 ):
     # Choose the windows size to continue with
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    windows : Any
+        TODO: Describe this parameter.
+    n_num : Any
+        TODO: Describe this parameter.
+    n_neighborhoods : Any
+        TODO: Describe this parameter.
+    sum_cols : Any
+        TODO: Describe this parameter.
+    n2_name : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     w = windows[n_num]
 
     k_centroids = {}
@@ -130,6 +204,40 @@ def tl_spatial_context_stats(
     subset_list_tissue1=["Resection"],
     subset_list_tissue2=["Biopsy"],
 ):
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    n_num : Any
+        TODO: Describe this parameter.
+    patient_ID_component1 : Any
+        TODO: Describe this parameter.
+    patient_ID_component2 : Any
+        TODO: Describe this parameter.
+    windows : Any
+        TODO: Describe this parameter.
+    total_per_thres : Any
+        TODO: Describe this parameter.
+    comb_per_thres : Any
+        TODO: Describe this parameter.
+    tissue_column : Any
+        TODO: Describe this parameter.
+    subset_list : Any
+        TODO: Describe this parameter.
+    plot_order : Any
+        TODO: Describe this parameter.
+    pal_tis : Any
+        TODO: Describe this parameter.
+    subset_list_tissue1 : Any
+        TODO: Describe this parameter.
+    subset_list_tissue2 : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     data_compare = windows[n_num]
 
     # Prepare IDs this could for example be the combination of patient ID and tissue type. Apart from that, the function assigns a number to each name from the neighborhood column
@@ -174,6 +282,28 @@ def tl_spatial_context_stats(
 
 def tl_xycorr(df, sample_col, y_rows, x_columns, X_pix, Y_pix):
     # Make a copy for xy correction
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    df : Any
+        TODO: Describe this parameter.
+    sample_col : Any
+        TODO: Describe this parameter.
+    y_rows : Any
+        TODO: Describe this parameter.
+    x_columns : Any
+        TODO: Describe this parameter.
+    X_pix : Any
+        TODO: Describe this parameter.
+    Y_pix : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     df_XYcorr = df.copy()
 
     df_XYcorr["Xcorr"] = 0
@@ -214,6 +344,22 @@ def tl_xycorr(df, sample_col, y_rows, x_columns, X_pix, Y_pix):
 
 
 def tl_get_distances(df, cell_list, cell_type_col):
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    df : Any
+        TODO: Describe this parameter.
+    cell_list : Any
+        TODO: Describe this parameter.
+    cell_type_col : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     names = cell_list
     cls = {}
     for i, cname in enumerate(names):

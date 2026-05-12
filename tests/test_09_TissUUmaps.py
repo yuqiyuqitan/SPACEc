@@ -8,6 +8,13 @@ TEST_DIR = pathlib.Path(__file__).parent
 @pytest.mark.skip(reason="Makes pytest hang after completion")
 def test_TissUUmaps():
     # Set up environment
+    """TODO: Add description.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     import matplotlib
     import scanpy as sc
 

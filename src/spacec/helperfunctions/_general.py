@@ -30,6 +30,20 @@ from tqdm import tqdm
 
 def hf_generate_random_colors(n, rand_seed=0):
     # from random import randint
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    n : Any
+        TODO: Describe this parameter.
+    rand_seed : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     random.seed(rand_seed)
     color = []
     for i in range(n):
@@ -42,6 +56,20 @@ def hf_generate_random_colors(n, rand_seed=0):
 
 def hf_assign_colors(names, colors):
     # Printing original keys-value lists
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    names : Any
+        TODO: Describe this parameter.
+    colors : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     print("Original key list is : " + str(names))
     print("Original value list is : " + str(colors))
 
@@ -84,6 +112,30 @@ def hf_assign_colors(names, colors):
 
 def hf_per_only(data, grouping, replicate, sub_col, sub_list, per_cat, norm=True):
     # Find Percentage of cell type
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    data : Any
+        TODO: Describe this parameter.
+    grouping : Any
+        TODO: Describe this parameter.
+    replicate : Any
+        TODO: Describe this parameter.
+    sub_col : Any
+        TODO: Describe this parameter.
+    sub_list : Any
+        TODO: Describe this parameter.
+    per_cat : Any
+        TODO: Describe this parameter.
+    norm : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     if norm == True:
         test1 = data.loc[
             data[sub_col].isin(sub_list)
@@ -121,6 +173,18 @@ def hf_per_only(data, grouping, replicate, sub_col, sub_list, per_cat, norm=True
 
 
 def hf_normalize(X):
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    X : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     arr = np.array(X.fillna(0).values)
     return pd.DataFrame(
         np.log2(1e-3 + arr / arr.sum(axis=1, keepdims=True)),
@@ -142,6 +206,30 @@ def hf_cell_types_de_helper(
     cell_type_col,
 ):
     # read data
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    df : Any
+        TODO: Describe this parameter.
+    ID_component1 : Any
+        TODO: Describe this parameter.
+    ID_component2 : Any
+        TODO: Describe this parameter.
+    neighborhood_col : Any
+        TODO: Describe this parameter.
+    group_col : Any
+        TODO: Describe this parameter.
+    group_dict : Any
+        TODO: Describe this parameter.
+    cell_type_col : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     cells2 = df
     cells2.reset_index(inplace=True, drop=True)
     cells2
@@ -271,6 +359,31 @@ class Neighborhoods(object):
         reg="Exp",
         add_dummies=True,
     ):
+        """TODO: Add description.
+        
+        Parameters
+        ----------
+        self : Any
+            TODO: Describe this parameter.
+        cells : Any
+            TODO: Describe this parameter.
+        ks : Any
+            TODO: Describe this parameter.
+        cluster_col : Any
+            TODO: Describe this parameter.
+        sum_cols : Any
+            TODO: Describe this parameter.
+        keep_cols : Any
+            TODO: Describe this parameter.
+        X : Any
+            TODO: Describe this parameter.
+        Y : Any
+            TODO: Describe this parameter.
+        reg : Any
+            TODO: Describe this parameter.
+        add_dummies : Any
+            TODO: Describe this parameter.
+        """
         self.cells_nodumz = cells
         self.X = X
         self.Y = Y
@@ -284,6 +397,18 @@ class Neighborhoods(object):
         self.bool_add_dummies = add_dummies
 
     def add_dummies(self):
+        """TODO: Add description.
+        
+        Parameters
+        ----------
+        self : Any
+            TODO: Describe this parameter.
+        
+        Returns
+        -------
+        Any
+            TODO: Describe return value.
+        """
         c = self.cells_nodumz
         dumz = pd.get_dummies(c[self.cluster_col])
         keep = c[self.keep_cols]
@@ -291,6 +416,18 @@ class Neighborhoods(object):
         self.cells = pd.concat([keep, dumz], axis=1)
 
     def get_tissue_chunks(self):
+        """TODO: Add description.
+        
+        Parameters
+        ----------
+        self : Any
+            TODO: Describe this parameter.
+        
+        Returns
+        -------
+        Any
+            TODO: Describe return value.
+        """
         self.tissue_group = self.cells[[self.X, self.Y, self.reg]].groupby(self.reg)
 
         tissue_chunks = [
@@ -301,6 +438,20 @@ class Neighborhoods(object):
         return tissue_chunks
 
     def make_windows(self, job):
+        """TODO: Add description.
+        
+        Parameters
+        ----------
+        self : Any
+            TODO: Describe this parameter.
+        job : Any
+            TODO: Describe this parameter.
+        
+        Returns
+        -------
+        Any
+            TODO: Describe return value.
+        """
         start_time, idx, tissue_name, indices = job
         job_start = time.time()
 
@@ -336,6 +487,18 @@ class Neighborhoods(object):
         return neighbors.astype(np.int32)
 
     def k_windows(self):
+        """TODO: Add description.
+        
+        Parameters
+        ----------
+        self : Any
+            TODO: Describe this parameter.
+        
+        Returns
+        -------
+        Any
+            TODO: Describe return value.
+        """
         if self.bool_add_dummies:
             self.add_dummies()
         else:
@@ -389,6 +552,28 @@ class Neighborhoods(object):
 # Define a Python function named `hf_get_windows` that takes two arguments: `job` and `n_neighbors`.
 def hf_get_windows(job, n_neighbors, exps, tissue_group, X, Y):
     # Unpack the tuple `job` into four variables: `start_time`, `idx`, `tissue_name`, and `indices`.
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    job : Any
+        TODO: Describe this parameter.
+    n_neighbors : Any
+        TODO: Describe this parameter.
+    exps : Any
+        TODO: Describe this parameter.
+    tissue_group : Any
+        TODO: Describe this parameter.
+    X : Any
+        TODO: Describe this parameter.
+    Y : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     start_time, idx, tissue_name, indices = job
 
     # Record the time at which the function starts.
@@ -450,6 +635,26 @@ def hf_index_rank(a, axis):
 
 
 def hf_znormalize(raw_cells, grouper, markers, clip=(-7, 7), dropinf=True):
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    raw_cells : Any
+        TODO: Describe this parameter.
+    grouper : Any
+        TODO: Describe this parameter.
+    markers : Any
+        TODO: Describe this parameter.
+    clip : Any
+        TODO: Describe this parameter.
+    dropinf : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     not_inf = raw_cells[np.isinf(raw_cells[markers].values).sum(axis=1) == 0]
     if not_inf.shape[0] != raw_cells.shape[0]:
         print("removing cells with inf values", raw_cells.shape, not_inf.shape)
@@ -469,6 +674,24 @@ def hf_znormalize(raw_cells, grouper, markers, clip=(-7, 7), dropinf=True):
 def hf_fast_divisive_cluster(X, num_clusters, metric="cosine", prints=True):
     # optimized divisive_cluster.  Faster because doesn't recompute distance matrix to centroids at
     # each iteration
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    X : Any
+        TODO: Describe this parameter.
+    num_clusters : Any
+        TODO: Describe this parameter.
+    metric : Any
+        TODO: Describe this parameter.
+    prints : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     centroids = np.zeros((num_clusters, X.shape[1]))  # fill with cluster centroids
     dists = np.zeros((X.shape[0], num_clusters))  # fill with dist matrix
 
@@ -490,6 +713,22 @@ def hf_fast_divisive_cluster(X, num_clusters, metric="cosine", prints=True):
 
 
 def hf_alloc_cells(X, centroids, metric="cosine"):
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    X : Any
+        TODO: Describe this parameter.
+    centroids : Any
+        TODO: Describe this parameter.
+    metric : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     dists = cdist(X, centroids, metric=metric)
     allocs = dists.argmin(axis=1)
     return allocs
@@ -499,12 +738,40 @@ def hf_alloc_cells(X, centroids, metric="cosine"):
 
 
 def hf_get_sum_cols(cell_cuts, panel):
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    cell_cuts : Any
+        TODO: Describe this parameter.
+    panel : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     arr = np.where(cell_cuts[:, 0] == panel)[0]
     return slice(arr[0], arr[-1] + 1)
 
 
 ###############
 def hf_get_thresh_simps(x, thresh):
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    x : Any
+        TODO: Describe this parameter.
+    thresh : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     sorts = np.argsort(-x, axis=1)
     x_sorted = -np.sort(-x, axis=1)
     cumsums = np.cumsum(x_sorted, axis=1)
@@ -522,6 +789,24 @@ def hf_prepare_neighborhood_df(
     cells_df, patient_ID_component1, patient_ID_component2, neighborhood_column=None
 ):
     # Spacer for output
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    cells_df : Any
+        TODO: Describe this parameter.
+    patient_ID_component1 : Any
+        TODO: Describe this parameter.
+    patient_ID_component2 : Any
+        TODO: Describe this parameter.
+    neighborhood_column : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     print("")
 
     # Combine two columns to form unique ID which will be stored as patients column
@@ -556,6 +841,24 @@ def hf_prepare_neighborhood_df2(
     cells_df, patient_ID_component1, patient_ID_component2, neighborhood_column=None
 ):
     # Spacer for output
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    cells_df : Any
+        TODO: Describe this parameter.
+    patient_ID_component1 : Any
+        TODO: Describe this parameter.
+    patient_ID_component2 : Any
+        TODO: Describe this parameter.
+    neighborhood_column : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     print("")
 
     # Combine two columns to form unique ID which will be stored as patients column
@@ -590,6 +893,22 @@ def hf_prepare_neighborhood_df2(
 
 
 def hf_cor_subset(cor_mat, threshold, cell_type):
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    cor_mat : Any
+        TODO: Describe this parameter.
+    threshold : Any
+        TODO: Describe this parameter.
+    cell_type : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     pairs = hf_get_top_abs_correlations(cor_mat, thresh=threshold)
 
     piar1 = pairs.loc[pairs["col1"] == cell_type]
@@ -635,6 +954,30 @@ def hf_simp_rep(
     thres_num=3,
 ):
     # Choose the windows size to continue with
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    data : Any
+        TODO: Describe this parameter.
+    patient_col : Any
+        TODO: Describe this parameter.
+    tissue_column : Any
+        TODO: Describe this parameter.
+    subset_list_tissue : Any
+        TODO: Describe this parameter.
+    ttl_per_thres : Any
+        TODO: Describe this parameter.
+    comb_per_thres : Any
+        TODO: Describe this parameter.
+    thres_num : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     if tissue_column != None:
         w2 = data.loc[data[tissue_column].isin(subset_list_tissue)]
         print("tissue_column true")
@@ -678,6 +1021,20 @@ def hf_simp_rep(
 
 
 def hf_get_top_abs_correlations(df, thresh=0.5):
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    df : Any
+        TODO: Describe this parameter.
+    thresh : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     au_corr = df.corr().unstack()
     labels_to_drop = hf_get_redundant_pairs(df)
     au_corr = au_corr.drop(labels=labels_to_drop).sort_values(ascending=False)
@@ -975,6 +1332,22 @@ def hf_get_tif_filepaths(directory):
 
 ################ CCA
 def hf_prepare_cca(df, neighborhood_column, subsets=None):
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    df : Any
+        TODO: Describe this parameter.
+    neighborhood_column : Any
+        TODO: Describe this parameter.
+    subsets : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     neigh_num = {
         list(df[neighborhood_column].unique())[i]: i
         for i in range(len(df[neighborhood_column].unique()))
@@ -1017,11 +1390,37 @@ def hf_prepare_cca(df, neighborhood_column, subsets=None):
 
 
 def invert_dictionary(dictionary):
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    dictionary : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     inverted_dict = {value: key for key, value in dictionary.items()}
     return inverted_dict
 
 
 def hf_replace_names(color_dict, name_dict):
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    color_dict : Any
+        TODO: Describe this parameter.
+    name_dict : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     color_dict = hf_invert_dictionary(color_dict)
     for color, name in color_dict.items():
         if name in name_dict:
@@ -1031,6 +1430,22 @@ def hf_replace_names(color_dict, name_dict):
 
 
 def hf_annotate_cor_plot(x, y, **kws):
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    x : Any
+        TODO: Describe this parameter.
+    y : Any
+        TODO: Describe this parameter.
+    **kws : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     data = kws["data"]
     r, p = sp.stats.pearsonr(data[x], data[y])
     ax = plt.gca()

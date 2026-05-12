@@ -16,6 +16,36 @@ def downscale_tissue(
     output_fname="",
     figsize=(10, 5),  # new parameter for figure size
 ):
+    """TODO: Add description.
+    
+    Parameters
+    ----------
+    file_path : Any
+        TODO: Describe this parameter.
+    DNAslice : Any
+        TODO: Describe this parameter.
+    downscale_factor : Any
+        TODO: Describe this parameter.
+    sigma : Any
+        TODO: Describe this parameter.
+    padding : Any
+        TODO: Describe this parameter.
+    savefig : Any
+        TODO: Describe this parameter.
+    showfig : Any
+        TODO: Describe this parameter.
+    output_dir : Any
+        TODO: Describe this parameter.
+    output_fname : Any
+        TODO: Describe this parameter.
+    figsize : Any
+        TODO: Describe this parameter.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     print("Reading in the qptiff file, might take awhile!")
     currim = tifffile.imread(file_path)
     nucim = currim[DNAslice]

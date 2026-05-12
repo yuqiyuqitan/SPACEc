@@ -8,6 +8,13 @@ def test_clustering():
     # ## Set up environment
 
     # import standard packages
+    """TODO: Add description.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     import pathlib
 
     import matplotlib

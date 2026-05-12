@@ -5,6 +5,13 @@ TEST_DIR = pathlib.Path(__file__).parent
 
 
 def test_qptiff_converter():
+    """TODO: Add description.
+    
+    Returns
+    -------
+    Any
+        TODO: Describe return value.
+    """
     import matplotlib
 
     matplotlib.use("Agg")
