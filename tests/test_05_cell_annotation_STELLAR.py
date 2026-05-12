@@ -8,9 +8,6 @@ TEST_DIR = pathlib.Path(__file__).parent
 
 @pytest.mark.gpu
 def test_cell_annotation_STELLAR():
-    # import standard packages
-
-    # import standard packages
     """TODO: Add description.
     
     Returns
@@ -18,6 +15,9 @@ def test_cell_annotation_STELLAR():
     Any
         TODO: Describe return value.
     """
+    # import standard packages
+
+    # import standard packages
     import os
     import sys
     from pathlib import Path

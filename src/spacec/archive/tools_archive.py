@@ -13,8 +13,6 @@ Finally, the function returns a dataframe with the coefficients and p-values for
 def tl_cell_types_de(
     ct_freq, all_freqs, neighborhood_num, nbs, patients, group, cells, cells1
 ):
-    # data prep
-    # normalized overall cell type frequencies
     """TODO: Add description.
     
     Parameters
@@ -41,6 +39,8 @@ def tl_cell_types_de(
     Any
         TODO: Describe return value.
     """
+    # data prep
+    # normalized overall cell type frequencies
     X_cts = hf_normalize(
         ct_freq.reset_index().set_index("patients").loc[patients, cells]
     )
@@ -154,7 +154,6 @@ def tl_Create_neighborhoods(
 def tl_Chose_window_size(
     windows, n_num, n_neighborhoods, sum_cols, n2_name="neigh_ofneigh"
 ):
-    # Choose the windows size to continue with
     """TODO: Add description.
     
     Parameters
@@ -175,6 +174,7 @@ def tl_Chose_window_size(
     Any
         TODO: Describe return value.
     """
+    # Choose the windows size to continue with
     w = windows[n_num]
 
     k_centroids = {}
@@ -281,7 +281,6 @@ def tl_spatial_context_stats(
 
 
 def tl_xycorr(df, sample_col, y_rows, x_columns, X_pix, Y_pix):
-    # Make a copy for xy correction
     """TODO: Add description.
     
     Parameters
@@ -304,6 +303,7 @@ def tl_xycorr(df, sample_col, y_rows, x_columns, X_pix, Y_pix):
     Any
         TODO: Describe return value.
     """
+    # Make a copy for xy correction
     df_XYcorr = df.copy()
 
     df_XYcorr["Xcorr"] = 0

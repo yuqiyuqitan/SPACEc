@@ -5,9 +5,6 @@ TEST_DIR = pathlib.Path(__file__).parent
 
 
 def test_clustering():
-    # ## Set up environment
-
-    # import standard packages
     """TODO: Add description.
     
     Returns
@@ -15,6 +12,9 @@ def test_clustering():
     Any
         TODO: Describe return value.
     """
+    # ## Set up environment
+
+    # import standard packages
     import pathlib
 
     import matplotlib

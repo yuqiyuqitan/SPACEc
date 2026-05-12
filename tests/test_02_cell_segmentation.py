@@ -5,7 +5,6 @@ TEST_DIR = pathlib.Path(__file__).parent
 
 
 def test_cell_segmentation():
-
     """TODO: Add description.
     
     Returns
@@ -13,6 +12,7 @@ def test_cell_segmentation():
     Any
         TODO: Describe return value.
     """
+
     import matplotlib
 
     import spacec as sp

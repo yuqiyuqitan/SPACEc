@@ -314,8 +314,6 @@ print(f"loading configurations for {project} {version} ...", file=sys.stderr)
 
 
 def copy_notebooks(folder):
-
-    # copy notebooks to docs
     """TODO: Add description.
     
     Parameters
@@ -328,6 +326,8 @@ def copy_notebooks(folder):
     Any
         TODO: Describe return value.
     """
+
+    # copy notebooks to docs
     print("copying notebooks to docs ...", file=sys.stderr)
 
     # get filenames

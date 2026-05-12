@@ -265,7 +265,6 @@ def pl_swarm_box(
     color_dic=None,
     flip=False,
 ):
-    # Find Percentage of cell type
     """TODO: Add description.
     
     Parameters
@@ -304,6 +303,7 @@ def pl_swarm_box(
     Any
         TODO: Describe return value.
     """
+    # Find Percentage of cell type
     test = data.copy()
     sub_list1 = sub_list.copy()
 
@@ -717,7 +717,6 @@ def pl_cell_type_composition_vis(
 
 
 def pl_regions_per_sample(data, sample_col, region_col, bar_color="grey"):
-    # Group the dataframe by the specified sample column and count the unique regions
     """TODO: Add description.
     
     Parameters
@@ -736,6 +735,7 @@ def pl_regions_per_sample(data, sample_col, region_col, bar_color="grey"):
     Any
         TODO: Describe return value.
     """
+    # Group the dataframe by the specified sample column and count the unique regions
     region_counts = data.groupby(sample_col)[region_col].nunique()
 
     # Create a bar chart with the specified color
@@ -2351,7 +2351,6 @@ def pl_spatial_context_stats_vis(
     plot_order=["Resection", "Biopsy"],
     figsize=(5, 5),
 ):
-    # Set Neigh and make comparison
     """TODO: Add description.
     
     Parameters
@@ -2374,6 +2373,7 @@ def pl_spatial_context_stats_vis(
     Any
         TODO: Describe return value.
     """
+    # Set Neigh and make comparison
     neigh_comb = (9,)
 
     df1 = simp_df_tissue1.loc[[neigh_comb]].T
@@ -2814,7 +2814,6 @@ def pl_visualize_2D_density_plot(
     x_column,
     y_column,
 ):
-    # Subset the DataFrame based on region_column and selected_region
     """TODO: Add description.
     
     Parameters
@@ -2839,6 +2838,7 @@ def pl_visualize_2D_density_plot(
     Any
         TODO: Describe return value.
     """
+    # Subset the DataFrame based on region_column and selected_region
     subset_df1 = df[df[region_column] == selected_region]
 
     # Subset the DataFrame based on subsetting_column and values_list
@@ -2865,7 +2865,6 @@ def pl_visualize_2D_density_plot(
 
 
 def pl_create_cluster_celltype_heatmap(dataframe, cluster_column, celltype_column):
-    # Create a frequency table using pandas crosstab
     """TODO: Add description.
     
     Parameters
@@ -2882,6 +2881,7 @@ def pl_create_cluster_celltype_heatmap(dataframe, cluster_column, celltype_colum
     Any
         TODO: Describe return value.
     """
+    # Create a frequency table using pandas crosstab
     frequency_table = pd.crosstab(dataframe[cluster_column], dataframe[celltype_column])
 
     # Create the heatmap using seaborn
@@ -3348,7 +3348,6 @@ def pl_swarm_box_ad(
     color_dic=None,
     flip=False,
 ):
-    # extract information form adata
     """TODO: Add description.
     
     Parameters
@@ -3387,6 +3386,7 @@ def pl_swarm_box_ad(
     Any
         TODO: Describe return value.
     """
+    # extract information form adata
     data = adata.obs
 
     # Find Percentage of cell type
@@ -3809,7 +3809,6 @@ def pl_area_nuc_cutoff(
     size=0.4,
     log_scale=True,
 ):
-    # Custom the inside plot: options are: “scatter” | “reg” | “resid” | “kde” | “hex”
     """TODO: Add description.
     
     Parameters
@@ -3840,6 +3839,7 @@ def pl_area_nuc_cutoff(
     Any
         TODO: Describe return value.
     """
+    # Custom the inside plot: options are: “scatter” | “reg” | “resid” | “kde” | “hex”
     g = sns.jointplot(
         x=df[nuc_marker_column],
         y=df[cellsize_column],
@@ -3954,8 +3954,6 @@ def pl_plot_scatter_correlation_ad(
 
 
 def pl_plot_correlation_matrix(cmat):
-    # plot correlation matrix as heatmap
-    # Create a mask to hide the upper triangle
     """TODO: Add description.
     
     Parameters
@@ -3968,6 +3966,8 @@ def pl_plot_correlation_matrix(cmat):
     Any
         TODO: Describe return value.
     """
+    # plot correlation matrix as heatmap
+    # Create a mask to hide the upper triangle
     mask = np.triu(np.ones_like(cmat, dtype=bool))
 
     fig, ax = plt.subplots(figsize=(20, 20))
@@ -4075,7 +4075,6 @@ def plot_top_n_distances(
     unit="px",
     errorbars=True,
 ):
-    # Calculate the aspect ratio based on the desired figure size
     """TODO: Add description.
     
     Parameters
@@ -4108,6 +4107,7 @@ def plot_top_n_distances(
     Any
         TODO: Describe return value.
     """
+    # Calculate the aspect ratio based on the desired figure size
     aspect = figsize[0] / figsize[1]
 
     # calculate abs distance

@@ -29,7 +29,6 @@ from tqdm import tqdm
 
 
 def hf_generate_random_colors(n, rand_seed=0):
-    # from random import randint
     """TODO: Add description.
     
     Parameters
@@ -44,6 +43,7 @@ def hf_generate_random_colors(n, rand_seed=0):
     Any
         TODO: Describe return value.
     """
+    # from random import randint
     random.seed(rand_seed)
     color = []
     for i in range(n):
@@ -55,7 +55,6 @@ def hf_generate_random_colors(n, rand_seed=0):
 
 
 def hf_assign_colors(names, colors):
-    # Printing original keys-value lists
     """TODO: Add description.
     
     Parameters
@@ -70,6 +69,7 @@ def hf_assign_colors(names, colors):
     Any
         TODO: Describe return value.
     """
+    # Printing original keys-value lists
     print("Original key list is : " + str(names))
     print("Original value list is : " + str(colors))
 
@@ -111,7 +111,6 @@ def hf_assign_colors(names, colors):
 
 
 def hf_per_only(data, grouping, replicate, sub_col, sub_list, per_cat, norm=True):
-    # Find Percentage of cell type
     """TODO: Add description.
     
     Parameters
@@ -136,6 +135,7 @@ def hf_per_only(data, grouping, replicate, sub_col, sub_list, per_cat, norm=True
     Any
         TODO: Describe return value.
     """
+    # Find Percentage of cell type
     if norm == True:
         test1 = data.loc[
             data[sub_col].isin(sub_list)
@@ -205,7 +205,6 @@ def hf_cell_types_de_helper(
     group_dict,
     cell_type_col,
 ):
-    # read data
     """TODO: Add description.
     
     Parameters
@@ -230,6 +229,7 @@ def hf_cell_types_de_helper(
     Any
         TODO: Describe return value.
     """
+    # read data
     cells2 = df
     cells2.reset_index(inplace=True, drop=True)
     cells2
@@ -551,7 +551,6 @@ class Neighborhoods(object):
 
 # Define a Python function named `hf_get_windows` that takes two arguments: `job` and `n_neighbors`.
 def hf_get_windows(job, n_neighbors, exps, tissue_group, X, Y):
-    # Unpack the tuple `job` into four variables: `start_time`, `idx`, `tissue_name`, and `indices`.
     """TODO: Add description.
     
     Parameters
@@ -574,6 +573,7 @@ def hf_get_windows(job, n_neighbors, exps, tissue_group, X, Y):
     Any
         TODO: Describe return value.
     """
+    # Unpack the tuple `job` into four variables: `start_time`, `idx`, `tissue_name`, and `indices`.
     start_time, idx, tissue_name, indices = job
 
     # Record the time at which the function starts.
@@ -672,8 +672,6 @@ def hf_znormalize(raw_cells, grouper, markers, clip=(-7, 7), dropinf=True):
 
 
 def hf_fast_divisive_cluster(X, num_clusters, metric="cosine", prints=True):
-    # optimized divisive_cluster.  Faster because doesn't recompute distance matrix to centroids at
-    # each iteration
     """TODO: Add description.
     
     Parameters
@@ -692,6 +690,8 @@ def hf_fast_divisive_cluster(X, num_clusters, metric="cosine", prints=True):
     Any
         TODO: Describe return value.
     """
+    # optimized divisive_cluster.  Faster because doesn't recompute distance matrix to centroids at
+    # each iteration
     centroids = np.zeros((num_clusters, X.shape[1]))  # fill with cluster centroids
     dists = np.zeros((X.shape[0], num_clusters))  # fill with dist matrix
 
@@ -788,7 +788,6 @@ def hf_get_thresh_simps(x, thresh):
 def hf_prepare_neighborhood_df(
     cells_df, patient_ID_component1, patient_ID_component2, neighborhood_column=None
 ):
-    # Spacer for output
     """TODO: Add description.
     
     Parameters
@@ -807,6 +806,7 @@ def hf_prepare_neighborhood_df(
     Any
         TODO: Describe return value.
     """
+    # Spacer for output
     print("")
 
     # Combine two columns to form unique ID which will be stored as patients column
@@ -840,7 +840,6 @@ def hf_prepare_neighborhood_df(
 def hf_prepare_neighborhood_df2(
     cells_df, patient_ID_component1, patient_ID_component2, neighborhood_column=None
 ):
-    # Spacer for output
     """TODO: Add description.
     
     Parameters
@@ -859,6 +858,7 @@ def hf_prepare_neighborhood_df2(
     Any
         TODO: Describe return value.
     """
+    # Spacer for output
     print("")
 
     # Combine two columns to form unique ID which will be stored as patients column
@@ -953,7 +953,6 @@ def hf_simp_rep(
     comb_per_thres,
     thres_num=3,
 ):
-    # Choose the windows size to continue with
     """TODO: Add description.
     
     Parameters
@@ -978,6 +977,7 @@ def hf_simp_rep(
     Any
         TODO: Describe return value.
     """
+    # Choose the windows size to continue with
     if tissue_column != None:
         w2 = data.loc[data[tissue_column].isin(subset_list_tissue)]
         print("tissue_column true")

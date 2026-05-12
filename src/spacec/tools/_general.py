@@ -2926,8 +2926,6 @@ def launch_interactive_clustering(adata=None, output_dir=None):
 
     # Define the app
     def create_clustering_app():
-
-        # Callback to load data
         """TODO: Add description.
         
         Returns
@@ -2935,6 +2933,8 @@ def launch_interactive_clustering(adata=None, output_dir=None):
         Any
             TODO: Describe return value.
         """
+
+        # Callback to load data
         def load_data(event=None):
             """TODO: Add description.
             
