@@ -466,6 +466,7 @@ class ImageProcessor:
         self.flatmasks = flatmasks
 
     def update_adjacency_value(self, adjacency_matrix, original, neighbor):
+        # This function is copied from CellSeg
         """
         Updates the adjacency matrix based on the original and neighbor values.
 
@@ -483,7 +484,6 @@ class ImageProcessor:
             bool
                 True if the original and neighbor values are different and not zero, False otherwise.
         """
-        # This function is copied from CellSeg
         border = False
 
         if original != 0 and original != neighbor:
@@ -495,6 +495,7 @@ class ImageProcessor:
     def update_adjacency_matrix(
         self, plane_mask_flattened, width, height, adjacency_matrix, index
     ):
+        # This function uses code from CellSeg
         """
         Updates the adjacency matrix based on the flattened plane mask.
 
@@ -511,7 +512,6 @@ class ImageProcessor:
             index : int
                 Index of the current cell in the flattened plane mask.
         """
-        # This function uses code from CellSeg
         mod_value_width = index % width
         origin_mask = plane_mask_flattened[index]
         left, right, up, down = False, False, False, False

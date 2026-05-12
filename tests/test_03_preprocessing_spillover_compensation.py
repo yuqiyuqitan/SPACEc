@@ -9,10 +9,6 @@ TEST_DIR = pathlib.Path(__file__).parent
 def test_preprocessing_compensation():
     """TODO: Add description.
     
-    Returns
-    -------
-    Any
-        TODO: Describe return value.
     """
     print("Testing compensation")
 
@@ -60,10 +56,6 @@ def test_preprocessing_compensation():
 def test_preprocessing_compensation_gpu_autoselect():
     """TODO: Add description.
     
-    Returns
-    -------
-    Any
-        TODO: Describe return value.
     """
     print("Testing compensation")
 

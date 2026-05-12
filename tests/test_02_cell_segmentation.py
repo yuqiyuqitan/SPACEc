@@ -7,10 +7,6 @@ TEST_DIR = pathlib.Path(__file__).parent
 def test_cell_segmentation():
     """TODO: Add description.
     
-    Returns
-    -------
-    Any
-        TODO: Describe return value.
     """
 
     import matplotlib

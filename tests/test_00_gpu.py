@@ -5,10 +5,6 @@ import pytest
 def test_gpu_available():
     """TODO: Add description.
     
-    Returns
-    -------
-    Any
-        TODO: Describe return value.
     """
     import spacec as sp
 

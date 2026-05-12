@@ -7,10 +7,6 @@ TEST_DIR = pathlib.Path(__file__).parent
 def test_cellular_neighborhood_analysis():
     """TODO: Add description.
     
-    Returns
-    -------
-    Any
-        TODO: Describe return value.
     """
     # Set up environment
     import matplotlib

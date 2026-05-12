@@ -10,10 +10,6 @@ TEST_DIR = pathlib.Path(__file__).parent
 def test_clustering_gpu():
     """TODO: Add description.
     
-    Returns
-    -------
-    Any
-        TODO: Describe return value.
     """
     # ## Set up environment
 
