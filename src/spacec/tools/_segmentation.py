@@ -149,7 +149,7 @@ def load_image_dictionary(file_name, channel_file, input_format, nuclei_channel)
 
 def setup_gpu(use_gpu=True, set_memory_growth=True):
     """Checks Cellpose GPU availability and returns effective GPU usage flag."""
-    if set_memory_growth is not True:
+    if set_memory_growth is False:
         warnings.warn(
             "setup_gpu(set_memory_growth=...) has no effect after TensorFlow removal.",
             DeprecationWarning,
@@ -764,7 +764,12 @@ def run_cellpose(
 
 
 def load_mesmer_model(model_dir):
-    """Deprecated compatibility shim retained for external callers."""
+    """Deprecated compatibility shim retained for external callers.
+
+    Deprecated:
+        Mesmer model loading was removed with DeepCell/TensorFlow migration.
+        Use :func:`cell_segmentation` with ``seg_method='cellpose'``.
+    """
     print(
         "Mesmer model loading is no longer supported. "
         "SPACEc now uses Cellpose-only segmentation."
@@ -780,8 +785,11 @@ def mesmer_segmentation(
     compartment="whole-cell",  # 'whole-cell' or 'nuclear'
     model_path="./models",  # Base directory for Mesmer model download/load
 ):
-    """
-    Backward-compatible alias for Mesmer requests, now fulfilled with Cellpose.
+    """Deprecated Mesmer compatibility alias implemented via Cellpose.
+
+    Deprecated:
+        Mesmer runtime support was removed. This function maps inputs to
+        Cellpose segmentation and returns a Cellpose mask.
     """
     print(
         "Mesmer backend is deprecated and has been removed. "
