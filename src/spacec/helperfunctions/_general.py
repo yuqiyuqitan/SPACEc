@@ -1066,7 +1066,9 @@ def check_for_gpu(tensorflow=False, torch=True):
             a GPU is available for PyTorch
                 and `pytorch=True` (default),
             a GPU is available for tensorflow
-                and `tensorflow=True` (always False).
+                and `tensorflow=True` (always False),
+            when both `torch=True` and `tensorflow=True`,
+                the return value is always False because TensorFlow checks are disabled.
         otherwise it returns `False`.
     """
     gpu_tf = False

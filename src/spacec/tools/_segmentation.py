@@ -149,6 +149,13 @@ def load_image_dictionary(file_name, channel_file, input_format, nuclei_channel)
 
 def setup_gpu(use_gpu=True, set_memory_growth=True):
     """Checks Cellpose GPU availability and returns effective GPU usage flag."""
+    if set_memory_growth is not True:
+        warnings.warn(
+            "setup_gpu(set_memory_growth=...) has no effect after TensorFlow removal.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
     if not use_gpu:
         print("GPU usage explicitly disabled.")
         return False
