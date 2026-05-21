@@ -156,7 +156,9 @@ def setup_gpu(use_gpu=True, set_memory_growth=True):
     gpu_available = bool(cellpose_use_gpu())
     if gpu_available:
         if set_memory_growth:
-            print("GPU detected for Cellpose.")
+            print(
+                "GPU detected for Cellpose. set_memory_growth is ignored for non-TensorFlow backends."
+            )
         else:
             print("GPU detected for Cellpose.")
         return True

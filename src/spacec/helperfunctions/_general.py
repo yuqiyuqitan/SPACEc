@@ -1071,6 +1071,11 @@ def check_for_gpu(tensorflow=False, torch=True):
     """
     gpu_tf = False
     if tensorflow:
+        warnings.warn(
+            "check_for_gpu(tensorflow=...) is deprecated because TensorFlow support was removed.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         print(
             "GPU is not available to Tensorflow (TensorFlow backend has been removed)."
         )
