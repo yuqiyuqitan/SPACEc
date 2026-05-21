@@ -149,7 +149,7 @@ def load_image_dictionary(file_name, channel_file, input_format, nuclei_channel)
 
 def setup_gpu(use_gpu=True, set_memory_growth=True):
     """Checks Cellpose GPU availability and returns effective GPU usage flag."""
-    if set_memory_growth is False:
+    if not set_memory_growth:
         warnings.warn(
             "setup_gpu(set_memory_growth=...) has no effect after TensorFlow removal.",
             DeprecationWarning,
@@ -818,10 +818,11 @@ def mesmer_segmentation(
         seg_dict["_membrane"] = membrane_image
         membrane_channel = "_membrane"
 
+    compat_output_dir = pathlib.Path(model_path)
     try:
         segmented_mask, _, _ = cellpose_segmentation(
             image_dict=seg_dict,
-            output_dir=pathlib.Path(model_path),
+            output_dir=compat_output_dir,
             membrane_channel_name=membrane_channel,
             cytoplasm_channel_name=None,
             nucleus_channel_name="_nuclei",
