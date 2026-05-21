@@ -41,7 +41,6 @@ if [ "$confirm" = "y" ]; then
     pip install pandas==1.*
     pip install protobuf==3.20.0
     pip install numpy==1.24.*
-    pip install tensorflow-gpu==2.8.0
 
     # Install RAPIDS
     read -p "Do you want to install the RAPIDS? NVIDIA RTX20XX or better required! (y/n): " confirm
@@ -62,7 +61,6 @@ else
         # Install Python packages
         pip install --upgrade pip
         pip install spacec
-        $pkg_manager install tensorflow=2.10.0
         pip uninstall werkzeug -y
         pip install numpy==1.26.4 werkzeug==2.3.8
     else

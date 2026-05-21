@@ -13,7 +13,6 @@ import pandas as pd
 import scanpy as sc
 import scipy as sp
 import seaborn as sns
-import tensorflow as tf
 import tifffile as tiff
 from cellpose.core import use_gpu
 from scipy.spatial.distance import cdist
@@ -1054,11 +1053,11 @@ def is_dark(color):
 
 def check_for_gpu(tensorflow=False, torch=True):
     """
-    Check if a GPU is available for use by TensorFlow and PyTorch.
+    Check if a GPU is available for use by Cellpose/PyTorch.
 
-    This function checks if a GPU is available for use by TensorFlow and PyTorch.
-    It prints a message indicating whether a GPU is available for each library,
-    and returns a boolean indicating whether a GPU is available.
+    TensorFlow support has been removed from SPACEc segmentation. The
+    ``tensorflow`` argument is retained for backward compatibility but always
+    reports unavailable.
 
     Returns
     -------
@@ -1067,18 +1066,14 @@ def check_for_gpu(tensorflow=False, torch=True):
             a GPU is available for PyTorch
                 and `pytorch=True` (default),
             a GPU is available for tensorflow
-                and `tensorflow=True`,
-            a GPU is available for PyTorch AND tensorflow
-                and `pytorch=True` and `tensorflow=True`
+                and `tensorflow=True` (always False).
         otherwise it returns `False`.
     """
     gpu_tf = False
-    if tf.config.list_physical_devices("GPU"):
-        print("GPU is available to Tensorflow")
-        gpu_tf = True
-    else:
-        print("GPU is not available to Tensorflow")
-        gpu_tf = False
+    if tensorflow:
+        print(
+            "GPU is not available to Tensorflow (TensorFlow backend has been removed)."
+        )
 
     gpu_torch = use_gpu()
     if gpu_torch:

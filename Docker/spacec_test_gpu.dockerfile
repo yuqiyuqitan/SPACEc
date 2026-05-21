@@ -10,7 +10,7 @@ FROM spacec_test_cpu
 # Install CUDA
 RUN mamba install -n spacec -c conda-forge cudatoolkit=11.2.2 cudnn=8.1.0.77 -y
 
-# Setup environment for Tensorflow to find libraries
+# Setup environment for GPU libraries
 ENV CONDA_PREFIX=/miniforge/envs/spacec
 RUN mkdir -p $CONDA_PREFIX/etc/conda/activate.d && \
     echo 'export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH' > $CONDA_PREFIX/etc/conda/activate.d/env_vars.sh
