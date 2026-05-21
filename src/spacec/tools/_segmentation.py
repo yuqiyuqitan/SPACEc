@@ -1,7 +1,6 @@
 import gc
 import os
 import pathlib
-import shutil
 import sys
 import time
 
@@ -9,25 +8,22 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import requests
 import skimage
 import skimage.io
-import tensorflow as tf
 import tifffile
 from cellpose import io
 from cellpose import models as cellpose_models  # fixed
-from deepcell.applications import Mesmer
-from deepcell.utils.plot_utils import create_rgb_image, make_outline_overlay
+from cellpose.core import use_gpu as cellpose_use_gpu
 from IPython.display import clear_output
 from scipy.ndimage import gaussian_filter, label
 from skimage.measure import regionprops_table
 from skimage.segmentation import relabel_sequential
-from tensorflow.keras.models import load_model
 from tqdm import tqdm
 from tqdm.notebook import (
     tqdm as notebook_tqdm,  # Use notebook version for better display
 )
 
+from .._shared.overlay_utils import create_rgb_image, make_outline_overlay
 from .._shared.segmentation import (
     combine_channels,
     create_multichannel_tiff,
@@ -152,31 +148,25 @@ def load_image_dictionary(file_name, channel_file, input_format, nuclei_channel)
 
 
 def setup_gpu(use_gpu=True, set_memory_growth=True):
-    """Configures TensorFlow GPU memory growth to avoid allocating all memory at once."""
-    if use_gpu:
-        gpus = tf.config.list_physical_devices("GPU")
-        if gpus:
-            try:
-                for gpu in gpus:
-                    if set_memory_growth == True:
-                        tf.config.experimental.set_memory_growth(
-                            gpu, True
-                        )  # As your model requires more memory during execution, TensorFlow will gradually increase the allocation. Rather than just allocating all memory!
-                        print(f"GPU(s) available: {len(gpus)}. Memory growth enabled.")
-                    else:
-                        print(f"GPU(s) available: {len(gpus)}. Memory growth not set.")
-            except RuntimeError as e:
-                print(
-                    f"Warning: Could not set memory growth (may already be initialized): {e}"
-                )
-        else:
-            print("No GPU detected by TensorFlow.")
-            use_gpu = False  # Ensure CPU is used if no GPU found
-    else:
+    """Checks Cellpose GPU availability and returns effective GPU usage flag."""
+    if not set_memory_growth:
+        warnings.warn(
+            "setup_gpu(set_memory_growth=...) has no effect after TensorFlow removal.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
+    if not use_gpu:
         print("GPU usage explicitly disabled.")
-        # Optionally force CPU only
-        # tf.config.set_visible_devices([], 'GPU')
-    return use_gpu  # Return status in case it changed
+        return False
+
+    gpu_available = bool(cellpose_use_gpu())
+    if gpu_available:
+        print("GPU detected for Cellpose.")
+        return True
+
+    print("No GPU detected for Cellpose. Falling back to CPU.")
+    return False
 
 
 def prepare_segmentation_dict(image_dict, nuclei_channel, membrane_channel_list):
@@ -769,79 +759,19 @@ def run_cellpose(
 
 
 def load_mesmer_model(model_dir):
+    """Deprecated compatibility shim retained for external callers.
+
+    Deprecated:
+        Mesmer model loading was removed with DeepCell/TensorFlow migration.
+        Use :func:`cell_segmentation` with ``seg_method='cellpose'``.
     """
-    Loads the Mesmer model from a specified directory. Downloads if not found.
-
-    Parameters:
-        model_dir (str or Path): Directory where 'Mesmer_model/MultiplexSegmentation'
-                                 is located or will be downloaded to.
-
-    Returns:
-        tensorflow.keras.Model: The loaded Mesmer model, or None on error.
-    """
-    model_dir_path = pathlib.Path(model_dir)
-    mesmer_subdir = "Mesmer_model"
-    model_name = "MultiplexSegmentation"
-    full_model_path = model_dir_path / mesmer_subdir / model_name
-
-    if not full_model_path.exists():
-        print(f"Mesmer model not found at {full_model_path}. Attempting download...")
-        try:
-            (model_dir_path / mesmer_subdir).mkdir(parents=True, exist_ok=True)
-
-            # Download URL and target file path
-            url = "https://deepcell-data.s3-us-west-1.amazonaws.com/saved-models/MultiplexSegmentation-9.tar.gz"
-            tar_path = model_dir_path / mesmer_subdir / "MultiplexSegmentation.tar.gz"
-            extract_target_dir = model_dir_path / mesmer_subdir
-
-            # Download
-            print(f"Downloading Mesmer model from {url}...")
-            response = requests.get(url, stream=True)
-            response.raise_for_status()  # Check for download errors
-            with open(tar_path, "wb") as f:
-                for chunk in tqdm(
-                    response.iter_content(chunk_size=8192 * 16),
-                    desc="Downloading Mesmer",
-                ):  # Larger chunk size + tqdm
-                    f.write(chunk)
-            print(f"Downloaded model archive to {tar_path}")
-
-            # Unpack
-            print(f"Unpacking {tar_path}...")
-            shutil.unpack_archive(tar_path, extract_target_dir)
-            print(f"Unpacked model to {extract_target_dir}")
-
-            # Check if the expected model directory exists after unpacking
-            if not full_model_path.exists():
-                raise FileNotFoundError(
-                    f"Model directory '{model_name}' not found in {extract_target_dir} after unpacking."
-                )
-
-            # Clean up downloaded archive
-            os.remove(tar_path)
-            print(f"Removed downloaded archive {tar_path}")
-
-        except requests.exceptions.RequestException as e:
-            print(f"Error downloading Mesmer model: {e}")
-            return None
-        except (shutil.ReadError, FileNotFoundError, Exception) as e:
-            print(f"Error setting up Mesmer model: {e}")
-            if "tar_path" in locals() and os.path.exists(tar_path):
-                os.remove(tar_path)  # Clean up failed download
-            return None
-    else:
-        print(f"Found existing Mesmer model at: {full_model_path}")
-
-    # Load the model
-    print("Loading Mesmer model...")
-    try:
-        # Use tf.keras.models.load_model (already imported)
-        mesmer_pretrained_model = load_model(str(full_model_path), compile=False)
-        print("Mesmer model loaded successfully.")
-        return mesmer_pretrained_model
-    except Exception as e:
-        print(f"Error loading Mesmer model from {full_model_path}: {e}")
-        return None
+    warnings.warn(
+        "load_mesmer_model is deprecated: Mesmer model loading is no longer supported. "
+        "Use cell_segmentation(seg_method='cellpose') instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return None
 
 
 def mesmer_segmentation(
@@ -852,152 +782,92 @@ def mesmer_segmentation(
     compartment="whole-cell",  # 'whole-cell' or 'nuclear'
     model_path="./models",  # Base directory for Mesmer model download/load
 ):
+    """Deprecated Mesmer compatibility alias implemented via Cellpose.
+
+    Deprecated:
+        Mesmer runtime support was removed. This function maps inputs to
+        Cellpose segmentation and returns a Cellpose mask.
     """
-    Perform segmentation using the DeepCell Mesmer model.
+    warnings.warn(
+        "mesmer_segmentation is deprecated and now uses Cellpose fallback.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
 
-    Parameters:
-        nuclei_image (ndarray): 2D NumPy array for nuclei.
-        membrane_image (ndarray or None): 2D NumPy array for membrane/cytoplasm, or None for nuclear segmentation.
-        image_mpp (float): Microns per pixel.
-        plot_predictions (bool): Whether to plot segmentation overlay.
-        compartment (str): 'whole-cell' or 'nuclear'.
-        model_path (str or Path): Directory for Mesmer model.
-
-    Returns:
-        ndarray: 2D integer-labeled segmentation mask, or None on error.
-    """
-    print(f"Running Mesmer segmentation: compartment='{compartment}', mpp={image_mpp}")
-
-    # Load Mesmer model
-    mesmer_pretrained_model = load_mesmer_model(model_path)
-    if mesmer_pretrained_model is None:
-        return None  # Error loading model
-
-    # Initialize Mesmer application
-    try:
-        app = Mesmer(model=mesmer_pretrained_model)
-    except Exception as e:
-        print(f"Error initializing Mesmer application: {e}")
-        return None
-
-    # Prepare input image stack for Mesmer: (batch, height, width, channels)
-    # Channels: [Nuclear, Membrane/Cytoplasm]
     if nuclei_image.ndim != 2:
         print(f"Error: Nuclei image must be 2D, but got shape {nuclei_image.shape}")
         return None
 
-    if compartment == "whole-cell":
-        if membrane_image is None:
-            print(
-                "Warning: compartment is 'whole-cell' but membrane_image is None. Performing nuclear segmentation instead."
-            )
-            compartment = "nuclear"  # Switch to nuclear
-            membrane_channel = np.zeros_like(nuclei_image)  # Dummy channel
-        elif membrane_image.shape != nuclei_image.shape:
-            print(
-                f"Error: Nuclei ({nuclei_image.shape}) and membrane ({membrane_image.shape}) images must have the same shape."
-            )
-            return None
-        else:
-            membrane_channel = membrane_image
-    elif compartment == "nuclear":
-        membrane_channel = np.zeros_like(nuclei_image)  # Dummy channel if nuclear only
-    else:
+    if membrane_image is not None and membrane_image.shape != nuclei_image.shape:
+        print(
+            f"Error: Nuclei ({nuclei_image.shape}) and membrane ({membrane_image.shape}) images must have the same shape."
+        )
+        return None
+
+    if compartment not in {"whole-cell", "nuclear"}:
         print(
             f"Error: Invalid compartment: {compartment}. Choose 'whole-cell' or 'nuclear'."
         )
         return None
 
-    # Stack channels and add batch dimension
+    seg_dict = {"_nuclei": nuclei_image}
+    membrane_channel = None
+    if compartment == "whole-cell" and membrane_image is not None:
+        seg_dict["_membrane"] = membrane_image
+        membrane_channel = "_membrane"
+
+    compat_output_dir = pathlib.Path(model_path)
     try:
-        # Normalize images (Mesmer often expects float inputs, check docs if needed)
-        # Example normalization (adjust based on expected input range):
-        # nuclei_norm = (nuclei_image - np.min(nuclei_image)) / (np.max(nuclei_image) - np.min(nuclei_image) + 1e-6)
-        # membrane_norm = (membrane_channel - np.min(membrane_channel)) / (np.max(membrane_channel) - np.min(membrane_channel) + 1e-6)
-        # combined_image = np.stack([nuclei_norm, membrane_norm], axis=-1)
-
-        # Using images as is for now, assuming Mesmer handles scaling or prefers raw values
-        combined_image = np.stack([nuclei_image, membrane_channel], axis=-1)
-        combined_image_batch = np.expand_dims(combined_image, axis=0).astype(
-            np.float32
-        )  # Mesmer expects float32
-        # print(f\"Prepared Mesmer input batch with shape: {combined_image_batch.shape}\")
-    except Exception as e:
-        print(f"Error preparing Mesmer input stack: {e}")
-        return None
-
-    # Run the Mesmer model prediction
-    print("Predicting with Mesmer...")
-    try:
-        segmented_batch = app.predict(
-            combined_image_batch, image_mpp=image_mpp, compartment=compartment
+        segmented_mask, _, _ = cellpose_segmentation(
+            image_dict=seg_dict,
+            output_dir=compat_output_dir,
+            membrane_channel_name=membrane_channel,
+            cytoplasm_channel_name=None,
+            nucleus_channel_name="_nuclei",
+            use_gpu=True,
+            model="cyto3" if membrane_channel else "nuclei",
+            custom_model=False,
+            diameter=None,
+            save_mask_as_png=False,
         )
-        # print(f\"Mesmer prediction output batch shape: {segmented_batch.shape}\")
     except Exception as e:
-        print(f"Error during Mesmer prediction: {e}")
+        print(f"Error during Cellpose fallback for Mesmer alias: {e}")
         return None
 
-    # Extract the single mask from the batch: (1, H, W, 1) -> (H, W)
-    if (
-        segmented_batch is None
-        or segmented_batch.shape[0] != 1
-        or segmented_batch.shape[-1] != 1
-    ):
-        print(
-            f"Warning: Unexpected Mesmer output shape {segmented_batch.shape if segmented_batch is not None else 'None'}. Cannot extract mask."
-        )
+    if segmented_mask is None:
+        print("Warning: Cellpose fallback returned no mask for Mesmer alias.")
         return None
-    segmented_mask = np.squeeze(segmented_batch).astype(np.int32)
-    print(
-        f"Extracted Mesmer mask with shape: {segmented_mask.shape}, max label: {np.max(segmented_mask)}"
-    )
 
-    # Plotting (optional)
+    segmented_mask = segmented_mask.astype(np.int32)
     if plot_predictions:
         try:
-            from deepcell.utils.plot_utils import create_rgb_image, make_outline_overlay
-
-            print("Plotting Mesmer predictions...")
-            # Use the original (non-batch) combined image for plotting colors
-            channel_colors = [
-                "blue",
-                "green",
-            ]  # Nuc=Blue, Memb=Green (adjust as preferred)
+            if membrane_channel:
+                combined_image = np.stack([nuclei_image, membrane_image], axis=-1)
+                channel_colors = ["blue", "green"]
+            else:
+                combined_image = np.stack([nuclei_image], axis=-1)
+                channel_colors = ["blue"]
             rgb_images = create_rgb_image(
                 np.expand_dims(combined_image, axis=0), channel_colors=channel_colors
             )
             overlay_data = make_outline_overlay(
-                rgb_data=rgb_images, predictions=segmented_batch
+                rgb_data=rgb_images,
+                predictions=np.expand_dims(segmented_mask, axis=0),
             )
 
             fig, ax = plt.subplots(1, 2, figsize=(15, 7))
             ax[0].imshow(rgb_images[0, ...])
-            ax[0].set_title(
-                f"Input (Nuc: {channel_colors[0]}, Memb: {channel_colors[1]})"
-            )
             ax[0].axis("off")
+            ax[0].set_title("Cellpose Input Preview")
             ax[1].imshow(overlay_data[0, ...])
-            ax[1].set_title(f"Mesmer {compartment} Predictions")
             ax[1].axis("off")
+            ax[1].set_title(f"Cellpose ({compartment})")
             plt.tight_layout()
             plt.show()
-        except ImportError:
-            print(
-                "Warning: deepcell.utils.plot_utils not found. Cannot plot Mesmer predictions."
-            )
         except Exception as e:
-            print(f"Warning: Error during Mesmer plotting: {e}")
+            print(f"Warning: Error during fallback plotting: {e}")
 
-    # Clean up
-    del (
-        combined_image,
-        combined_image_batch,
-        segmented_batch,
-        app,
-        mesmer_pretrained_model,
-    )
     gc.collect()
-
     return segmented_mask
 
 
@@ -1904,13 +1774,12 @@ def _perform_segmentation(
         traceback.print_exc()
         return None
     finally:
-        # Clean up GPU memory if TF/Cellpose was used
+        # Clean up Python memory
         if use_gpu and (seg_method == "mesmer" or seg_method == "cellpose"):
             try:
-                tf.keras.backend.clear_session()
                 gc.collect()
             except Exception as clear_e:
-                print(f"Warning: Error clearing TF session: {clear_e}")
+                print(f"Warning: Error clearing session memory: {clear_e}")
 
 
 def cell_segmentation(
@@ -1918,7 +1787,7 @@ def cell_segmentation(
     channel_file,  # Path to channel names file (if not input_format=="Channels")
     output_dir,  # Base directory for outputs
     output_fname="",  # Basename for output files
-    seg_method="mesmer",  # 'mesmer' or 'cellpose'
+    seg_method="cellpose",  # 'cellpose' (preferred) or 'mesmer' (compat alias)
     nuclei_channel="DAPI",  # Name of the nucleus channel
     input_format="Multichannel",  # 'Multichannel', 'Channels', 'CODEX'
     membrane_channel_list=None,  # List of channel names for membrane/whole-cell seg
@@ -1946,7 +1815,7 @@ def cell_segmentation(
     feature_memory_limit_gb=8,
     set_memory_growth=True,
 ):
-    """Perform cell segmentation using Mesmer or Cellpose with optional tiling and feature extraction.
+    """Perform cell segmentation using Cellpose with optional tiling and feature extraction.
 
     This function implements a complete segmentation pipeline including image loading,
     preprocessing, segmentation, mask stitching, and feature extraction. It handles large
@@ -1962,8 +1831,9 @@ def cell_segmentation(
         Base directory for output files
     output_fname : str, optional
         Basename for output files, by default auto-generated
-    seg_method : {'mesmer', 'cellpose'}, optional
-        Segmentation algorithm to use, by default 'mesmer'
+    seg_method : {'cellpose', 'mesmer'}, optional
+        Segmentation algorithm to use, by default 'cellpose'. ``'mesmer'`` is
+        retained as a compatibility alias mapped to Cellpose.
     nuclei_channel : str, optional
         Name of the nuclei channel, by default 'DAPI'
     input_format : {'Multichannel', 'Channels', 'CODEX'}, optional

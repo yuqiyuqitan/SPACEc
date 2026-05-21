@@ -103,7 +103,6 @@ jobs:
         run: |
           brew install vips graphviz
           echo "DYLD_LIBRARY_PATH = ${DYLD_LIBRARY_PATH}:/opt/homebrew/Cellar/vips/$(brew list --versions vips | awk '{print $2}')/lib:/opt/homebrew/Cellar/openslide/$(brew list --versions openslide | awk '{print $2}')/lib" >> $GITHUB_ENV
-          echo "TF_CPP_MIN_LOG_LEVEL = 2" >> $GITHUB_ENV
           echo "CUDA_VISIBLE_DEVICES = -1" >> $GITHUB_ENV
 
       - name: Run tests (macos)

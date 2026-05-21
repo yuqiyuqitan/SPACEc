@@ -34,42 +34,35 @@ def test_cell_segmentation():
             input_format="Multichannel",
         )
 
-        print("Cell Segmentation Mesmer")
-        # choose between cellpose or mesmer for segmentation
-        # first image
-        # seg_output contains {'img': img, 'image_dict': image_dict, 'masks': masks}
+        print("Cell Segmentation (default backend)")
         seg_output1 = sp.tl.cell_segmentation(
             file_name=data_path / "raw/tonsil/1/reg010_X01_Y01_Z01.tif",
             channel_file=data_path / "raw/tonsil/channelnames.txt",
             output_dir=output_dir,
             output_fname="tonsil1",
-            seg_method="mesmer",  # cellpose or mesmer
             nuclei_channel="DAPI",
             membrane_channel_list=[
                 "CD45",
                 "betaCatenin",
             ],  # default is None; if provide more than one channel, then they will be combined
-            compartment="whole-cell",  # mesmer # segment whole cells or nuclei only
+            compartment="whole-cell",
             input_format="Multichannel",  # Phenocycler or codex
             size_cutoff=0,
         )
 
-        print("Cell Tiled Segmentation Mesmer")
-        # choose between cellpose or mesmer for segmentation
-        # first image
-        # seg_output contains {'img': img, 'image_dict': image_dict, 'masks': masks}
+        print("Cell Tiled Segmentation (legacy mesmer alias)")
         seg_output2 = sp.tl.cell_segmentation(
             file_name=data_path / "raw/tonsil/1/reg010_X01_Y01_Z01.tif",
             channel_file=data_path / "raw/tonsil/channelnames.txt",
             output_dir=output_dir,
             output_fname="tonsil1",
-            seg_method="mesmer",  # cellpose or mesmer
+            seg_method="mesmer",
             nuclei_channel="DAPI",
             membrane_channel_list=[
                 "CD45",
                 "betaCatenin",
             ],  # default is None; if provide more than one channel, then they will be combined
-            compartment="whole-cell",  # mesmer # segment whole cells or nuclei only
+            compartment="whole-cell",
             input_format="Multichannel",  # Phenocycler or codex
             size_cutoff=0,
             tile_size=32,  # Default tile size
@@ -140,7 +133,7 @@ def test_cell_segmentation():
             custom_model=True,
         )
 
-        print("Show Masks Mesmer")
+        print("Show Masks")
         overlay_data1, rgb_images1 = sp.pl.show_masks(
             seg_output=seg_output1,
             nucleus_channel="DAPI",  # channel used for nuclei segmentation (displayed in blue)

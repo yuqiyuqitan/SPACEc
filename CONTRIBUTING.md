@@ -122,7 +122,6 @@ pip install -e .
 
 # for Apple Mx users, additional steps might be necessary
 # also see `README.md`
-# conda install tensorflow=2.10.0
 
 # install pre-commit hooks (for automatic style checks)
 pre-commit install

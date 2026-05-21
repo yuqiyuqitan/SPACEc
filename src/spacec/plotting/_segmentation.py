@@ -4,9 +4,9 @@ import random
 import matplotlib.pyplot as plt
 import numpy as np
 import skimage.io
-from deepcell.utils.plot_utils import create_rgb_image, make_outline_overlay
 
 from .._shared.segmentation import combine_channels, format_CODEX
+from .._shared.overlay_utils import create_rgb_image, make_outline_overlay
 
 
 def segmentation_ch(
@@ -173,7 +173,7 @@ def show_masks(
         nuclei_image = image_dict[nucleus_channel]
         add_chan_image = image_dict["segmentation_channel"]
         combined_image = np.stack([nuclei_image, add_chan_image], axis=-1)
-        # Add an extra dimension to make it compatible with Mesmer's input requirements
+        # Add an extra dimension for batch-style visualization utilities
         # Changes shape from (height, width, channels) to (1, height, width, channels)
         combined_image = np.expand_dims(combined_image, axis=0)
         # create rgb overlay of image data for visualization
@@ -181,7 +181,7 @@ def show_masks(
     else:
         nuclei_image = image_dict[nucleus_channel]
         combined_image = np.stack([nuclei_image], axis=-1)
-        # Add an extra dimension to make it compatible with Mesmer's input requirements
+        # Add an extra dimension for batch-style visualization utilities
         # Changes shape from (height, width, channels) to (1, height, width, channels)
         combined_image = np.expand_dims(combined_image, axis=0)
         # create rgb overlay of image data for visualization
