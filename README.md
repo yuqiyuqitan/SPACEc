@@ -1,3 +1,5 @@
+# THIS BRANCH IS WORK IN PROGRESS AND SHOULD NOT BE USED TO RUN SPACEc
+
 # SPatial Analysis for CodEX data (SPACEc)
 
 [![Stars](https://img.shields.io/github/stars/yuqiyuqitan/SPACEc?style=flat&logo=GitHub&color=yellow)](https://github.com/yuqiyuqitan/SPACEc/stargazers)
