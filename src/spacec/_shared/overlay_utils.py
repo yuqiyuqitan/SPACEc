@@ -34,8 +34,8 @@ def create_rgb_image(image_batch, channel_colors=None):
     if channel_colors is None:
         channel_colors = ["blue"] * n_channels
     if len(channel_colors) < n_channels:
-        channel_colors = list(channel_colors) + ["white"] * max(
-            0, n_channels - len(channel_colors)
+        channel_colors = list(channel_colors) + ["white"] * (
+            n_channels - len(channel_colors)
         )
 
     rgb = np.zeros((batch, height, width, 3), dtype=np.float32)

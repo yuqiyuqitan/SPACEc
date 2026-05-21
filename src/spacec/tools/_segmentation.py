@@ -162,12 +162,7 @@ def setup_gpu(use_gpu=True, set_memory_growth=True):
 
     gpu_available = bool(cellpose_use_gpu())
     if gpu_available:
-        if set_memory_growth:
-            print(
-                "GPU detected for Cellpose. set_memory_growth is ignored for non-TensorFlow backends."
-            )
-        else:
-            print("GPU detected for Cellpose.")
+        print("GPU detected for Cellpose.")
         return True
 
     print("No GPU detected for Cellpose. Falling back to CPU.")
@@ -770,9 +765,11 @@ def load_mesmer_model(model_dir):
         Mesmer model loading was removed with DeepCell/TensorFlow migration.
         Use :func:`cell_segmentation` with ``seg_method='cellpose'``.
     """
-    print(
-        "Mesmer model loading is no longer supported. "
-        "SPACEc now uses Cellpose-only segmentation."
+    warnings.warn(
+        "load_mesmer_model is deprecated: Mesmer model loading is no longer supported. "
+        "Use cell_segmentation(seg_method='cellpose') instead.",
+        DeprecationWarning,
+        stacklevel=2,
     )
     return None
 
@@ -791,9 +788,10 @@ def mesmer_segmentation(
         Mesmer runtime support was removed. This function maps inputs to
         Cellpose segmentation and returns a Cellpose mask.
     """
-    print(
-        "Mesmer backend is deprecated and has been removed. "
-        "Falling back to Cellpose for segmentation."
+    warnings.warn(
+        "mesmer_segmentation is deprecated and now uses Cellpose fallback.",
+        DeprecationWarning,
+        stacklevel=2,
     )
 
     if nuclei_image.ndim != 2:
