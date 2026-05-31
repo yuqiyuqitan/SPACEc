@@ -23,6 +23,17 @@ finally:
 # import os
 # os.environ["KMP_DUPLICATE_LIB_OK"] = "True"
 
+# Compatibility shim for newer IPython versions where `display` is no longer
+# exported from `IPython.core.display`, but older imports still rely on it.
+try:
+    import IPython.core.display as _ipython_core_display
+    from IPython.display import display as _ipython_display
+
+    if not hasattr(_ipython_core_display, "display"):
+        _ipython_core_display.display = _ipython_display
+except Exception:
+    pass
+
 from . import helperfunctions as hf
 from . import plotting as pl
 from . import preprocessing as pp
