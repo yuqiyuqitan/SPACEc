@@ -3,6 +3,8 @@ from tempfile import TemporaryDirectory
 
 import pytest
 
+pytest.importorskip("stellar")
+
 TEST_DIR = pathlib.Path(__file__).parent
 
 
@@ -13,14 +15,12 @@ def test_cell_annotation_STELLAR():
     # import standard packages
     import os
     import sys
-    from pathlib import Path
 
     import anndata
     import matplotlib.pyplot as plt
     import pandas as pd
     import scanpy as sc
     import seaborn as sns
-    from git import Repo
 
     # %%
     import spacec as sp
@@ -44,7 +44,7 @@ def test_cell_annotation_STELLAR():
 
         # Load training data
         adata = sc.read(processed_path / "adata_nn_2000.h5ad")
-        # TODO: if we go lower than 400 things break
+        # NOTE: this test breaks if the subset is reduced below 400 cells
         adata_train = adata[adata.obs["condition"] == "tonsil"][:400, :]
         adata_val = adata[adata.obs["condition"] == "tonsillitis"][:400:]
 
@@ -53,17 +53,6 @@ def test_cell_annotation_STELLAR():
         import numpy as np
 
         np.isnan(adata_train.X).sum()
-
-        root_path = TEST_DIR  # replace with your path
-
-        # STELLAR path
-        STELLAR_path = Path(root_path / "example_data/STELLAR/")
-
-        # Test if the path exists, if not create it
-        if not STELLAR_path.exists():
-            STELLAR_path.mkdir(exist_ok=True, parents=True)
-            repo_url = "https://github.com/snap-stanford/stellar.git"
-            Repo.clone_from(repo_url, STELLAR_path)
 
         adata_new = sp.tl.adata_stellar(
             adata_train,
@@ -74,7 +63,6 @@ def test_cell_annotation_STELLAR():
             sample_rate=0.5,
             distance_thres=50,
             epochs=1,
-            STELLAR_path=STELLAR_path,
         )
 
         sp.pl.catplot(

@@ -1,64 +1,40 @@
-FROM debian:bullseye-slim
+# Build with (from the repo root):
+#   $ docker build -f Docker/spacec_cpu_build.dockerfile -t spacec:cpu .
+# Run with:
+#   $ docker run -p 8888:8888 -p 5100:5100 spacec:cpu
+ARG PYTHON_VERSION=3.12
+FROM python:${PYTHON_VERSION}-slim-bookworm
 
-ARG DEBIAN_FRONTEND=noninteractive
-
-# Update the package list and install dependencies
+# git: GitPython (an install_requires dep) clones STELLAR from Git at runtime.
+# build-essential/pkg-config: pyvips ships sdist-only, so pip compiles it here;
+#   do NOT also install a system libvips, or pyvips builds against the wrong
+#   headers and fails at runtime with "cannot load library libvips.42".
+# libglib2.0-0: needed by cv2 (pulled in transitively via cellpose).
+# fontconfig/fonts-*: needed by matplotlib for text rendering.
 RUN apt-get update && \
-    apt-get install -y \
+    apt-get install -y --no-install-recommends \
+    build-essential \
+    pkg-config \
+    git \
+    libglib2.0-0 \
     fontconfig \
     fonts-dejavu-core \
     fonts-droid-fallback \
     fonts-liberation \
     fonts-noto-mono \
-    ttf-bitstream-vera \
-    git \
-    wget && \
+    ttf-bitstream-vera && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Miniforge
-RUN apt-get update && \
-    apt-get install -y wget && \
-    wget "https://github.com/conda-forge/miniforge/releases/download/23.11.0-0/Miniforge3-23.11.0-0-Linux-x86_64.sh" && \
-    bash Miniforge3-*.sh -b -p /miniforge && \
-    rm Miniforge3-*.sh
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir spacec
 
-# Add Miniforge to PATH
-ENV PATH="/miniforge/bin:${PATH}"
-
-# Create a new conda environment with Python 3.10
-RUN conda create -n spacec python=3.10 -y
-
-# Install mamba
-RUN conda install -n spacec -c conda-forge mamba -y
-
-# Install libxml2
-RUN mamba install -n spacec -c conda-forge libxml2=2.13.5 -y
-
-# Install other dependencies
-RUN mamba install -n spacec -c conda-forge graphviz libvips pyvips openslide-python -y
-
-# Install gcc
-RUN apt-get update && \
-    apt-get install -y build-essential gcc && \
-    rm -rf /var/lib/apt/lists/*
-
-# Install SPACEc
-RUN mamba run -n spacec pip install spacec
-
-# Install additional Python packages
-RUN mamba run -n spacec pip install networkx==3.2.* protobuf==3.20.0 numpy==1.24.*
-
-# Clean up
-RUN mamba clean --all -f -y && \
-    rm -rf /root/.cache/pip
-
-# Copy notebooks into the image YOU CAN CHANGE THIS TO COPY YOUR OWN NOTEBOOKS
-COPY ../notebooks /notebooks
+# Copy notebooks into the image. YOU CAN CHANGE THIS TO COPY YOUR OWN NOTEBOOKS
+COPY notebooks /notebooks
 WORKDIR /notebooks
 
 # Expose relevant ports
 EXPOSE 8888
 EXPOSE 5100
 
-# Default command
-CMD ["conda", "run", "-n", "spacec", "jupyter", "lab", "--ip='0.0.0.0'", "--port=8888", "--no-browser", "--allow-root", "--NotebookApp.token=''"]
+# Default command. No auth token/password: intended for localhost port-forwarding only.
+CMD ["jupyter", "lab", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--allow-root", "--ServerApp.token=", "--ServerApp.password="]

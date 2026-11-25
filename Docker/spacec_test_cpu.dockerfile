@@ -1,62 +1,33 @@
 # Docker container for efficient iterative testing
-# - build with
-#   $ docker buildx build -t spacec_test_cpu -f Docker/spacec_test_cpu.dockerfile .
+# - build with (from the repo root):
+#   $ docker build -f Docker/spacec_test_cpu.dockerfile -t spacec_test_cpu .
 # - run with:
 #   $ docker run spacec_test_cpu
 #   or if iteratively updating tests:
-#   $ docker run -v .:/app/spacec spacec_test_gpu
-FROM debian:bullseye-slim
+#   $ docker run -v .:/app/spacec spacec_test_cpu
+ARG PYTHON_VERSION=3.12
+FROM python:${PYTHON_VERSION}-slim-bookworm
 
-ARG DEBIAN_FRONTEND=noninteractive
-
-# Update the package list and install dependencies
+# git: GitPython (an install_requires dep) clones STELLAR from Git at runtime;
+#   `git init` below also gives setuptools_scm a repo to read the version from.
+# build-essential/pkg-config: pyvips ships sdist-only, so pip compiles it here;
+#   do NOT also install a system libvips, or pyvips builds against the wrong
+#   headers and fails at runtime with "cannot load library libvips.42".
+# libglib2.0-0: needed by cv2 (pulled in transitively via cellpose).
 RUN apt-get update && \
-    apt-get install -y \
-    build-essential gcc \
+    apt-get install -y --no-install-recommends \
+    build-essential \
+    pkg-config \
     git \
-    wget && \
+    libglib2.0-0 && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Miniforge
-RUN apt-get update && \
-    apt-get install -y wget && \
-    wget "https://github.com/conda-forge/miniforge/releases/download/23.11.0-0/Miniforge3-23.11.0-0-Linux-x86_64.sh" && \
-    bash Miniforge3-*.sh -b -p /miniforge && \
-    rm Miniforge3-*.sh
-
-# Add Miniforge to PATH
-ENV PATH="/miniforge/bin:${PATH}"
-
-# Init mamba
-RUN mamba init
-
-# Create a new conda environment with Python 3.10
-RUN conda create -n spacec python=3.10 -y
-
-# Install mamba
-RUN conda install -n spacec -c conda-forge mamba -y
-
-# Install libxml2
-# RUN mamba install -n spacec -c conda-forge libxml2=2.13.5 -y
-
-# Install other dependencies ()
-RUN mamba install -n spacec -c conda-forge graphviz libvips openslide -y; \
-    mamba install -n spacec -c conda-forge pytest pytest-cov -y
-
-# Install gcc
-# RUN apt-get update && \
-#     apt-get install -y build-essential gcc && \
-#     rm -rf /var/lib/apt/lists/*
-
-# Copy SPACEc development code and install
-ADD . /app/spacec
+# Copy SPACEc development code and install with test extras
+COPY . /app/spacec
 WORKDIR /app/spacec
-RUN git init
-RUN mamba run -n spacec pip install -e .
-
-# Clean up mamba
-RUN mamba clean --all -f -y && \
-    rm -rf /root/.cache/pip
+RUN git init && \
+    pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -e ".[testing]"
 
 # Default command
-CMD ["bash", "-c", "source /miniforge/etc/profile.d/conda.sh && conda activate spacec && pytest"]
+CMD ["pytest"]

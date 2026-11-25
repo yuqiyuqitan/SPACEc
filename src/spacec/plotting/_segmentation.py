@@ -1,12 +1,16 @@
 import os
+import pathlib
 import random
+import warnings
+from typing import Optional, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
 import skimage.io
-from deepcell.utils.plot_utils import create_rgb_image, make_outline_overlay
 
+from .._shared.overlay_utils import create_rgb_image, make_outline_overlay
 from .._shared.segmentation import combine_channels, format_CODEX
+from ._style import SPACEcStyle, _add_scalebar, _apply_style, _savefig
 
 
 def segmentation_ch(
@@ -15,9 +19,15 @@ def segmentation_ch(
     output_dir,
     savefig=False,
     output_fname="",
-    extra_seg_ch_list=None,  # channels used for membrane segmentation
+    membrane_channel_list=None,  # channels used for membrane segmentation
     nuclei_channel="DAPI",
     input_format="Multichannel",
+    style: Optional[Union[SPACEcStyle, str, pathlib.Path]] = None,
+    scalebar: bool = True,
+    scalebar_length_px=None,
+    um_per_px=None,
+    scalebar_show_text: bool = True,
+    extra_seg_ch_list=None,
 ):
     """
     Plot the channel selected for segmentation.
@@ -34,18 +44,31 @@ def segmentation_ch(
         Whether to save the figure, by default False.
     output_fname : str, optional
         The filename for the saved figure, by default "".
-    extra_seg_ch_list : list, optional
+    membrane_channel_list : list, optional
         The channels used for membrane segmentation, by default None.
     nuclei_channel : str, optional
         The channel used for nuclei, by default "DAPI".
     input_format : str, optional
         The input_format used (either "CODEX", "Multichannel" or "Channels"), by default "Multichannel".
+    extra_seg_ch_list : list, optional
+        Deprecated alias for `membrane_channel_list`, kept only for backwards compatibility -- raises a
+        `DeprecationWarning` and overrides `membrane_channel_list` if given. Will be removed in a future
+        version.
 
     Returns
     -------
     None
     """
-    import pathlib  # Add import for pathlib if needed
+    if extra_seg_ch_list is not None:
+        warnings.warn(
+            "'extra_seg_ch_list' is deprecated and will be removed in a future version. "
+            "Use 'membrane_channel_list' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        membrane_channel_list = extra_seg_ch_list
+
+    _style = _apply_style(style)
 
     if input_format != "Channels":
         # Load the image
@@ -79,7 +102,7 @@ def segmentation_ch(
 
     # Combine channels for segmentation - FIX: only expect a single return value
     image_dict = combine_channels(
-        image_dict, extra_seg_ch_list, new_channel_name="segmentation_channel"
+        image_dict, membrane_channel_list, new_channel_name="segmentation_channel"
     )
 
     # Check if segmentation channel was created
@@ -90,23 +113,33 @@ def segmentation_ch(
     fig, ax = plt.subplots(1, 2, figsize=(15, 15))
     ax[0].imshow(image_dict[nuclei_channel])
     ax[1].imshow(image_dict["segmentation_channel"])
-    ax[0].set_title("nuclei")
-    ax[1].set_title("membrane")
+    ax[0].set_title("nuclei", fontsize=_style.font_size_medium)
+    ax[1].set_title("membrane", fontsize=_style.font_size_medium)
 
-    # save or plot figure
-    if savefig:
-        # Ensure output directory exists
-        os.makedirs(output_dir, exist_ok=True)
-        # Use os.path.join for proper path handling
-        output_path = os.path.join(output_dir, f"{output_fname}.pdf")
-        plt.savefig(
-            output_path,
-            format="pdf",
-            dpi=300,
-            transparent=True,
-            bbox_inches="tight",
+    if scalebar:
+        image_width_px = image_dict[nuclei_channel].shape[1]
+        _add_scalebar(
+            ax[0],
+            image_width_px,
+            _style,
+            scalebar_length_px=scalebar_length_px,
+            um_per_px=um_per_px,
+            show_text=scalebar_show_text,
         )
-        print(f"Saved figure to: {output_path}")
+        _add_scalebar(
+            ax[1],
+            image_width_px,
+            _style,
+            scalebar_length_px=scalebar_length_px,
+            um_per_px=um_per_px,
+            show_text=scalebar_show_text,
+        )
+
+    if savefig:
+        _savefig(fig, output_dir, output_fname, "", _style)
+        print(
+            f"Saved figure to: {pathlib.Path(output_dir) / (output_fname + '.' + _style.save_format)}"
+        )
     else:
         plt.show()
 
@@ -114,12 +147,18 @@ def segmentation_ch(
 def show_masks(
     seg_output,
     nucleus_channel,
-    additional_channels=None,
+    membrane_channel_list=None,
     show_subsample=True,
     n=2,  # need to be at least 2
     tilesize=100,
     idx=0,
     rand_seed=1,
+    style: Optional[Union[SPACEcStyle, str, pathlib.Path]] = None,
+    scalebar: bool = True,
+    scalebar_length_px=None,
+    um_per_px=None,
+    scalebar_show_text: bool = True,
+    additional_channels=None,
 ):
     """
     Visualize the segmentation results of an image.
@@ -130,8 +169,12 @@ def show_masks(
         The output from the segmentation process. It should contain 'image_dict' and 'masks'.
     nucleus_channel : str
         The name of the nucleus channel in the image_dict.
-    additional_channels : list of str, optional
-        The names of additional channels to be combined with the nucleus channel for visualization.
+    membrane_channel_list : list of str, optional
+        The names of membrane/additional channels to be combined with the nucleus channel for visualization.
+    additional_channels : list, optional
+        Deprecated alias for `membrane_channel_list`, kept only for backwards compatibility -- raises a
+        `DeprecationWarning` and overrides `membrane_channel_list` if given. Will be removed in a future
+        version.
     show_subsample : bool, optional
         Whether to show a subsample of the image. Default is True.
     n : int, optional
@@ -156,6 +199,16 @@ def show_masks(
         If the image size is smaller than the tile size or if there are not enough tiles to display.
 
     """
+    if additional_channels is not None:
+        warnings.warn(
+            "'additional_channels' is deprecated and will be removed in a future version. "
+            "Use 'membrane_channel_list' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        membrane_channel_list = additional_channels
+
+    _style = _apply_style(style)
     image_dict = seg_output["image_dict"]
     masks = seg_output["masks"]
 
@@ -166,22 +219,22 @@ def show_masks(
         masks = np.expand_dims(masks, axis=0)
         masks = np.moveaxis(masks, 0, -1)
 
-    if additional_channels != None:
+    if membrane_channel_list is not None:
         image_dict = combine_channels(
-            image_dict, additional_channels, new_channel_name="segmentation_channel"
+            image_dict, membrane_channel_list, new_channel_name="segmentation_channel"
         )
         nuclei_image = image_dict[nucleus_channel]
         add_chan_image = image_dict["segmentation_channel"]
         combined_image = np.stack([nuclei_image, add_chan_image], axis=-1)
-        # Add an extra dimension to make it compatible with Mesmer's input requirements
+        # Add an extra dimension for batch-style visualization utilities
         # Changes shape from (height, width, channels) to (1, height, width, channels)
         combined_image = np.expand_dims(combined_image, axis=0)
         # create rgb overlay of image data for visualization
-        rgb_images = create_rgb_image(combined_image, channel_colors=["green", "blue"])
+        rgb_images = create_rgb_image(combined_image, channel_colors=["blue", "green"])
     else:
         nuclei_image = image_dict[nucleus_channel]
         combined_image = np.stack([nuclei_image], axis=-1)
-        # Add an extra dimension to make it compatible with Mesmer's input requirements
+        # Add an extra dimension for batch-style visualization utilities
         # Changes shape from (height, width, channels) to (1, height, width, channels)
         combined_image = np.expand_dims(combined_image, axis=0)
         # create rgb overlay of image data for visualization
@@ -196,8 +249,28 @@ def show_masks(
     fig, ax = plt.subplots(1, 2, figsize=(15, 15))
     ax[0].imshow(rgb_images[idx, ...])
     ax[1].imshow(overlay_data[idx, ...])
-    ax[0].set_title("Raw data")
-    ax[1].set_title("Predictions")
+    ax[0].set_title("Raw data", fontsize=_style.font_size_medium)
+    ax[1].set_title("Predictions", fontsize=_style.font_size_medium)
+
+    if scalebar:
+        image_width_px = rgb_images[idx].shape[1]
+        _add_scalebar(
+            ax[0],
+            image_width_px,
+            _style,
+            scalebar_length_px=scalebar_length_px,
+            um_per_px=um_per_px,
+            show_text=scalebar_show_text,
+        )
+        _add_scalebar(
+            ax[1],
+            image_width_px,
+            _style,
+            scalebar_length_px=scalebar_length_px,
+            um_per_px=um_per_px,
+            show_text=scalebar_show_text,
+        )
+
     plt.show()
 
     random.seed(rand_seed)
@@ -246,8 +319,8 @@ def show_masks(
                     axs[i, 1].imshow(overlay_tiles[idx])
                     axs[i, 1].axis("off")
 
-                    axs[i, 0].set_title("Raw data")
-                    axs[i, 1].set_title("Predictions")
+                    axs[i, 0].set_title("Raw data", fontsize=_style.font_size_medium)
+                    axs[i, 1].set_title("Predictions", fontsize=_style.font_size_medium)
                 plt.tight_layout()
                 plt.show()
 

@@ -71,7 +71,19 @@ def test_cellular_neighborhood_analysis():
             palette=None,
             savefig=False,
             output_dir=output_path,
-            rand_seed=1,
+        )
+
+        # same plot, but with an explicit int-keyed palette (CN_k20_n6 is int32) --
+        # regression test for a dtype mismatch that used to raise
+        # "ValueError: Invalid RGBA argument: nan" whenever palette was a dict
+        # instead of None
+        sp.pl.cn_exp_heatmap(
+            adata,
+            cluster_col="cell_type",
+            cn_col="CN_k20_n6",
+            palette=cn_palette,
+            savefig=False,
+            output_dir=output_path,
         )
 
         # %%
@@ -113,7 +125,7 @@ def test_cellular_neighborhood_analysis():
             adata,
             cluster_col="cell_type",
             cn_col="CN_k20_n6_annot",
-            palette=None,  # if None, there is randomly generated in the code
+            palette=None,  # if None, reuses/creates adata.uns[cn_col + "_colors"]
             savefig=True,
             output_fname="",
             output_dir=output_path,
@@ -200,7 +212,6 @@ def test_cellular_neighborhood_analysis():
             cn_col_annt="CN_k20_n6_annot",  # column with CNs used to color the plot
             palette=None,  # color dictionary
             figsize=(5, 5),  # figure size
-            rand_seed=1,  # random seed for reproducibility
             n_num=None,  # number of neighbors
             threshold=0.5,
         )  # threshold for percentage of cells in CN
@@ -217,7 +228,6 @@ def test_cellular_neighborhood_analysis():
             cn_col_annt="CN_k20_n6_annot",
             palette=None,
             figsize=(5, 5),
-            rand_seed=1,
             n_num=None,
             threshold=0.5,
         )

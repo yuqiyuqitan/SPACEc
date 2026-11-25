@@ -171,7 +171,7 @@ pygments_style = "sphinx"
 # If this is True, todo emits a warning for each TODO entries. The default is False.
 todo_emit_warnings = True
 
-autodoc_mock_imports = ['tensorflow', 'deepcell']
+autodoc_mock_imports = []
 
 # -- Options for HTML output -------------------------------------------------
 
@@ -313,6 +313,34 @@ intersphinx_mapping = {
 print(f"loading configurations for {project} {version} ...", file=sys.stderr)
 
 
+def _copy_inlining_attachments(notebook, dest_dir):
+    """Copy a notebook; inline markdown-cell image attachments as data URIs.
+
+    myst-nb does not render ``attachment:`` images (pasted into Jupyter
+    markdown cells), so the docs copy embeds them directly. The source
+    notebooks keep their attachments, which Jupyter and GitHub render.
+    """
+    import json
+
+    with open(notebook, encoding="utf-8") as f:
+        nb = json.load(f)
+    changed = False
+    for cell in nb["cells"]:
+        source = "".join(cell.get("source", []))
+        for name, data in cell.pop("attachments", {}).items():
+            mime, b64 = next(iter(data.items()))
+            b64 = "".join(b64.split())
+            source = source.replace(f"attachment:{name}", f"data:{mime};base64,{b64}")
+            changed = True
+        cell["source"] = source
+    target = os.path.join(dest_dir, os.path.basename(notebook))
+    if not changed:
+        shutil.copy(notebook, target)
+        return
+    with open(target, "w", encoding="utf-8") as f:
+        json.dump(nb, f, ensure_ascii=False, indent=1)
+
+
 def copy_notebooks(folder):
 
     # copy notebooks to docs
@@ -342,7 +370,7 @@ def copy_notebooks(folder):
     print(f"copying {len(notebooks)} notebooks to {notebooks_dir} ...", file=sys.stderr)
     for notebook in notebooks:
         print(notebook, file=sys.stderr)
-        shutil.copy(notebook, notebooks_dir)
+        _copy_inlining_attachments(notebook, notebooks_dir)
 
     print("done!", file=sys.stderr)
 

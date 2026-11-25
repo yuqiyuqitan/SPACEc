@@ -1,6 +1,9 @@
 # load required packages
+import importlib.metadata
 import os
 import random
+import subprocess
+import sys
 import time
 import warnings
 from functools import reduce
@@ -13,7 +16,6 @@ import pandas as pd
 import scanpy as sc
 import scipy as sp
 import seaborn as sns
-import tensorflow as tf
 import tifffile as tiff
 from cellpose.core import use_gpu
 from scipy.spatial.distance import cdist
@@ -22,6 +24,8 @@ from sklearn.cross_decomposition import CCA
 from sklearn.neighbors import NearestNeighbors
 from tqdm import tqdm
 
+from .._shared.segmentation import load_image_dictionary
+
 # sns.set_style("ticks")
 
 # helper functions
@@ -29,6 +33,22 @@ from tqdm import tqdm
 
 
 def hf_generate_random_colors(n, rand_seed=0):
+    """
+    Generate a list of random hex color strings.
+
+    Parameters
+    ----------
+    n : int
+        Number of random colors to generate.
+    rand_seed : int, optional
+        Seed for the random number generator to ensure reproducibility.
+        Default is 0.
+
+    Returns
+    -------
+    list of str
+        List of ``n`` color strings in ``"#RRGGBB"`` hex format.
+    """
     # from random import randint
     random.seed(rand_seed)
     color = []
@@ -41,6 +61,27 @@ def hf_generate_random_colors(n, rand_seed=0):
 
 
 def hf_assign_colors(names, colors):
+    """
+    Pair a list of names with a list of colors and display the resulting palette.
+
+    Each name is matched one-to-one with a color in order. The mapping is
+    printed to stdout and visualized as a seaborn color palette with labeled
+    ticks.
+
+    Parameters
+    ----------
+    names : list of str
+        Category or cell-type names to assign colors to.
+    colors : list of str
+        Color values (hex strings or any matplotlib-compatible color
+        specification) to assign. Must have at least as many entries as
+        ``names``; excess colors are discarded.
+
+    Returns
+    -------
+    dict
+        Dictionary mapping each name to its assigned color.
+    """
     # Printing original keys-value lists
     print("Original key list is : " + str(names))
     print("Original value list is : " + str(colors))
@@ -83,6 +124,37 @@ def hf_assign_colors(names, colors):
 
 
 def hf_per_only(data, grouping, replicate, sub_col, sub_list, per_cat, norm=True):
+    """
+    Compute the percentage of each category within grouped data.
+
+    Optionally filters the DataFrame to a subset of rows before computing
+    per-category frequencies, then melts the result into long format.
+
+    Parameters
+    ----------
+    data : pandas.DataFrame
+        Input cell-level DataFrame.
+    grouping : str
+        Column name used as the primary grouping variable (e.g. condition).
+    replicate : str
+        Column name used as the secondary grouping variable (e.g. sample ID).
+    sub_col : str
+        Column name used for subsetting rows when ``norm=True``.
+    sub_list : list
+        Values in ``sub_col`` to retain for the subset filter.
+    per_cat : str
+        Column whose category frequencies are computed (e.g. cell type).
+    norm : bool, optional
+        If ``True`` (default), filter rows to those where ``sub_col`` is in
+        ``sub_list`` before computing frequencies. If ``False``, use all rows
+        but only report categories present in the filtered subset.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Long-format DataFrame with columns for ``grouping``, ``replicate``,
+        ``per_cat``, and ``"percentage"``.
+    """
     # Find Percentage of cell type
     if norm == True:
         test1 = data.loc[
@@ -114,13 +186,32 @@ def hf_per_only(data, grouping, replicate, sub_col, sub_list, per_cat, norm=True
     )  # rename value to percentage
 
     return melt_per_plot  # returns a df which contains the group_column followed by the replicate column and the per category column, and a column specifying the percentage
-    # Example: percentage CD4+ TCs in unique region E08 assigned to community xxx
+    # Example: percentage CD4+ TCs in unique region E08 assigned to community 1
 
 
 ########
 
 
 def hf_normalize(X):
+    """
+    Log-normalize a DataFrame of raw counts.
+
+    NaN values are filled with zero before normalization. Each row is divided
+    by its sum (relative abundance), then a log2 transform with a small
+    pseudocount is applied.
+
+    Parameters
+    ----------
+    X : pandas.DataFrame
+        DataFrame of raw numeric values (e.g. cell-type counts per region).
+        Rows are observations; columns are features.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Log2-normalized DataFrame with the same index and columns as ``X``,
+        with any remaining NaN values replaced by zero.
+    """
     arr = np.array(X.fillna(0).values)
     return pd.DataFrame(
         np.log2(1e-3 + arr / arr.sum(axis=1, keepdims=True)),
@@ -141,6 +232,49 @@ def hf_cell_types_de_helper(
     group_dict,
     cell_type_col,
 ):
+    """
+    Prepare a cell DataFrame for differential expression analysis across neighborhoods.
+
+    Generates unique donor/tissue identifiers and numeric encodings for
+    neighborhoods, groups, and patients. Also computes overall cell-type
+    frequency per patient and per-neighborhood cell-type frequency.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Cell-level DataFrame containing metadata and cell-type annotations.
+    ID_component1 : str
+        First column used to build the unique donor-tissue identifier (e.g. donor ID).
+    ID_component2 : str
+        Second column used to build the unique donor-tissue identifier (e.g. tissue region).
+    neighborhood_col : str
+        Column containing neighborhood labels.
+    group_col : str
+        Column containing group/condition labels (e.g. treatment).
+    group_dict : dict
+        Mapping from group label strings to integer codes.
+    cell_type_col : str
+        Column containing cell-type annotations.
+
+    Returns
+    -------
+    tuple
+        A 5-element tuple ``(cells2, ct_freq, all_freqs, pat_to_gp, neigh_num)``
+        where:
+
+        cells2 : pandas.DataFrame
+            Input DataFrame with added columns ``donor_tis``, ``neigh_num``,
+            ``group``, and ``patients``.
+        ct_freq : pandas.DataFrame
+            Wide-format DataFrame of overall cell-type frequencies per patient.
+        all_freqs : pandas.DataFrame
+            Wide-format DataFrame of cell-type frequencies per patient per
+            neighborhood.
+        pat_to_gp : dict
+            Mapping from patient integer code to group integer code.
+        neigh_num : dict
+            Mapping from neighborhood label to integer code.
+    """
     # read data
     cells2 = df
     cells2.reset_index(inplace=True, drop=True)
@@ -284,6 +418,18 @@ class Neighborhoods(object):
         self.bool_add_dummies = add_dummies
 
     def add_dummies(self):
+        """
+        One-hot-encode the cluster column and attach it to the kept columns.
+
+        Reads ``self.cells_nodumz``, creates binary dummy variables from
+        ``self.cluster_col``, concatenates them with the columns listed in
+        ``self.keep_cols``, and stores the result in ``self.cells``.
+
+        Returns
+        -------
+        None
+            Result is stored in ``self.cells`` in-place.
+        """
         c = self.cells_nodumz
         dumz = pd.get_dummies(c[self.cluster_col])
         keep = c[self.keep_cols]
@@ -291,6 +437,20 @@ class Neighborhoods(object):
         self.cells = pd.concat([keep, dumz], axis=1)
 
     def get_tissue_chunks(self):
+        """
+        Group cells by tissue/experiment and split each tissue into processing chunks.
+
+        Stores a GroupBy object in ``self.tissue_group`` (keyed by the region
+        column) and returns a list of job tuples, one per chunk, ready to be
+        passed to :meth:`make_windows`.
+
+        Returns
+        -------
+        list of tuple
+            Each tuple contains ``(start_time, tissue_index, tissue_name, indices)``
+            where ``indices`` is an array of DataFrame row labels belonging to
+            that chunk.
+        """
         self.tissue_group = self.cells[[self.X, self.Y, self.reg]].groupby(self.reg)
 
         tissue_chunks = [
@@ -301,6 +461,26 @@ class Neighborhoods(object):
         return tissue_chunks
 
     def make_windows(self, job):
+        """
+        Compute the sorted nearest-neighbor indices for one tissue chunk.
+
+        Fits a k-nearest-neighbor model on all cells in the tissue, queries
+        it with the cells in the given chunk, and returns neighbor indices
+        sorted by distance (closest first, excluding the query cell itself).
+
+        Parameters
+        ----------
+        job : tuple
+            A 4-element tuple ``(start_time, idx, tissue_name, indices)`` as
+            produced by :meth:`get_tissue_chunks`.
+
+        Returns
+        -------
+        numpy.ndarray of int32
+            Array of shape ``(n_chunk_cells, n_neighbors)`` containing the
+            DataFrame index values of the nearest neighbors for each cell in
+            the chunk, sorted by ascending distance.
+        """
         start_time, idx, tissue_name, indices = job
         job_start = time.time()
 
@@ -336,6 +516,21 @@ class Neighborhoods(object):
         return neighbors.astype(np.int32)
 
     def k_windows(self):
+        """
+        Build neighborhood composition windows for every k in ``self.ks``.
+
+        Optionally one-hot-encodes the cluster column (via :meth:`add_dummies`),
+        computes nearest neighbors for all tissue chunks, then aggregates
+        cell-type (or marker) values over each window of k neighbors.
+
+        Returns
+        -------
+        dict
+            Dictionary mapping each k value to a pandas.DataFrame whose rows
+            correspond to cells and whose columns contain the summed
+            cell-type/marker values over the k-nearest-neighbor window, prepended
+            by the columns listed in ``self.keep_cols``.
+        """
         if self.bool_add_dummies:
             self.add_dummies()
         else:
@@ -388,6 +583,38 @@ class Neighborhoods(object):
 
 # Define a Python function named `hf_get_windows` that takes two arguments: `job` and `n_neighbors`.
 def hf_get_windows(job, n_neighbors, exps, tissue_group, X, Y):
+    """
+    Compute sorted nearest-neighbor indices for a single tissue chunk.
+
+    Fits a k-nearest-neighbor model on all cells in the tissue, queries it
+    with the subset of cells specified by ``job``, and returns their neighbor
+    indices sorted by distance.
+
+    Parameters
+    ----------
+    job : tuple
+        A 4-element tuple ``(start_time, idx, tissue_name, indices)`` where
+        ``start_time`` is a float timestamp, ``idx`` is the integer position
+        of the tissue in ``exps``, ``tissue_name`` is the tissue label, and
+        ``indices`` are the DataFrame row labels of cells to query.
+    n_neighbors : int
+        Number of nearest neighbors to find for each query cell.
+    exps : list of str
+        Ordered list of all tissue/experiment names (used for progress output).
+    tissue_group : pandas.core.groupby.DataFrameGroupBy
+        GroupBy object keyed by tissue name, containing X/Y coordinate columns.
+    X : str
+        Column name for the x-coordinate in the tissue group.
+    Y : str
+        Column name for the y-coordinate in the tissue group.
+
+    Returns
+    -------
+    numpy.ndarray of int32
+        Array of shape ``(n_query_cells, n_neighbors)`` containing the
+        DataFrame index values of the nearest neighbors for each query cell,
+        sorted by ascending distance.
+    """
     # Unpack the tuple `job` into four variables: `start_time`, `idx`, `tissue_name`, and `indices`.
     start_time, idx, tissue_name, indices = job
 
@@ -450,6 +677,34 @@ def hf_index_rank(a, axis):
 
 
 def hf_znormalize(raw_cells, grouper, markers, clip=(-7, 7), dropinf=True):
+    """
+    Z-score normalize marker intensities within groups and clip extreme values.
+
+    Removes cells with infinite or NaN marker values before computing
+    per-group z-scores. The z-scores are clipped to a configurable range.
+
+    Parameters
+    ----------
+    raw_cells : pandas.DataFrame
+        Cell-level DataFrame containing marker columns and metadata.
+    grouper : str or list of str
+        Column(s) to group by before computing mean and standard deviation
+        (e.g. tissue region or sample ID).
+    markers : list of str
+        Column names of the marker intensities to normalize.
+    clip : tuple of float, optional
+        ``(lower, upper)`` bounds to clip z-scores to. Default is ``(-7, 7)``.
+    dropinf : bool, optional
+        Retained for API compatibility; infinite values are always removed.
+        Default is ``True``.
+
+    Returns
+    -------
+    pandas.DataFrame
+        DataFrame with the same non-marker columns as ``raw_cells`` plus
+        z-scored marker columns, restricted to cells that had no infinite
+        or NaN marker values.
+    """
     not_inf = raw_cells[np.isinf(raw_cells[markers].values).sum(axis=1) == 0]
     if not_inf.shape[0] != raw_cells.shape[0]:
         print("removing cells with inf values", raw_cells.shape, not_inf.shape)
@@ -467,6 +722,35 @@ def hf_znormalize(raw_cells, grouper, markers, clip=(-7, 7), dropinf=True):
 
 
 def hf_fast_divisive_cluster(X, num_clusters, metric="cosine", prints=True):
+    """
+    Perform fast divisive (top-down) clustering by iterative furthest-point selection.
+
+    An optimized divisive clustering algorithm that avoids recomputing the
+    full distance matrix to all centroids at each iteration. The first
+    centroid is the point furthest from the data mean; subsequent centroids
+    are chosen as the point furthest from its nearest existing centroid.
+
+    Parameters
+    ----------
+    X : numpy.ndarray
+        Data matrix of shape ``(n_samples, n_features)``.
+    num_clusters : int
+        Number of clusters to produce.
+    metric : str, optional
+        Distance metric passed to ``scipy.spatial.distance.cdist``.
+        Default is ``"cosine"``.
+    prints : bool, optional
+        If ``True``, print progress every 10 clusters. Default is ``True``.
+
+    Returns
+    -------
+    centroids : numpy.ndarray
+        Array of shape ``(num_clusters, n_features)`` containing the final
+        cluster centroids.
+    allocs : numpy.ndarray of int
+        Array of shape ``(n_samples,)`` with the cluster index assigned to
+        each sample.
+    """
     # optimized divisive_cluster.  Faster because doesn't recompute distance matrix to centroids at
     # each iteration
     centroids = np.zeros((num_clusters, X.shape[1]))  # fill with cluster centroids
@@ -490,6 +774,25 @@ def hf_fast_divisive_cluster(X, num_clusters, metric="cosine", prints=True):
 
 
 def hf_alloc_cells(X, centroids, metric="cosine"):
+    """
+    Assign each sample to its nearest centroid.
+
+    Parameters
+    ----------
+    X : numpy.ndarray
+        Data matrix of shape ``(n_samples, n_features)``.
+    centroids : numpy.ndarray
+        Centroid matrix of shape ``(n_clusters, n_features)``.
+    metric : str, optional
+        Distance metric passed to ``scipy.spatial.distance.cdist``.
+        Default is ``"cosine"``.
+
+    Returns
+    -------
+    numpy.ndarray of int
+        Array of shape ``(n_samples,)`` with the index of the nearest centroid
+        for each sample.
+    """
     dists = cdist(X, centroids, metric=metric)
     allocs = dists.argmin(axis=1)
     return allocs
@@ -499,12 +802,51 @@ def hf_alloc_cells(X, centroids, metric="cosine"):
 
 
 def hf_get_sum_cols(cell_cuts, panel):
+    """
+    Return a slice covering all columns belonging to a given panel.
+
+    Parameters
+    ----------
+    cell_cuts : numpy.ndarray
+        2-D array whose first column contains panel identifiers and whose
+        rows define column ranges.
+    panel : object
+        Panel identifier to search for in the first column of ``cell_cuts``.
+
+    Returns
+    -------
+    slice
+        A slice ``slice(first_index, last_index + 1)`` spanning all rows of
+        ``cell_cuts`` that match ``panel``.
+    """
     arr = np.where(cell_cuts[:, 0] == panel)[0]
     return slice(arr[0], arr[-1] + 1)
 
 
 ###############
 def hf_get_thresh_simps(x, thresh):
+    """
+    Find the minimal sorted combination of columns that cumulatively exceeds a threshold.
+
+    For each row of ``x``, columns are added in descending order of value until
+    their cumulative sum exceeds ``thresh``. The resulting column indices are
+    stored as a sorted tuple (a "simplex").
+
+    Parameters
+    ----------
+    x : numpy.ndarray
+        2-D array of shape ``(n_windows, n_neighborhoods)`` containing
+        fractional neighborhood compositions (rows should sum to approximately 1).
+    thresh : float
+        Cumulative-sum threshold. The smallest set of top columns whose sum
+        exceeds this value is returned for each row.
+
+    Returns
+    -------
+    pandas.Series
+        Series of length ``n_windows`` where each element is a sorted tuple
+        of column indices representing the minimal neighborhood combination.
+    """
     sorts = np.argsort(-x, axis=1)
     x_sorted = -np.sort(-x, axis=1)
     cumsums = np.cumsum(x_sorted, axis=1)
@@ -521,6 +863,31 @@ def hf_get_thresh_simps(x, thresh):
 def hf_prepare_neighborhood_df(
     cells_df, patient_ID_component1, patient_ID_component2, neighborhood_column=None
 ):
+    """
+    Add a ``"patients"`` identifier column and optionally encode neighborhoods numerically.
+
+    Combines two metadata columns into a unique patient/sample identifier and,
+    if a neighborhood column is supplied, maps neighborhood labels to integer
+    codes stored in a ``"neigh_num"`` column.
+
+    Parameters
+    ----------
+    cells_df : pandas.DataFrame
+        Cell-level DataFrame.
+    patient_ID_component1 : str
+        First column to concatenate for the patient identifier (e.g. donor ID).
+    patient_ID_component2 : str
+        Second column to concatenate for the patient identifier (e.g. tissue).
+    neighborhood_column : str, optional
+        Column containing neighborhood labels. When provided, a numeric mapping
+        ``"neigh_num"`` is added to ``cells_df``. Default is ``None``.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Modified ``cells_df`` with a new categorical ``"patients"`` column and,
+        if requested, a categorical ``"neigh_num"`` column.
+    """
     # Spacer for output
     print("")
 
@@ -555,6 +922,30 @@ def hf_prepare_neighborhood_df(
 def hf_prepare_neighborhood_df2(
     cells_df, patient_ID_component1, patient_ID_component2, neighborhood_column=None
 ):
+    """
+    Add a ``"unique_ID"`` identifier column and optionally encode neighborhoods numerically.
+
+    Variant of :func:`hf_prepare_neighborhood_df` that stores the combined
+    patient/sample identifier under ``"unique_ID"`` instead of ``"patients"``.
+
+    Parameters
+    ----------
+    cells_df : pandas.DataFrame
+        Cell-level DataFrame.
+    patient_ID_component1 : str
+        First column to concatenate for the unique identifier (e.g. donor ID).
+    patient_ID_component2 : str
+        Second column to concatenate for the unique identifier (e.g. tissue).
+    neighborhood_column : str, optional
+        Column containing neighborhood labels. When provided, a numeric mapping
+        ``"neigh_num"`` is added to ``cells_df``. Default is ``None``.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Modified ``cells_df`` with a new categorical ``"unique_ID"`` column and,
+        if requested, a categorical ``"neigh_num"`` column.
+    """
     # Spacer for output
     print("")
 
@@ -590,6 +981,34 @@ def hf_prepare_neighborhood_df2(
 
 
 def hf_cor_subset(cor_mat, threshold, cell_type):
+    """
+    Extract correlation pairs involving a specific cell type above a given threshold.
+
+    Filters the upper-triangular correlation matrix to pairs whose absolute
+    correlation exceeds ``threshold`` and that include ``cell_type`` as one of
+    the two variables.
+
+    Parameters
+    ----------
+    cor_mat : pandas.DataFrame
+        Square correlation matrix with cell-type labels as both index and columns.
+    threshold : float
+        Minimum absolute correlation value to retain a pair.
+    cell_type : str
+        Cell type of interest; only pairs containing this label are returned.
+
+    Returns
+    -------
+    pair_list : list of str
+        Unique cell-type names found in the filtered pairs (includes ``cell_type``
+        itself and all its correlated partners).
+    piar : pandas.DataFrame
+        Subset of the full pairs table containing only rows where ``cell_type``
+        appears in ``col1`` or ``col2``.
+    pairs : pandas.DataFrame
+        Full pairs table of all correlation pairs above ``threshold``, with
+        columns ``col1``, ``col2``, and ``value``.
+    """
     pairs = hf_get_top_abs_correlations(cor_mat, thresh=threshold)
 
     piar1 = pairs.loc[pairs["col1"] == cell_type]
@@ -634,6 +1053,43 @@ def hf_simp_rep(
     comb_per_thres,
     thres_num=3,
 ):
+    """
+    Compute simplified neighborhood-combination representations per patient.
+
+    For each patient, finds the minimal combinations of cellular neighborhoods
+    (simplices) that together account for a threshold fraction of window
+    assignments. Retains only simplices that appear in at least ``thres_num``
+    patients.
+
+    Parameters
+    ----------
+    data : pandas.DataFrame
+        Window-level DataFrame containing neighborhood composition columns,
+        a patient identifier column, and an optional tissue column.
+    patient_col : str
+        Column name identifying patients/samples.
+    tissue_column : str or None
+        Column name for tissue type filtering. Pass ``None`` to use all rows.
+    subset_list_tissue : list
+        Values in ``tissue_column`` to retain. Ignored when ``tissue_column``
+        is ``None``.
+    ttl_per_thres : float
+        Cumulative-fraction threshold passed to :func:`hf_get_thresh_simps`.
+        Neighborhoods are added until their combined fraction exceeds this value.
+    comb_per_thres : float
+        Minimum frequency threshold for a simplex within a patient (retained
+        for API compatibility; filtering is controlled by ``thres_num``).
+    thres_num : int, optional
+        Minimum number of patients a simplex must appear in to be included in
+        the output. Default is 3.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Wide-format DataFrame indexed by simplex tuples, with one column per
+        patient containing the simplex frequency within that patient. Only
+        simplices present in at least ``thres_num`` patients are included.
+    """
     # Choose the windows size to continue with
     if tissue_column != None:
         w2 = data.loc[data[tissue_column].isin(subset_list_tissue)]
@@ -678,6 +1134,25 @@ def hf_simp_rep(
 
 
 def hf_get_top_abs_correlations(df, thresh=0.5):
+    """
+    Return all unique variable pairs whose absolute Pearson correlation exceeds a threshold.
+
+    Diagonal and lower-triangular pairs are dropped to avoid redundancy.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        DataFrame of numeric values; correlations are computed between columns.
+    thresh : float, optional
+        Minimum absolute correlation value to retain. Default is 0.5.
+
+    Returns
+    -------
+    pandas.DataFrame
+        DataFrame with columns ``col1``, ``col2``, and ``value``, containing
+        only pairs whose absolute correlation exceeds ``thresh``, sorted in
+        descending order of correlation.
+    """
     au_corr = df.corr().unstack()
     labels_to_drop = hf_get_redundant_pairs(df)
     au_corr = au_corr.drop(labels=labels_to_drop).sort_values(ascending=False)
@@ -692,24 +1167,256 @@ def hf_get_top_abs_correlations(df, thresh=0.5):
 ################
 # help to convert dataframe after denoising into anndata
 def make_anndata(
-    df_nn,  # data frame coming out from denoising
-    col_sum,  # this is the column index that has the last protein feature
-    nonFuncAb_list,  # inspect which markers work, and drop the ones that did not work from the clustering step
+    df_nn,
+    col_sum=None,
+    nonFuncAb_list=None,
+    x_col="x",
+    y_col="y",
+    obs_names_col="unique_cell_id",
+    marker_list=None,
 ):
     """
-    Convert a denoised DataFrame into anndata format.
+    Convert a denoised DataFrame into an AnnData object.
 
-    Parameters:
-        df_nn (pandas.DataFrame): Denoised data frame.
-        col_sum (int): Column index of the last protein feature.
-        nonFuncAb_list (list): List of markers that did not work in the clustering step.
+    If coordinate columns are available, spatial coordinates are stored in
+    ``adata.obsm["spatial"]`` with columns ordered as [x, y].
 
-    Returns:
-        AnnData: Anndata object containing the converted data.
+    Parameters
+    ----------
+    df_nn : DataFrame
+        The denoised data (e.g. from ``sp.pp.remove_noise``).
+    col_sum : int, optional
+        Deprecated alias for ``marker_list``, kept only for backwards compatibility --
+        raises a ``DeprecationWarning``. Selects the markers positionally (the first
+        ``col_sum + 1`` columns of ``df_nn``) rather than by name. Mutually exclusive
+        with ``marker_list``. Will be removed in a future version.
+    marker_list : list of str, optional
+        The marker columns to use as ``adata.X``, specified directly by name. Required
+        unless the deprecated ``col_sum`` is given instead.
+    nonFuncAb_list : list of str, optional
+        Markers (from ``marker_list``) to drop entirely rather than include in
+        ``adata.X`` -- e.g. antibodies that didn't stain as expected.
+    x_col, y_col : str, optional
+        Coordinate columns, by default ``"x"``/``"y"``.
+    obs_names_col : str, optional
+        Column used to set ``adata.obs_names``, by default ``"unique_cell_id"``.
     """
-    adata = sc.AnnData(X=df_nn.iloc[:, : col_sum + 1].drop(columns=nonFuncAb_list))
-    adata.obs = df_nn.iloc[:, col_sum + 1 :]
+    import warnings
+
+    if marker_list is not None and col_sum is not None:
+        raise ValueError(
+            "'marker_list' and 'col_sum' are mutually exclusive -- pass one or the "
+            "other."
+        )
+    if marker_list is None:
+        if col_sum is None:
+            raise ValueError(
+                "make_anndata() requires either 'marker_list' or the deprecated "
+                "'col_sum'."
+            )
+        warnings.warn(
+            "'col_sum' is deprecated and will be removed in a future version. "
+            "Use 'marker_list' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        marker_list = list(df_nn.columns[: col_sum + 1])
+
+    columns_to_drop = [] if nonFuncAb_list is None else list(nonFuncAb_list)
+
+    feature_df = df_nn.loc[:, marker_list].drop(
+        columns=columns_to_drop,
+        errors="ignore",
+    )
+
+    adata = sc.AnnData(X=feature_df.copy())
+    adata.obs = df_nn.drop(columns=marker_list).copy()
+
+    if obs_names_col is not None and obs_names_col in adata.obs.columns:
+        adata.obs_names = adata.obs[obs_names_col].astype(str).to_numpy()
+
+        if not adata.obs_names.is_unique:
+            warnings.warn(
+                f"adata.obs_names built from '{obs_names_col}' are not unique. "
+                "Check for duplicate region identifiers or IDs in the input DataFrame.",
+                stacklevel=2,
+            )
+
+    missing_coordinate_columns = [
+        column for column in (x_col, y_col) if column not in adata.obs.columns
+    ]
+
+    if missing_coordinate_columns:
+        warnings.warn(
+            "Spatial coordinates were not added to `adata.obsm['spatial']` "
+            f"because the following coordinate column(s) are missing from "
+            f"`adata.obs`: {missing_coordinate_columns}. "
+            f"Currently requested columns are x_col='{x_col}' and y_col='{y_col}'. "
+            "Specify the correct column names using the `x_col` and `y_col` "
+            "arguments.",
+            UserWarning,
+            stacklevel=2,
+        )
+    else:
+        adata.obsm["spatial"] = adata.obs[[x_col, y_col]].to_numpy(dtype=float)
+
     return adata
+
+
+def hf_sync_spatial_obsm(adata, x_col="x", y_col="y"):
+    """
+    Synchronise ``adata.obsm["spatial"]`` from spatial coordinate columns in ``adata.obs``.
+
+    Call this after any operation that modifies spatial coordinates stored in
+    ``adata.obs`` (e.g. registration correction, sub-setting, concatenation) to
+    keep ``obsm["spatial"]`` consistent.  The coordinate columns are left
+    untouched in ``adata.obs`` so that existing analysis functions continue to
+    work without modification.
+
+    Parameters
+    ----------
+    adata : AnnData
+        Annotated data matrix.
+    x_col : str, optional
+        Column name for x-coordinates in ``adata.obs``, by default ``"x"``.
+    y_col : str, optional
+        Column name for y-coordinates in ``adata.obs``, by default ``"y"``.
+
+    Returns
+    -------
+    AnnData
+        The same ``adata`` object with ``obsm["spatial"]`` updated in-place.
+
+    Raises
+    ------
+    KeyError
+        If ``x_col`` or ``y_col`` is not found in ``adata.obs``.
+    """
+    missing = [c for c in (x_col, y_col) if c not in adata.obs.columns]
+    if missing:
+        raise KeyError(
+            f"Coordinate column(s) {missing} not found in adata.obs. "
+            f"Available columns: {list(adata.obs.columns)}"
+        )
+    adata.obsm["spatial"] = adata.obs[[x_col, y_col]].to_numpy(dtype=float)
+    return adata
+
+
+def hf_attach_masks(adata, masks, region_col="unique_region", uns_key="masks"):
+    """
+    Attach raw integer-label segmentation masks to an AnnData object for later
+    per-cell pixel lookup. Storing masks under ``adata.uns["masks"]`` keyed by
+    region is consumed directly by :func:`spacec.pl.plot_masks`.
+
+    A cell's exact pixels can then be recovered from any ``adata.obs`` row via::
+
+        mask = adata.uns["masks"][row[region_col]]
+        cell_pixels = mask == int(row["label"])
+
+    This works even for cells removed by ``size_cutoff`` during segmentation:
+    their label is simply absent from ``adata.obs["label"]`` while still present
+    as pixels in the attached mask.
+
+    Parameters
+    ----------
+    adata : AnnData
+        Annotated data matrix.
+    masks : dict[str, numpy.ndarray]
+        Mapping of region identifier (matching ``adata.obs[region_col]`` values)
+        to 2D integer-labeled mask arrays.
+    region_col : str, optional
+        Column in ``adata.obs`` whose values are the expected keys of ``masks``,
+        by default ``"unique_region"``.
+    uns_key : str, optional
+        Key under ``adata.uns`` to store the masks dict, by default ``"masks"``.
+
+    Returns
+    -------
+    AnnData
+        The same ``adata`` with ``adata.uns[uns_key]`` updated (merged with any
+        previously attached masks, not overwritten) in-place.
+    """
+    if region_col in adata.obs.columns:
+        known_regions = set(adata.obs[region_col].astype(str).unique())
+        unknown = set(masks) - known_regions
+        if unknown:
+            warnings.warn(
+                f"masks keys not found in adata.obs['{region_col}']: {unknown}",
+                stacklevel=2,
+            )
+    existing = adata.uns.get(uns_key, {})
+    existing.update(masks)
+    adata.uns[uns_key] = existing
+    return adata
+
+
+def hf_load_masks(mask_paths):
+    """
+    Load raw label masks previously saved by
+    ``cell_segmentation(..., save_mask=True)`` for use with
+    :func:`hf_attach_masks`.
+
+    Parameters
+    ----------
+    mask_paths : dict[str, str or pathlib.Path]
+        Mapping of region identifier to the path of a mask ``.tif`` written by
+        ``cell_segmentation(save_mask=True)``.
+
+    Returns
+    -------
+    dict[str, numpy.ndarray]
+        Mapping of region identifier to the loaded 2D integer-labeled mask array.
+    """
+    return {region: tiff.imread(path) for region, path in mask_paths.items()}
+
+
+def hf_load_image_dict(
+    file_name, channel_file, input_format="Multichannel", nuclei_channel="DAPI"
+):
+    """
+    Load a region's channel images by path, for use with
+    :func:`spacec.pp.compensate_cell_matrix`. Complements
+    :func:`hf_load_masks`, letting a region's mask and images be loaded
+    from disk independently rather than unpickling a saved
+    ``cell_segmentation`` output dict.
+
+    Parameters
+    ----------
+    file_name : str or pathlib.Path
+        Path to the region's image file (for ``input_format`` in
+        ``{"Multichannel", "CODEX"}``), or to the directory of per-channel
+        TIFFs (for ``input_format="Channels"``).
+    channel_file : str or pathlib.Path
+        Path to a text file listing channel names, one per line. Used for
+        ``"Multichannel"``/``"CODEX"``; ignored for ``"Channels"``.
+    input_format : str, optional
+        One of ``"Multichannel"``, ``"CODEX"``, or ``"Channels"``, by
+        default ``"Multichannel"``.
+    nuclei_channel : str, optional
+        Name of the nuclei channel, must be present in the loaded
+        channels, by default ``"DAPI"``.
+
+    Returns
+    -------
+    dict[str, numpy.ndarray]
+        Mapping of channel name to 2D image array, suitable for passing as
+        ``image_dict`` to :func:`spacec.pp.compensate_cell_matrix`.
+
+    Raises
+    ------
+    ValueError
+        If the image could not be loaded (e.g. missing file, missing
+        `nuclei_channel`, or wrong `input_format`).
+    """
+    _, image_dict, _ = load_image_dictionary(
+        file_name, channel_file, input_format, nuclei_channel
+    )
+    if image_dict is None:
+        raise ValueError(
+            f"failed to load image dict from {file_name!r} "
+            f"(input_format={input_format!r}); see the printed error above."
+        )
+    return image_dict
 
 
 ################
@@ -975,6 +1682,39 @@ def hf_get_tif_filepaths(directory):
 
 ################ CCA
 def hf_prepare_cca(df, neighborhood_column, subsets=None):
+    """
+    Prepare data structures for Canonical Correlation Analysis (CCA) across neighborhoods.
+
+    Encodes neighborhood labels as integers, computes log-transformed mean
+    marker (or subset) values per unique region per neighborhood, and
+    initialises a CCA model and Pearson correlation function ready for use.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Cell-level DataFrame containing a ``"unique_region"`` column, the
+        neighborhood column, and marker/subset columns.
+    neighborhood_column : str
+        Column containing neighborhood labels.
+    subsets : list of str, optional
+        Subset of marker/feature columns to use for the CCA input matrix. If
+        ``None``, all non-grouping columns are used. Default is ``None``.
+
+    Returns
+    -------
+    df : pandas.DataFrame
+        Input DataFrame with added ``"neigh_num"`` categorical column.
+    cns : list
+        Ordered list of unique neighborhood integer codes.
+    nsctf : pandas.DataFrame
+        Log-transformed mean feature values indexed by ``(neigh_num, unique_region)``.
+    cca : sklearn.cross_decomposition.CCA
+        Initialised CCA model with 1 component and max 5000 iterations.
+    func : callable
+        ``scipy.stats.pearsonr`` function for correlation computation.
+    neigh_num : dict
+        Mapping from neighborhood label strings to integer codes.
+    """
     neigh_num = {
         list(df[neighborhood_column].unique())[i]: i
         for i in range(len(df[neighborhood_column].unique()))
@@ -1017,11 +1757,52 @@ def hf_prepare_cca(df, neighborhood_column, subsets=None):
 
 
 def invert_dictionary(dictionary):
+    """
+    Invert a dictionary so that values become keys and keys become values.
+
+    Parameters
+    ----------
+    dictionary : dict
+        Dictionary to invert. Values must be hashable.
+
+    Returns
+    -------
+    dict
+        New dictionary with keys and values swapped. If the original
+        dictionary contains duplicate values, only the last key for each
+        value is retained.
+    """
     inverted_dict = {value: key for key, value in dictionary.items()}
     return inverted_dict
 
 
 def hf_replace_names(color_dict, name_dict):
+    """
+    Rename keys in a color dictionary using a name-mapping dictionary.
+
+    Inverts ``color_dict`` to a color-to-name mapping, applies any
+    replacements found in ``name_dict``, then re-inverts back to a
+    name-to-color mapping.
+
+    Parameters
+    ----------
+    color_dict : dict
+        Dictionary mapping names (str) to color values.
+    name_dict : dict
+        Dictionary mapping old names to new names. Only names present in
+        both ``color_dict`` and ``name_dict`` are replaced.
+
+    Returns
+    -------
+    dict
+        Updated dictionary mapping (possibly renamed) names to color values.
+
+    Notes
+    -----
+    This function calls ``hf_invert_dictionary`` which is not defined in this
+    module. Use :func:`invert_dictionary` instead, or ensure ``hf_invert_dictionary``
+    is available in the namespace before calling this function.
+    """
     color_dict = hf_invert_dictionary(color_dict)
     for color, name in color_dict.items():
         if name in name_dict:
@@ -1031,6 +1812,29 @@ def hf_replace_names(color_dict, name_dict):
 
 
 def hf_annotate_cor_plot(x, y, **kws):
+    """
+    Annotate a scatter plot facet with the Pearson correlation coefficient and p-value.
+
+    Intended for use as a ``map_dataframe`` function in a seaborn PairGrid or
+    FacetGrid. Reads the data from ``kws["data"]``, computes the Pearson r and
+    p-value for the given x/y column pair, and renders the annotation at a
+    fixed position inside the current axes.
+
+    Parameters
+    ----------
+    x : str
+        Column name for the x-axis variable.
+    y : str
+        Column name for the y-axis variable.
+    **kws
+        Keyword arguments forwarded by seaborn; must contain ``"data"``
+        (a pandas.DataFrame with columns ``x`` and ``y``).
+
+    Returns
+    -------
+    None
+        Annotation is added to the current matplotlib axes in-place.
+    """
     data = kws["data"]
     r, p = sp.stats.pearsonr(data[x], data[y])
     ax = plt.gca()
@@ -1054,31 +1858,28 @@ def is_dark(color):
 
 def check_for_gpu(tensorflow=False, torch=True):
     """
-    Check if a GPU is available for use by TensorFlow and PyTorch.
+    Check if a GPU is available for use by Cellpose/PyTorch.
 
-    This function checks if a GPU is available for use by TensorFlow and PyTorch.
-    It prints a message indicating whether a GPU is available for each library,
-    and returns a boolean indicating whether a GPU is available.
+    TensorFlow support has been removed from SPACEc segmentation. The
+    ``tensorflow`` argument is retained for backward compatibility but always
+    reports unavailable.
 
     Returns
     -------
     bool
-        True if
-            a GPU is available for PyTorch
-                and `pytorch=True` (default),
-            a GPU is available for tensorflow
-                and `tensorflow=True`,
-            a GPU is available for PyTorch AND tensorflow
-                and `pytorch=True` and `tensorflow=True`
-        otherwise it returns `False`.
+        True if PyTorch can see a GPU (and `torch=True`, the default). Always False
+        when `tensorflow=True`, since TensorFlow support was removed.
     """
     gpu_tf = False
-    if tf.config.list_physical_devices("GPU"):
-        print("GPU is available to Tensorflow")
-        gpu_tf = True
-    else:
-        print("GPU is not available to Tensorflow")
-        gpu_tf = False
+    if tensorflow:
+        warnings.warn(
+            "check_for_gpu(tensorflow=...) is deprecated because TensorFlow support was removed.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        print(
+            "GPU is not available to Tensorflow (TensorFlow backend has been removed)."
+        )
 
     gpu_torch = use_gpu()
     if gpu_torch:
@@ -1094,3 +1895,147 @@ def check_for_gpu(tensorflow=False, torch=True):
         return gpu_tf
     else:
         return False
+
+
+_CELLPOSE_VERSION_ALIASES = {
+    3: 3,
+    "3": 3,
+    "cyto3": 3,
+    4: 4,
+    "4": 4,
+    "sam": 4,
+    "cpsam": 4,
+}
+
+
+def set_cellpose_version(version, force=False, dry_run=False, quiet=False):
+    """
+    Install or switch the cellpose version backing SPACEc segmentation.
+
+    SPACEc supports two cellpose generations: classic cellpose 3.x (per-tissue
+    model zoo, e.g. 'cyto3') and cellpose>=4.x "Cellpose-SAM" (single
+    generalist 'cpsam' model). Which one `sp.tl.cell_segmentation` uses is
+    determined entirely by which cellpose package is installed in the active
+    Python environment — this function switches that.
+
+    Because cellpose and torch are already imported once SPACEc has loaded,
+    installing a different cellpose version has **no effect on the running
+    process**. You must restart your kernel / Python process after switching
+    for the change to take effect.
+
+    Parameters
+    ----------
+    version : {3, 4, "cyto3", "sam", "cpsam"}
+        Target cellpose generation. 3 and "cyto3" both mean classic cellpose
+        3.x. 4, "sam", and "cpsam" all mean Cellpose-SAM (cellpose>=4).
+    force : bool, optional
+        Skip the interactive "yes" confirmation before installing. Required
+        in non-interactive sessions (scripts, CI) since there is no one to
+        confirm a prompt. Default False.
+    dry_run : bool, optional
+        Print what would happen (current version, target version, pip
+        command, consequences) without installing anything. Default False.
+    quiet : bool, optional
+        Suppress the informational prints (consequences, progress). Default
+        False.
+
+    Returns
+    -------
+    str or None
+        The installed cellpose version string after the call (unchanged if
+        no switch was needed or `dry_run=True`), or None if cellpose is not
+        installed and `dry_run=True`.
+
+    Raises
+    ------
+    ValueError
+        If `version` is not a recognized alias.
+    RuntimeError
+        If called in a non-interactive session without `force=True`, if the
+        user declines the confirmation prompt, or if the pip install fails.
+    """
+    version_key = version.lower() if isinstance(version, str) else version
+    if version_key not in _CELLPOSE_VERSION_ALIASES:
+        raise ValueError(
+            f"Unrecognized cellpose version {version!r}. Use 3 (or 'cyto3') for "
+            "classic Cellpose, or 4 (or 'sam'/'cpsam') for Cellpose-SAM."
+        )
+    target_major = _CELLPOSE_VERSION_ALIASES[version_key]
+
+    try:
+        installed_version = importlib.metadata.version("cellpose")
+        installed_major = int(installed_version.split(".")[0])
+    except importlib.metadata.PackageNotFoundError:
+        installed_version = None
+        installed_major = None
+
+    if installed_major == target_major:
+        if not quiet:
+            print(f"cellpose {installed_version} already installed — nothing to do.")
+        return installed_version
+
+    spec = "cellpose>=3,<4" if target_major == 3 else "cellpose>=4,<5"
+
+    consequences = [
+        "Switching does NOT take effect in this running process — cellpose "
+        "and torch are already imported. You MUST restart your kernel / "
+        "Python process after this completes.",
+    ]
+    if target_major == 4:
+        consequences += [
+            "Custom/fine-tuned cellpose 3.x models will no longer load "
+            "(Cellpose-SAM uses a different backbone) — retrain on cpsam, "
+            "or stay on cellpose 3.",
+            "Segmentation results will differ from cyto3 — do not mix "
+            "versions of cellpose within one study.",
+            "First run downloads the cpsam weights (~GB) and needs more "
+            "GPU/VRAM; consider lowering tile_size for cell_segmentation.",
+        ]
+    else:
+        consequences += [
+            "model='cpsam' calls will start failing.",
+            "You lose Cellpose-SAM's diameter- and channel-invariant "
+            "segmentation and go back to per-tissue models.",
+        ]
+
+    if not quiet:
+        print(f"Installed cellpose: {installed_version or 'not installed'}")
+        print(f'Requested: cellpose {target_major}.x  ->  pip install "{spec}"')
+        print("Consequences of switching:")
+        for line in consequences:
+            print(f"  - {line}")
+
+    if dry_run:
+        if not quiet:
+            print("(dry_run=True: no changes made)")
+        return installed_version
+
+    if not force:
+        if not sys.stdin.isatty():
+            raise RuntimeError(
+                "Refusing to switch cellpose versions in a non-interactive "
+                "session without confirmation. Re-run with force=True to proceed."
+            )
+        answer = input("Type 'yes' to proceed with this switch: ")
+        if answer.strip().lower() != "yes":
+            print("Aborted — cellpose version unchanged.")
+            return installed_version
+
+    result = subprocess.run(
+        [sys.executable, "-m", "pip", "install", spec],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f'pip install "{spec}" failed (exit {result.returncode}):\n{result.stderr}'
+        )
+
+    importlib.invalidate_caches()
+    new_version = importlib.metadata.version("cellpose")
+    if not quiet:
+        print(f"Installed cellpose {new_version}.")
+        print(
+            "*** RESTART YOUR KERNEL / PYTHON PROCESS NOW for this to take effect. ***"
+        )
+    return new_version
