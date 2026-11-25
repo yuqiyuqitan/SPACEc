@@ -1231,6 +1231,8 @@ def make_anndata(
 
     adata = sc.AnnData(X=feature_df.copy())
     adata.obs = df_nn.drop(columns=marker_list).copy()
+    # newer anndata no longer stringifies an int index on .obs assignment
+    adata.obs_names = adata.obs_names.astype(str)
 
     if obs_names_col is not None and obs_names_col in adata.obs.columns:
         adata.obs_names = adata.obs[obs_names_col].astype(str).to_numpy()
