@@ -1,0 +1,53 @@
+# SPACEc tissue style
+# Dark-background preset for spatial/microscopy overlay figures.
+# Large dots, high-contrast colours on a near-black canvas.
+#
+# Usage:
+#   import matplotlib.pyplot as plt
+#   plt.style.use("spacec_tissue")
+
+# --- Typography ---
+font.family:        sans-serif
+font.size:          7
+axes.titlesize:     8
+axes.labelsize:     7
+xtick.labelsize:    6
+ytick.labelsize:    6
+figure.titlesize:   10
+
+# --- Ticks ---
+xtick.direction:    in
+ytick.direction:    in
+xtick.major.size:   3.0
+ytick.major.size:   3.0
+xtick.major.width:  0.5
+ytick.major.width:  0.5
+
+# --- Lines ---
+axes.linewidth:     0.75
+lines.linewidth:    0.75
+lines.markersize:   6
+patch.linewidth:    0.75
+patch.edgecolor:    cccccc
+
+# --- Dark canvas ---
+axes.facecolor:     111111
+figure.facecolor:   111111
+axes.edgecolor:     888888
+xtick.color:        cccccc
+ytick.color:        cccccc
+axes.labelcolor:    cccccc
+text.color:         cccccc
+axes.grid:          False
+
+# --- Legend ---
+legend.frameon:     False
+legend.fontsize:    7
+legend.markerscale: 1.5
+
+# --- Save ---
+figure.dpi:         300
+savefig.dpi:        300
+savefig.transparent: False
+savefig.bbox:       tight
+savefig.format:     pdf

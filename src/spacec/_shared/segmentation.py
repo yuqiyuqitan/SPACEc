@@ -2,6 +2,7 @@ import os
 import pathlib
 
 import numpy as np
+import tifffile
 from skimage import io
 
 
@@ -138,6 +139,115 @@ def combine_channels(image_dict, channel_list, new_channel_name):
     return image_dict
 
 
+def load_image_dictionary(file_name, channel_file, input_format, nuclei_channel):
+    """
+    Loads images and channel names based on the specified format using tifffile.
+
+    Memory Consideration: Loading large 'Multichannel' or 'CODEX' files directly
+    with tifffile.imread can consume significant memory. For very large files,
+    consider using memory mapping (e.g., tifffile.imread(..., aszarr=True)) if needed
+    (requires downstream code modification to handle Zarr arrays). 'Channels' format reads
+    individual files, which can also be memory-intensive if there are many large files.
+
+    Parameters:
+        file_name (str or Path): Path to image file (Multichannel/CODEX) or directory (Channels).
+        channel_file (str or Path): Path to file containing channel names (one per line). Used for Multichannel/CODEX.
+        input_format (str): 'Multichannel', 'Channels', or 'CODEX'.
+        nuclei_channel (str): Name of the nuclei channel (must exist in the loaded channels).
+
+    Returns:
+        tuple: (img_ref, image_dict, channel_names_list)
+               img_ref (ndarray): Reference image (typically nuclei channel or the raw loaded stack).
+               image_dict (dict): Dictionary mapping channel names to 2D NumPy arrays.
+               channel_names_list (list): List of loaded channel names.
+               Returns (None, None, None) on error.
+    """
+    print(f"--- Loading Image Data (Format: {input_format}) ---")
+    img_ref = None
+    image_dict = None
+    channel_names_list = None
+
+    try:
+        if input_format == "Channels":
+            # file_name is the directory path
+            # format_CODEX now uses tifffile internally for 'Channels'
+            image_dict, channel_names_list = format_CODEX(
+                image=file_name,
+                input_format=input_format,
+            )
+            if image_dict is None:
+                raise ValueError("Image formatting failed.")  # Check format_CODEX error
+
+            if nuclei_channel not in image_dict:
+                raise ValueError(
+                    f"Specified nuclei_channel '{nuclei_channel}' not found in loaded channels: {list(image_dict.keys())}"
+                )
+            img_ref = image_dict[nuclei_channel]  # Use nuclei as reference
+
+        elif input_format in ["Multichannel", "CODEX"]:
+            # file_name is the image file path
+            if not os.path.exists(file_name):
+                raise FileNotFoundError(f"Image file not found: {file_name}")
+            if not os.path.exists(channel_file):
+                raise FileNotFoundError(f"Channel file not found: {channel_file}")
+
+            print(f"Loading image: {file_name}")
+            # Memory intensive step for large files - use tifffile
+            # Memory-intensive for large files; tifffile.imread(file_name, aszarr=True) would allow memory mapping
+            loaded_img = io.imread(file_name)
+            img_ref = loaded_img  # Store raw loaded image as reference
+            print(f"Loaded image shape: {loaded_img.shape}")
+
+            with open(channel_file, "r") as f:
+                channel_names_from_file = f.read().splitlines()
+            print(
+                f"Loaded {len(channel_names_from_file)} channel names from: {channel_file}"
+            )
+
+            # Infer CODEX parameters from the image shape
+            number_cycles = None
+            images_per_cycle = None
+            if input_format == "CODEX":
+                if loaded_img.ndim != 4:
+                    raise ValueError(
+                        f"CODEX input image must be 4D. Got shape: {loaded_img.shape}"
+                    )
+                # Expected CODEX layout: (cycles, H, W, images_per_cycle)
+                number_cycles = loaded_img.shape[0]
+                images_per_cycle = loaded_img.shape[3]
+                print(
+                    f"Inferred CODEX params: Cycles={number_cycles}, Channels/Cycle={images_per_cycle}"
+                )
+
+            image_dict, channel_names_list = format_CODEX(
+                image=loaded_img,
+                channel_names=channel_names_from_file,
+                number_cycles=number_cycles,
+                images_per_cycle=images_per_cycle,
+                input_format=input_format,
+            )
+            if image_dict is None:
+                raise ValueError("Image formatting failed.")  # Check format_CODEX error
+
+            if nuclei_channel not in image_dict:
+                raise ValueError(
+                    f"Specified nuclei_channel '{nuclei_channel}' not found in loaded channels: {list(image_dict.keys())}"
+                )
+
+        else:
+            raise ValueError(f"Invalid input_format: {input_format}")
+
+        print(f"Image dictionary created with {len(image_dict)} channels.")
+        return img_ref, image_dict, channel_names_list
+
+    except (FileNotFoundError, ValueError, MemoryError) as e:
+        print(f"Error loading image dictionary: {e}")
+        return None, None, None
+    except Exception as e:
+        print(f"An unexpected error occurred during image loading: {e}")
+        return None, None, None
+
+
 def format_CODEX(
     image,
     channel_names=None,
@@ -266,9 +376,7 @@ def format_CODEX(
                 channel_name = channel_names_from_files[i]
                 try:
                     img_path = os.path.join(image, f)
-                    image_dict[channel_name] = skimage.io.imread(
-                        img_path
-                    )  # Use tifffile
+                    image_dict[channel_name] = io.imread(img_path)  # Use tifffile
                     processed_channel_names.append(channel_name)
                 except Exception as e:
                     print(

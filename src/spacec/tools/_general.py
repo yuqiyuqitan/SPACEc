@@ -6,67 +6,36 @@ import warnings
 
 warnings.filterwarnings("ignore", category=FutureWarning, module="anndata.utils")
 import logging
+import math
 
-logging.disable(
-    logging.CRITICAL
-)  # disables all logging messages at and below CRITICAL level
-
-import os
-import platform
-import subprocess
-import sys
-import tempfile
-import zipfile
-
-import requests
-
-# TODO: Remove this!
-if platform.system() == "Windows":
-    vipsbin = r"c:\vips-dev-8.15\bin\vips-dev-8.15\bin"
-    vips_file_path = os.path.join(vipsbin, "vips.exe")
-
-    # Check if VIPS is installed
-    if not os.path.exists(vips_file_path):
-        # VIPS is not installed, download and extract it
-        url = "https://github.com/libvips/build-win64-mxe/releases/download/v8.15.2/vips-dev-w64-all-8.15.2.zip"
-        zip_file_path = "vips-dev-w64-all-8.15.2.zip"
-        response = requests.get(url, stream=True)
-
-        if response.status_code == 200:
-            with open(zip_file_path, "wb") as f:
-                f.write(response.raw.read())
-
-            # Extract the zip file
-            with zipfile.ZipFile(zip_file_path, "r") as zip_ref:
-                zip_ref.extractall(vipsbin)
-        else:
-            print("Error downloading the file.")
-
-        # Install pyvips
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "pyvips"])
-
-    # Add vipsbin to the DLL search path or PATH environment variable
-    add_dll_dir = getattr(os, "add_dll_directory", None)
-    os.environ["PATH"] = os.pathsep.join((vipsbin, os.environ["PATH"]))
-
+# TissUUmaps sets the *root* logger to INFO on import, which turns on INFO output
+# from every library. Remember the caller's level and restore it after the imports
+# (instead of disabling logging process-wide, which also silenced user code).
+_root_log_level = logging.getLogger().level
 
 import argparse
 import json
+import os
 import pathlib
 import pickle
 import re
+import subprocess
+import sys
+import tempfile
 import time
 from builtins import range
+from datetime import datetime, timezone
 from multiprocessing import Pool
 from typing import TYPE_CHECKING
 
+import anndata as ad
 import geopandas as gpd
 import matplotlib.patheffects as PathEffects
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 import pandas as pd
-import panel as pn
+import requests
 import scipy.stats as st
 import skimage.filters.rank
 import tissuumaps.jupyter as tj
@@ -80,22 +49,38 @@ from scipy.spatial import Delaunay
 from scipy.spatial.distance import cdist
 from shapely.geometry import MultiPolygon
 from skimage.io import imsave
+from skimage.measure import regionprops_table
 from skimage.segmentation import find_boundaries
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.cluster import HDBSCAN, MiniBatchKMeans
 from sklearn.cross_decomposition import CCA
-from sklearn.metrics import classification_report, f1_score, pairwise_distances
+from sklearn.metrics import (
+    calinski_harabasz_score,
+    classification_report,
+    f1_score,
+    pairwise_distances,
+    silhouette_score,
+)
 from sklearn.model_selection import train_test_split
 from sklearn.neighbors import KNeighborsClassifier, NearestNeighbors
 from sklearn.svm import SVC, LinearSVC
 from tqdm import tqdm
-from yellowbrick.cluster import KElbowVisualizer
+
+logging.getLogger().setLevel(_root_log_level)
+
+# libvips no longer needs to be provisioned here: SPACEc depends on
+# `pyvips[binary]`, whose pyvips-binary wheels bundle libvips on every platform
+# including Windows. This used to download and unpack vips-dev-w64 at import
+# time.
+
 
 if TYPE_CHECKING:
     from anndata import AnnData
 
 from ..helperfunctions._general import *
-from ..plotting._general import catplot
+from ..plotting._general import _select_regions_for_cluster, catplot, patch_QC
+from ..plotting._style import _apply_spines, _apply_style
+from ._clustering_tree import _ensure_roots, _record_annotation, _record_split
 
 try:
     import cupy as cp
@@ -114,7 +99,15 @@ except ImportError:
 ############################################################
 
 
-def tl_calculate_neigh_combs(w, l, n_num, threshold=0.85, per_keep_thres=0.85):
+def tl_calculate_neigh_combs(
+    w,
+    l,
+    n_num,
+    threshold=0.85,
+    per_keep_thres=0.85,
+    thresh_freq=0.001,
+    figsize=(9, 3.5),
+):
     """
     Calculate neighborhood combinations based on a threshold.
 
@@ -130,6 +123,13 @@ def tl_calculate_neigh_combs(w, l, n_num, threshold=0.85, per_keep_thres=0.85):
         Threshold for neighborhood combinations, by default 0.85.
     per_keep_thres : float, optional
         Percent to keep threshold or percent of neighborhoods that fall above a certain threshold, by default 0.85.
+        Diagnostic only: sets the line in the plot, nothing is filtered.
+    thresh_freq : float, optional
+        Minimum combination frequency kept on the CN map, by default 0.001. Used for plot
+        shading only; should match ``tl_build_graph_CN_comb_map``.
+    figsize : tuple, optional
+        Width, height (inches) of the coverage plot, by default (9, 3.5). The legend is placed
+        below the axes, so the plot stays readable down to about 3 x 2.8 inches.
 
     Returns
     -------
@@ -150,31 +150,88 @@ def tl_calculate_neigh_combs(w, l, n_num, threshold=0.85, per_keep_thres=0.85):
     simp_freqs = simps.value_counts(normalize=True)
     simp_sums = np.cumsum(simp_freqs)
 
-    # See the percent to keep threshold or percent of neigbhorhoods that fall above a certain threshold
-    test_sums_thres = simp_sums[simp_sums < per_keep_thres]
-    test_len = len(test_sums_thres)
-    per_values_above = simp_sums[test_len] - simp_sums[test_len - 1]
-    print(test_len, per_values_above)
+    # How many top combinations stay below per_keep_thres (diagnostic only, nothing is filtered)
+    n = len(simp_freqs)
+    test_len = min(int((simp_sums < per_keep_thres).sum()), n - 1)
+    per_values_above = simp_freqs.iloc[
+        test_len
+    ]  # share of the combination crossing the line
+    on_map = simp_freqs.values >= thresh_freq
+    n_on_map = int(on_map.sum())
 
     w["combination"] = [tuple(l[a] for a in s) for s in simps]
     w["combination_num"] = [tuple(a for a in s) for s in simps]
 
-    # this shows what proportion (y) of the total cells are assigned to the top x combinations
-    plt.figure(figsize=(7, 3))
-    plt.plot(simp_sums.values)
-    plt.title(
-        "proportion (y) of the total cells are assigned to the top x combinations"
-    )
-    plt.show()
+    from matplotlib.lines import Line2D
 
-    # this shows what proportion (y) of the total cells are assigned to the top x combinations
-    plt.figure(figsize=(7, 3))
-    plt.plot(test_sums_thres.values)
-    plt.title(
-        "proportion (y) of the total cells are assigned to the top x combinations - thresholded"
+    # rank 1 = most frequent combination. Thousands of combinations on a linear axis shrink the
+    # bars to sub-pixel width, so ranks are drawn on a log axis as step areas (always visible)
+    ranks = np.arange(1, n + 1)
+    freqs = simp_freqs.values
+    fig, ax = plt.subplots(figsize=figsize)
+    cut = min(
+        test_len + 1, n
+    )  # blue part includes the combination that crosses the threshold line
+    ax.fill_between(ranks[:cut], freqs[:cut], step="mid", color="#378ADD", linewidth=0)
+    if cut < n:
+        ax.fill_between(
+            ranks[cut - 1 :], freqs[cut - 1 :], step="mid", color="#D3D1C7", linewidth=0
+        )
+    if (~on_map).any():
+        ax.fill_between(
+            ranks[~on_map],
+            freqs[~on_map],
+            step="mid",
+            facecolor="none",
+            edgecolor="#888780",
+            hatch="////",
+            linewidth=0,
+        )
+    ax.set_xscale("log")
+    ax.set_xlabel("combination rank (log scale)")
+    ax.set_ylabel("fraction of windows")
+    ax.set_xlim(0.8, n * 1.15)
+    ax.set_ylim(bottom=0)
+    ax.xaxis.set_major_formatter(plt.ScalarFormatter())
+
+    ax2 = ax.twinx()
+    ax2.plot(ranks, simp_sums.values, color="black", linewidth=1.5)
+    ax2.axhline(per_keep_thres, color="#E24B4A", linestyle="--", linewidth=1.2)
+    ax.axvline(test_len + 0.5, color="#E24B4A", linestyle=":", linewidth=1)
+    ax2.set_ylim(0, 1.02)
+    ax2.set_ylabel("cumulative fraction")
+
+    ax.set_title(
+        f"{test_len} combinations cover <{per_keep_thres:.0%} of windows "
+        f"(next adds {per_values_above:.1%})\n"
+        f"{n_on_map} of {n} go to the CN map (freq \u2265 {thresh_freq})",
+        fontsize=plt.rcParams["axes.titlesize"],
+        pad=12,
     )
+    ax.legend(
+        handles=[
+            Patch(color="#378ADD", label="counted below per_keep_thres"),
+            Patch(color="#D3D1C7", label="rest"),
+            Patch(
+                facecolor="none",
+                edgecolor="#888780",
+                hatch="////",
+                label=f"dropped from CN map (freq < {thresh_freq})",
+            ),
+            Line2D([], [], color="black", label="cumulative fraction"),
+            Line2D([], [], color="#E24B4A", linestyle="--", label="per_keep_thres"),
+        ],
+        loc="upper center",
+        bbox_to_anchor=(
+            0.5,
+            -0.28,
+        ),  # below the axes: never covers bars, ticks or labels
+        ncol=2,
+        fontsize=plt.rcParams["legend.fontsize"],
+        frameon=False,
+    )
+    fig.tight_layout()
     plt.show()
-    # plt.xticks(range(0,350,35),range(0,350,35),rotation = 90,fontsize = 10)
 
     return (simps, simp_freqs, simp_sums)
 
@@ -226,6 +283,220 @@ def tl_build_graph_CN_comb_map(simp_freqs, thresh_freq=0.001):
     return (g, tops, e0, e1)
 
 
+def _rapids_install_hint():
+    """Return the pip command(s) that install rapids-singlecell for the local CUDA.
+
+    rapids-singlecell publishes one distribution per CUDA major version
+    (``rapids-singlecell-cu12`` / ``-cu13``), so the right command depends on
+    the CUDA build torch was compiled against. When that can't be determined
+    (torch missing, CPU-only build, unknown major) both variants are returned
+    so the user can pick.
+    """
+    template = (
+        "    pip install 'rapids-singlecell-cu{major}[rapids]'"
+        " --extra-index-url=https://pypi.nvidia.com"
+    )
+
+    cuda_version = None
+    try:
+        import torch
+
+        cuda_version = torch.version.cuda
+    except Exception:  # torch missing or broken -- fall through to both hints
+        pass
+
+    major = str(cuda_version).split(".")[0] if cuda_version else None
+    if major in ("12", "13"):
+        return template.format(major=major)
+
+    return "\n".join(
+        [
+            "  CUDA 13:",
+            template.format(major="13"),
+            "  CUDA 12:",
+            template.format(major="12"),
+        ]
+    )
+
+
+def _resolve_clustering_method(method):
+    """Resolve the requested clustering algorithm name, falling back from
+    ``leiden_gpu`` to ``leiden`` when rapids_singlecell isn't available.
+
+    Shared by :func:`clustering` and :func:`subclustering` so the
+    availability check and fallback message only need to live in one place.
+    """
+    if method == "leiden_gpu":
+        try:
+            import cudf  # noqa: F401
+            import cuml  # noqa: F401
+            import cupy  # noqa: F401
+            import rapids_singlecell  # noqa: F401
+        except ImportError:
+            print("Please install rapids_singlecell to use leiden_gpu!")
+            print(_rapids_install_hint())
+            print("THIS FUNCTION DOES NOT WORK ON MacOS OR WINDOWS")
+            print("using leiden instead of leiden_gpu")
+            method = "leiden"
+    return method
+
+
+def _flavor_kwargs(method, flavor):
+    """``sc.tl.leiden``/``sc.tl.louvain`` kwargs for the requested ``flavor``.
+
+    scanpy's igraph backend needs ``n_iterations=2, directed=False`` on
+    leiden to match legacy behavior (see its own FutureWarning); louvain
+    needs no extra kwargs. "legacy" restores each algorithm's pre-igraph
+    default flavor name (``leidenalg`` for leiden, ``vtraag`` for louvain).
+    Shared by :func:`clustering` and :func:`subclustering`.
+    """
+    if flavor == "igraph":
+        kwargs = {"flavor": "igraph"}
+        if method == "leiden":
+            kwargs["n_iterations"] = 2
+            kwargs["directed"] = False
+        return kwargs
+    if method == "louvain":
+        # scanpy's own hint (`pip install louvain`) resolves to the sdist-only
+        # louvain 0.7.1 next to igraph>=1.0; the `legacy` extra pins a working set.
+        try:
+            import louvain  # noqa: F401
+        except Exception as e:
+            raise ImportError(
+                'flavor="legacy" louvain clustering needs the deprecated `louvain` '
+                "package. Install it with: pip install 'spacec[legacy]' "
+                '(or use flavor="igraph", or clustering="leiden").'
+            ) from e
+    return {"flavor": "leidenalg" if method == "leiden" else "vtraag"}
+
+
+def _append_clustering_report(adata, entry):
+    """Append one step to ``adata.uns["clustering_report"]``.
+
+    Stored as a JSON string (rather than a raw list of dicts) because
+    AnnData's h5ad writer cannot serialize a list of dicts, or a DataFrame
+    with list-valued cells, directly -- a JSON string round-trips cleanly.
+    Never raises: a report-logging failure must not break the clustering
+    call it's attached to.
+    """
+    try:
+        raw = adata.uns.get("clustering_report")
+        if isinstance(raw, str) and raw:
+            steps = json.loads(raw)
+        elif raw:
+            steps = list(raw)
+        else:
+            steps = []
+        entry = dict(entry)
+        entry["step"] = len(steps) + 1
+        entry["timestamp"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        steps.append(entry)
+        adata.uns["clustering_report"] = json.dumps(steps, default=str)
+    except Exception as e:
+        print(f"Warning: failed to record clustering report step: {e}")
+
+
+def _format_clustering_report_step(entry):
+    """Render one clustering_report entry as a human-readable sentence."""
+    step = entry.get("step")
+    ts = entry.get("timestamp", "")
+    action = entry.get("action")
+    method = entry.get("method")
+    resolution = entry.get("resolution")
+    seed = entry.get("seed")
+    key_added = entry.get("key_added")
+    notes = entry.get("notes")
+
+    if action == "clustering":
+        markers = entry.get("marker_list")
+        marker_txt = f"using {len(markers)} markers" if markers else "using all markers"
+        head = (
+            f"Step {step} ({ts}) -- clustering: ran {method} "
+            f"(resolution={resolution}, n_neighbors={entry.get('n_neighbors')}, seed={seed}) "
+            f"on {entry.get('n_cells')} cells {marker_txt} -> {entry.get('n_clusters')} "
+            f"clusters stored in adata.obs['{key_added}']."
+        )
+    elif action == "subclustering":
+        per_cluster = entry.get("per_cluster_new_labels") or {}
+        breakdown = ", ".join(f"{k}→{len(v)}" for k, v in per_cluster.items())
+        graph_txt = (
+            "reusing existing neighbor graph"
+            if entry.get("graph_source") == "reused_global"
+            else "on a freshly computed local neighbor graph"
+        )
+        head = (
+            f"Step {step} ({ts}) -- subclustering: split cluster(s) "
+            f"{entry.get('clusters_split')} of adata.obs['{entry.get('cluster_key')}'] "
+            f"using {method} (resolution={resolution}, seed={seed}, {graph_txt}) -> "
+            f"{breakdown} new subclusters, stored in adata.obs['{key_added}']."
+        )
+    elif action == "combine_clusters":
+        head = (
+            f"Step {step} ({ts}) -- combine_clusters: merged clusters "
+            f"{entry.get('clusters_merged')} of adata.obs['{entry.get('cluster_key')}'] "
+            f"into '{entry.get('new_label')}' ({entry.get('n_cells')} cells)."
+        )
+    elif action == "annotation":
+        head = (
+            f"Step {step} ({ts}) -- annotation: mapped "
+            f"{entry.get('n_labels_mapped')} of {entry.get('n_labels_total')} labels "
+            f"of adata.obs['{entry.get('cluster_key')}'] to {entry.get('n_targets')} "
+            f"cell types in adata.obs['{entry.get('key_added')}']."
+        )
+    else:
+        head = f"Step {step} ({ts}) -- {action}."
+
+    if notes:
+        head += f" Reason: {notes}"
+    return head
+
+
+def clustering_report(adata, as_dataframe=False, print_report=True):
+    """
+    Reconstruct and explain the clustering strategy recorded on ``adata``.
+
+    Every call to :func:`clustering`, :func:`subclustering`, and
+    :func:`combine_clusters` appends a step to
+    ``adata.uns["clustering_report"]`` (stored as JSON, so it survives
+    ``.h5ad`` save/reload). This function turns that history back into a
+    human-readable narrative, or a :class:`pandas.DataFrame` for
+    programmatic use -- so the clustering strategy can be explained or
+    audited later, even after reopening a saved file.
+
+    Parameters
+    ----------
+    adata : AnnData
+    as_dataframe : bool, optional
+        If True, return a `pandas.DataFrame` of the recorded steps instead
+        of the narrative string. Defaults to False.
+    print_report : bool, optional
+        If True, print the narrative. Defaults to True.
+
+    Returns
+    -------
+    str, pandas.DataFrame, or None
+        The narrative string, or a DataFrame if ``as_dataframe=True``. If no
+        steps have been recorded, returns ``None`` (or an empty DataFrame).
+    """
+    raw = adata.uns.get("clustering_report")
+    steps = json.loads(raw) if raw else []
+
+    if not steps:
+        if print_report:
+            print("No clustering steps recorded yet.")
+        return pd.DataFrame() if as_dataframe else None
+
+    if as_dataframe:
+        return pd.DataFrame(steps)
+
+    lines = [f"Clustering strategy ({len(steps)} step(s) recorded):", ""]
+    lines.extend(_format_clustering_report_step(entry) for entry in steps)
+    narrative = "\n".join(lines)
+    if print_report:
+        print(narrative)
+    return narrative
+
+
 def clustering(
     adata,
     clustering="leiden",
@@ -233,6 +504,7 @@ def clustering(
     resolution=1,
     n_neighbors=10,
     reclustering=False,
+    compute_umap=True,
     key_added=None,
     key_filter=None,
     subset_cluster=None,
@@ -240,6 +512,10 @@ def clustering(
     fs_xdim=10,
     fs_ydim=10,
     fs_rlen=10,  # FlowSOM parameters
+    flavor="igraph",
+    *,
+    notes=None,
+    _record_report=True,
     **cluster_kwargs,
 ):
     """
@@ -260,6 +536,8 @@ def clustering(
         The number of neighbors to use for the neighbors graph. Defaults to 10.
     reclustering : bool, optional
         If set to True, the function will skip the calculation of neighbors and UMAP. This can be used to speed up the process when just reclustering or running flowSOM.
+    compute_umap : bool, optional
+        If set to False, skips the UMAP embedding step (only the neighbor graph and cluster labels are computed). Ignored when reclustering=True, which already skips both. Defaults to True.
     key_added : str, optional
         The key name to add to the adata object. Defaults to None.
     key_filter : str, optional
@@ -274,6 +552,20 @@ def clustering(
         Y dimension for FlowSOM. Default is 10.
     fs_rlen : int, optional
         Rlen for FlowSOM. Default is 10.
+    flavor : str, optional
+        Backend for leiden/louvain: ``"igraph"`` (default, scanpy's current
+        recommended flavor) or ``"legacy"`` (leiden's old ``leidenalg``
+        backend / louvain's old ``vtraag`` backend, for reproducing older
+        results). Ignored for ``leiden_gpu`` and ``flowSOM``. Note: with
+        ``clustering="louvain"``, scanpy's igraph backend ignores
+        ``resolution`` entirely (a scanpy limitation, not tunable) -- use
+        ``flavor="legacy"`` (requires ``pip install 'spacec[legacy]'``)
+        or switch to ``clustering="leiden"`` if you need resolution control
+        with louvain.
+    notes : str, optional
+        Free-text note describing why this clustering step was run --
+        recorded in ``adata.uns["clustering_report"]`` alongside the actual
+        parameters used. See :func:`clustering_report`. Defaults to None.
     **cluster_kwargs : dict
         Additional keyword arguments for the clustering function.
 
@@ -288,21 +580,13 @@ def clustering(
         )
         print("For GPU accelerated leiden clustering, please use leiden_gpu")
         sys.exit()
+    if flavor not in ["igraph", "legacy"]:
+        print('Invalid flavor. Please select from "igraph" or "legacy"!')
+        sys.exit()
 
-    # test if rapids_singlecell is available
+    clustering = _resolve_clustering_method(clustering)
     if clustering == "leiden_gpu":
-        try:
-            import cudf
-            import cuml
-            import cupy
-            import rapids_singlecell as rsc
-        except ImportError:
-            print("Please install rapids_singlecell to use leiden_gpu!")
-            print("install_gpu_leiden(CUDA = your cuda version as string)")
-            print("For example: sp.tl.install_gpu_leiden(CUDA = '12')")
-            print("THIS FUNCTION DOES NOT WORK ON MacOS OR WINDOWS")
-            print("using leiden instead of leiden_gpu")
-            clustering = "leiden"
+        import rapids_singlecell as rsc
 
     if key_added is None:
         key_added = clustering + "_" + str(resolution)
@@ -347,7 +631,7 @@ def clustering(
                     resolution=resolution,
                     key_added=key_added,
                     random_state=seed,
-                    **cluster_kwargs,
+                    **{**_flavor_kwargs("leiden", flavor), **cluster_kwargs},
                 )
             else:
                 if clustering == "louvain":
@@ -357,7 +641,7 @@ def clustering(
                         resolution=resolution,
                         key_added=key_added,
                         random_state=seed,
-                        **cluster_kwargs,
+                        **{**_flavor_kwargs("louvain", flavor), **cluster_kwargs},
                     )
                 else:
                     print("FlowSOM clustering")
@@ -382,10 +666,11 @@ def clustering(
     else:
         if clustering == "leiden_gpu":
             anndata_to_GPU(adata)  # moves `.X` to the GPU
-            print("Computing neighbors and UMAP on GPU")
-            rsc.pp.neighbors(adata, n_neighbors=n_neighbors)
-            # UMAP computation
-            rsc.tl.umap(adata)
+            print("Computing neighbors on GPU")
+            rsc.pp.neighbors(adata, n_neighbors=n_neighbors, random_state=seed)
+            if compute_umap:
+                print("Computing UMAP on GPU")
+                rsc.tl.umap(adata, random_state=seed)
             print("Clustering on GPU")
             # Perform leiden clustering - improved version of louvain clustering
             rsc.tl.leiden(
@@ -394,13 +679,15 @@ def clustering(
             anndata_to_CPU(adata)  # moves `.X` to the CPU
 
         else:
-
-            print("Computing neighbors and UMAP")
-            print("- neighbors")
-            sc.pp.neighbors(adata, n_neighbors=n_neighbors)
-            # UMAP computation
-            print("- UMAP")
-            sc.tl.umap(adata)
+            # FlowSOM clusters directly on the marker matrix and doesn't need
+            # the neighbor graph unless UMAP (which depends on it) is requested.
+            needs_neighbors = clustering in ("leiden", "louvain") or compute_umap
+            if needs_neighbors:
+                print("- neighbors")
+                sc.pp.neighbors(adata, n_neighbors=n_neighbors, random_state=seed)
+            if compute_umap:
+                print("- UMAP")
+                sc.tl.umap(adata, random_state=seed)
             print("Clustering")
             # Perform leiden clustering - improved version of louvain clustering
             if clustering == "leiden":
@@ -410,7 +697,7 @@ def clustering(
                     resolution=resolution,
                     key_added=key_added,
                     random_state=seed,
-                    **cluster_kwargs,
+                    **{**_flavor_kwargs("leiden", flavor), **cluster_kwargs},
                 )
             else:
                 if clustering == "louvain":
@@ -420,7 +707,7 @@ def clustering(
                         resolution=resolution,
                         key_added=key_added,
                         random_state=seed,
-                        **cluster_kwargs,
+                        **{**_flavor_kwargs("louvain", flavor), **cluster_kwargs},
                     )
                 else:
                     print("FlowSOM clustering")
@@ -449,44 +736,1026 @@ def clustering(
 
     if key_filter is None:
         if marker_list is None:
-            return adata
+            result = adata
         else:
             adata_tmp.obs[key_added] = adata.obs[key_added].values
             # append other data
             adata_tmp.obsm = adata.obsm
             adata_tmp.obsp = adata.obsp
             adata_tmp.uns = adata.uns
-
-    if key_filter is not None:
-        original_df = adata_tmp.obs
-        donor_df = adata.obs
-
-        donor_df_cols = donor_df.loc[:, donor_df.columns != key_added].columns.tolist()
-        # Perform the merge operation
-        merged_df = pd.merge(
-            original_df,
-            donor_df,
-            left_on=donor_df_cols,
-            right_on=donor_df_cols,
-            how="left",
+            result = adata_tmp
+    else:
+        # Cells outside subset_cluster keep their key_filter value; cells that
+        # were (re)clustered get their new key_added label. Joining on the
+        # shared obs index (rather than merging on every obs column) keeps
+        # adata_tmp's original obs_names intact and avoids an expensive
+        # multi-column hash join.
+        adata_tmp.obs[key_added] = adata_tmp.obs[key_filter].astype(str)
+        adata_tmp.obs.loc[adata.obs.index, key_added] = (
+            adata.obs[key_added].astype(str).values
         )
 
-        # Fill NA/NaN values in 'key_added' using the values from 'key_filter'
-        merged_df[key_filter] = merged_df[key_filter].astype(str)
-        merged_df[key_added] = merged_df[key_added].astype(str)
+        adata_tmp.obs[key_filter] = adata_tmp.obs[key_filter].astype("category")
+        adata_tmp.obs[key_added] = adata_tmp.obs[key_added].astype("category")
+        result = adata_tmp
 
-        merged_df.replace("nan", np.nan, inplace=True)
+    if _record_report:
+        try:
+            _append_clustering_report(
+                result,
+                {
+                    "action": "clustering",
+                    "method": clustering,
+                    "flavor": flavor,
+                    "marker_list": marker_list,
+                    "resolution": resolution,
+                    "n_neighbors": n_neighbors,
+                    "seed": seed,
+                    "key_added": key_added,
+                    "n_cells": int(result.n_obs),
+                    "n_clusters": int(result.obs[key_added].nunique()),
+                    "notes": notes,
+                },
+            )
+            _ensure_roots(result, key_added)
+        except Exception as e:
+            print(f"Warning: failed to record clustering report step: {e}")
 
-        merged_df[key_added].fillna(merged_df[key_filter], inplace=True)
+    return result
 
-        merged_df[key_filter] = merged_df[key_filter].astype("category")
-        merged_df[key_added] = merged_df[key_added].astype("category")
 
-        merged_df.index = merged_df.index.astype(str)
-        # assign df as obs for adata_tmp
-        adata_tmp.obs = merged_df
+def _numeric_suffix_sort_key(label, prefix):
+    """Sort ``f"{prefix}{i}"``-style subcluster labels numerically on ``i``
+    when possible, else lexicographically -- keeps printed/report ordering
+    stable regardless of how many subclusters a round produced."""
+    suffix = label[len(prefix) :] if label.startswith(prefix) else label
+    try:
+        return (0, float(suffix))
+    except ValueError:
+        return (1, suffix)
 
-    return adata_tmp
+
+def subclustering(
+    adata,
+    cluster_key,
+    clusters,
+    resolution=0.3,
+    key_added=None,
+    method="leiden",
+    seed=42,
+    recompute_graph=False,
+    n_neighbors=10,
+    marker_list=None,
+    flavor="igraph",
+    *,
+    notes=None,
+    _record_report=True,
+    **cluster_kwargs,
+):
+    """
+    Split one or more existing clusters into finer subclusters.
+
+    Replaces a hand-written chain of ``sc.tl.leiden(restrict_to=...)`` calls
+    (one per cluster) with a single call. Clusters are split **sequentially,
+    one at a time**: the first cluster is split from ``cluster_key``, and
+    every later cluster is split from ``key_added`` (which already carries
+    the previous round's new labels) -- this is what makes chaining several
+    splits into the same ``key_added`` column work correctly instead of
+    silently overwriting earlier splits or pooling all requested clusters
+    into one joint split.
+
+    Parameters
+    ----------
+    adata : AnnData
+    cluster_key : str
+        Column in ``adata.obs`` holding the cluster labels to split.
+    clusters : str, list of str, or dict
+        Cluster label(s) to split. A ``dict`` maps each cluster label to a
+        per-cluster resolution override, e.g. ``{"0": 0.3, "3": 0.5}``.
+    resolution : float, optional
+        Resolution used for every cluster in ``clusters`` that isn't given
+        its own override via a ``clusters`` dict. Defaults to 0.3.
+    key_added : str, optional
+        Column added to ``adata.obs`` with the new labels. Defaults to
+        ``f"{cluster_key}_subcluster"``.
+    method : str, optional
+        Clustering algorithm: ``"leiden"``, ``"louvain"``, or
+        ``"leiden_gpu"``. ``"flowSOM"`` is not supported (it has no
+        ``restrict_to`` equivalent). Defaults to ``"leiden"``.
+    seed : int, optional
+        Random seed, passed through as ``random_state``. Defaults to 42.
+    recompute_graph : bool, optional
+        If False (default), reuse the existing global neighbor graph for
+        each split -- the same thing ``restrict_to`` does today, and what
+        reproduces the current tutorial output. If True, subset to each
+        cluster's cells and build a fresh local neighbor graph
+        (``n_neighbors``) before clustering it.
+    n_neighbors : int, optional
+        Neighbors used when ``recompute_graph=True``. Ignored otherwise.
+        Defaults to 10.
+    marker_list : list, optional
+        Markers to restrict to when ``recompute_graph=True``. Ignored
+        otherwise. Defaults to None (use all markers).
+    flavor : str, optional
+        Backend for leiden/louvain: ``"igraph"`` (default, scanpy's current
+        recommended flavor) or ``"legacy"`` (leiden's old ``leidenalg``
+        backend / louvain's old ``vtraag`` backend, for reproducing older
+        results). Ignored for ``method="leiden_gpu"``. Note: with
+        ``method="louvain"``, scanpy's igraph backend ignores ``resolution``
+        entirely (a scanpy limitation, not tunable) -- use
+        ``flavor="legacy"`` (requires ``pip install 'spacec[legacy]'``)
+        or ``method="leiden"`` if you need resolution control with louvain.
+    notes : str, optional
+        Free-text note describing why this split was run -- recorded in
+        ``adata.uns["clustering_report"]``. See :func:`clustering_report`.
+        Defaults to None.
+    **cluster_kwargs : dict
+        Additional keyword arguments forwarded to the underlying
+        ``sc.tl.leiden`` / ``sc.tl.louvain`` call.
+
+    Returns
+    -------
+    AnnData
+        ``adata`` with the new subcluster labels added to
+        ``adata.obs[key_added]``.
+
+    Raises
+    ------
+    ValueError
+        If ``cluster_key`` is not in ``adata.obs``, if any requested cluster
+        is not a value of ``adata.obs[cluster_key]``, or if
+        ``method="flowSOM"``.
+
+    Notes
+    -----
+    The wrapper standardises on ``random_state=seed`` (matching
+    :func:`clustering`), whereas some existing notebooks pass ``seed=`` to
+    ``sc.tl.leiden`` directly, which is forwarded to leidenalg instead --
+    subcluster label *assignment* may therefore differ slightly from
+    previously committed notebook output even though the method and
+    resolution are identical.
+    """
+    if cluster_key not in adata.obs:
+        raise ValueError(f"Column '{cluster_key}' not found in adata.obs")
+    if method == "flowSOM":
+        raise ValueError(
+            "method='flowSOM' is not supported by subclustering() -- flowSOM "
+            "has no restrict_to equivalent. Use 'leiden', 'louvain', or "
+            "'leiden_gpu' instead."
+        )
+    if flavor not in ["igraph", "legacy"]:
+        raise ValueError('flavor must be "igraph" or "legacy"')
+
+    if isinstance(clusters, dict):
+        cluster_list = list(clusters.keys())
+        res_for = {c: clusters[c] for c in cluster_list}
+    elif isinstance(clusters, str):
+        cluster_list = [clusters]
+        res_for = {clusters: resolution}
+    else:
+        cluster_list = list(clusters)
+        res_for = {c: resolution for c in cluster_list}
+
+    available_labels = adata.obs[cluster_key].astype(str).unique().tolist()
+    missing_clusters = [c for c in cluster_list if c not in available_labels]
+    if missing_clusters:
+        raise ValueError(
+            f"Cluster(s) {missing_clusters} not found in adata.obs['{cluster_key}']. "
+            f"Available clusters: {sorted(available_labels)}"
+        )
+
+    method = _resolve_clustering_method(method)
+    if key_added is None:
+        key_added = f"{cluster_key}_subcluster"
+
+    per_cluster_new_labels = {}
+
+    if not recompute_graph:
+        # Reuse the existing global neighbor graph -- exactly what
+        # restrict_to does today. First cluster restricts on cluster_key;
+        # every later cluster restricts on key_added, which now carries the
+        # previous round's new labels (and every unsplit label carried
+        # forward unchanged) -- this sequential chaining is the whole point
+        # of the wrapper.
+        for i, c in enumerate(cluster_list):
+            source_key = cluster_key if i == 0 else key_added
+            res = res_for[c]
+            n_before = int((adata.obs[source_key].astype(str) == c).sum())
+
+            if method == "leiden_gpu":
+                import rapids_singlecell as rsc
+
+                anndata_to_GPU(adata)
+                rsc.tl.leiden(
+                    adata,
+                    restrict_to=(source_key, [c]),
+                    resolution=res,
+                    key_added=key_added,
+                    random_state=seed,
+                    **cluster_kwargs,
+                )
+                anndata_to_CPU(adata)
+            elif method == "louvain":
+                sc.tl.louvain(
+                    adata,
+                    restrict_to=(source_key, [c]),
+                    resolution=res,
+                    key_added=key_added,
+                    random_state=seed,
+                    **{**_flavor_kwargs("louvain", flavor), **cluster_kwargs},
+                )
+            else:
+                sc.tl.leiden(
+                    adata,
+                    restrict_to=(source_key, [c]),
+                    resolution=res,
+                    key_added=key_added,
+                    random_state=seed,
+                    **{**_flavor_kwargs("leiden", flavor), **cluster_kwargs},
+                )
+
+            prefix = f"{c},"
+            categories = list(adata.obs[key_added].astype("category").cat.categories)
+            new_labels = [lbl for lbl in categories if lbl.startswith(prefix)]
+            per_cluster_new_labels[c] = new_labels
+            print(f"- '{c}': {n_before} cells -> {len(new_labels)} subclusters")
+    else:
+        # Local graph per cluster: subset to the cluster's cells (optionally
+        # restricted to marker_list), recompute neighbors, cluster, then
+        # write the new "{c},{j}" labels back by index -- same
+        # astype(str) -> .loc[] -> astype("category") reintegration pattern
+        # used by clustering()'s key_filter path.
+        if key_added not in adata.obs:
+            adata.obs[key_added] = adata.obs[cluster_key].astype(str).values
+        adata.obs[key_added] = adata.obs[key_added].astype("category")
+
+        for c in cluster_list:
+            res = res_for[c]
+            mask = (adata.obs[key_added].astype(str) == c).values
+            n_before = int(mask.sum())
+
+            sub = adata[mask, marker_list].copy() if marker_list else adata[mask].copy()
+
+            if method == "leiden_gpu":
+                import rapids_singlecell as rsc
+
+                anndata_to_GPU(sub)
+                rsc.pp.neighbors(sub, n_neighbors=n_neighbors, random_state=seed)
+                rsc.tl.leiden(
+                    sub,
+                    resolution=res,
+                    key_added="_spacec_local_sub",
+                    random_state=seed,
+                    **cluster_kwargs,
+                )
+                anndata_to_CPU(sub)
+            else:
+                sc.pp.neighbors(sub, n_neighbors=n_neighbors, random_state=seed)
+                if method == "louvain":
+                    sc.tl.louvain(
+                        sub,
+                        resolution=res,
+                        key_added="_spacec_local_sub",
+                        random_state=seed,
+                        **{**_flavor_kwargs("louvain", flavor), **cluster_kwargs},
+                    )
+                else:
+                    sc.tl.leiden(
+                        sub,
+                        resolution=res,
+                        key_added="_spacec_local_sub",
+                        random_state=seed,
+                        **{**_flavor_kwargs("leiden", flavor), **cluster_kwargs},
+                    )
+
+            local_labels = sub.obs["_spacec_local_sub"].astype(str)
+            order = sorted(
+                local_labels.unique(),
+                key=lambda v: _numeric_suffix_sort_key(v, ""),
+            )
+            prefix = f"{c},"
+            remap = {orig: f"{prefix}{j}" for j, orig in enumerate(order)}
+            new_vals = local_labels.map(remap)
+
+            adata.obs[key_added] = adata.obs[key_added].astype(str)
+            adata.obs.loc[sub.obs.index, key_added] = new_vals.values
+            adata.obs[key_added] = adata.obs[key_added].astype("category")
+
+            new_labels = [remap[o] for o in order]
+            per_cluster_new_labels[c] = new_labels
+            print(f"- '{c}': {n_before} cells -> {len(new_labels)} subclusters")
+
+    if _record_report:
+        entry = {
+            "clusters_split": cluster_list,
+            "cluster_key": cluster_key,
+            "per_cluster_new_labels": per_cluster_new_labels,
+            "graph_source": "local" if recompute_graph else "reused_global",
+            "method": method,
+            "flavor": flavor,
+            "resolution": resolution,
+            "seed": seed,
+            "key_added": key_added,
+            "notes": notes,
+        }
+        if isinstance(clusters, dict):
+            entry["per_cluster_resolution"] = res_for
+        try:
+            _append_clustering_report(adata, {"action": "subclustering", **entry})
+        except Exception as e:
+            print(f"Warning: failed to record clustering report step: {e}")
+        _record_split(
+            adata, cluster_key, key_added, per_cluster_new_labels, params=entry
+        )
+
+    return adata
+
+
+def annotate_clusters(
+    adata,
+    cluster_key,
+    mapping,
+    key_added="cell_type",
+    missing="keep",
+    *,
+    notes=None,
+    _record_report=True,
+):
+    """
+    Map cluster labels to cell type annotations.
+
+    A safer drop-in for ``adata.obs[key_added] = adata.obs[cluster_key].map(mapping)``:
+    by default, cluster labels absent from ``mapping`` keep their original
+    label instead of silently becoming ``NaN``, so callers no longer need to
+    re-list every already-annotated label as an identity mapping just to
+    avoid losing cells.
+
+    Parameters
+    ----------
+    adata : AnnData
+    cluster_key : str
+        Column in ``adata.obs`` holding the cluster labels to annotate.
+    mapping : dict
+        ``{cluster_label: cell_type}``. Labels not present as keys are
+        handled according to ``missing``. Keys are matched against
+        ``adata.obs[cluster_key]`` as strings (the column is internally
+        ``.astype(str)``'d before matching), so int-typed cluster ids (e.g.
+        ``0``, ``1``, ...) work equally well as ``int`` or ``str`` keys.
+    key_added : str, optional
+        Column added to ``adata.obs`` with the resolved annotations.
+        Defaults to ``"cell_type"``.
+    missing : {"keep", "nan", "raise"}, optional
+        How to handle a label present in ``adata.obs[cluster_key]`` but
+        absent from ``mapping``:
+
+        - ``"keep"`` (default): keep the original label unchanged.
+        - ``"nan"``: set it to ``NaN`` (plain ``.map()`` behaviour).
+        - ``"raise"``: raise :class:`ValueError` listing the unmapped labels.
+    notes : str, optional
+        Free-text note describing why this annotation was applied --
+        recorded in ``adata.uns["clustering_report"]``. See
+        :func:`clustering_report`. Defaults to None.
+
+    Returns
+    -------
+    AnnData
+        ``adata`` with the resolved annotation added to
+        ``adata.obs[key_added]`` (dtype ``category``).
+
+    Raises
+    ------
+    ValueError
+        If ``cluster_key`` is not in ``adata.obs``, if ``missing`` is not one
+        of ``"keep"``/``"nan"``/``"raise"``, or if ``missing="raise"`` and
+        some label in ``adata.obs[cluster_key]`` has no entry in ``mapping``.
+    """
+    if cluster_key not in adata.obs:
+        raise ValueError(f"Column '{cluster_key}' not found in adata.obs")
+    if missing not in ("keep", "nan", "raise"):
+        raise ValueError(
+            f"Invalid missing='{missing}'. Choose from 'keep', 'nan', 'raise'."
+        )
+
+    series = adata.obs[cluster_key].astype(str)
+    labels = series.unique().tolist()
+
+    # `series` is matched against `mapping` as strings (see astype(str) above), so a
+    # mapping keyed by the column's original dtype (e.g. numpy.int64 cluster ids) would
+    # otherwise match nothing at all -- str-cast keys here so int/str mapping keys both
+    # work the way a caller would expect.
+    mapping = {str(k): v for k, v in mapping.items()}
+
+    unknown_keys = sorted(set(mapping.keys()) - set(labels))
+    if unknown_keys:
+        print(
+            f"Warning: mapping key(s) {unknown_keys} not found in "
+            f"adata.obs['{cluster_key}']; ignored."
+        )
+
+    if mapping and not (set(mapping.keys()) & set(labels)):
+        print(
+            f"Warning: none of the {len(mapping)} mapping key(s) matched any label in "
+            f"adata.obs['{cluster_key}'] -- every cell will keep its original label. "
+            "Check that mapping keys match the column's values (as strings)."
+        )
+
+    unmapped_labels = sorted(l for l in labels if l not in mapping)
+    if missing == "raise" and unmapped_labels:
+        raise ValueError(
+            f"Unmapped label(s) {unmapped_labels} in adata.obs['{cluster_key}']; "
+            "provide a mapping entry for each, or use missing='keep'/'nan'."
+        )
+
+    if missing == "keep":
+        new_col = series.map(lambda v: mapping.get(v, v))
+    else:  # "nan" or "raise" (already validated complete for "raise")
+        new_col = series.map(mapping)
+
+    adata.obs[key_added] = new_col.astype("category")
+
+    # resolved_mapping: the source label -> target label mapping actually
+    # applied above, after `missing` has been resolved. Labels that ended up
+    # NaN (missing="nan") are excluded -- they got no coherent annotation.
+    resolved_mapping = {}
+    for label in labels:
+        if label in mapping:
+            resolved_mapping[label] = str(mapping[label])
+        elif missing == "keep":
+            resolved_mapping[label] = label
+
+    n_labels_total = len(labels)
+    n_labels_mapped = n_labels_total - len(unmapped_labels)
+    n_targets = len(set(resolved_mapping.values()))
+    n_total_cells = int(len(series))
+    n_mapped_cells = int(series.isin(mapping.keys()).sum())
+
+    print(f"\nAnnotation summary ('{cluster_key}' -> '{key_added}')")
+    print("─" * 46)
+    print(f"  Labels mapped        : {n_labels_mapped:>6,} / {n_labels_total:>6,}")
+    print(
+        f"  Cells mapped         : {n_mapped_cells:>6,} / {n_total_cells:>6,}"
+        f"  ({n_mapped_cells / n_total_cells * 100:.1f} %)"
+    )
+    if missing == "keep":
+        n_kept = n_total_cells - n_mapped_cells
+        if n_kept:
+            print(
+                f"  Cells kept as-is     : {n_kept:>6,}"
+                f"  ({n_kept / n_total_cells * 100:.1f} %)"
+            )
+    elif missing == "nan":
+        n_nan = int(new_col.isna().sum())
+        if n_nan:
+            print(
+                f"  Cells set to NaN     : {n_nan:>6,}"
+                f"  ({n_nan / n_total_cells * 100:.1f} %)"
+            )
+    print("─" * 46)
+
+    if _record_report:
+        entry = {
+            "cluster_key": cluster_key,
+            "key_added": key_added,
+            "n_labels_mapped": n_labels_mapped,
+            "n_labels_total": n_labels_total,
+            "n_targets": n_targets,
+            "missing": missing,
+            "notes": notes,
+        }
+        try:
+            _append_clustering_report(adata, {"action": "annotation", **entry})
+        except Exception as e:
+            print(f"Warning: failed to record clustering report step: {e}")
+        _record_annotation(
+            adata, cluster_key, key_added, resolved_mapping, params=entry
+        )
+
+    return adata
+
+
+class _StopAnnotationReview(Exception):
+    """Raised by `_review_cluster_annotation` when the reviewer asks to stop early
+    (`mode="manual"`'s "q"/"quit" option) -- caught by `suggest_annotation`'s loop, which then
+    returns whatever was decided so far instead of continuing or crashing."""
+
+
+def suggest_annotation(
+    adata,
+    cluster_key,
+    marker_dict,
+    mode="auto",
+    min_score=0.1,
+    min_margin=0.25,
+    return_scores=False,
+    masks=None,
+    images=None,
+    region_col="unique_region",
+    x_col="x",
+    y_col="y",
+    n_patch_markers=4,
+    resume_dict=None,
+    style=None,
+    legends=True,
+):
+    """
+    Propose a cluster -> cell type mapping from a marker panel.
+
+    Each marker is z-scored across clusters (so "high" means high *relative to
+    the other clusters*, not high in absolute intensity), and every cell type
+    is scored as the mean z-score of its markers. The best-scoring cell type
+    wins, unless it is too weak (``min_score``) or too close to the runner-up
+    (``min_margin``), in which case the cluster is proposed as ``"Unknown"``
+    or ``"Mixed"``, respectively.
+
+    Nothing is written to ``adata``: the mapping is returned so it can be
+    inspected, edited, and then applied with :func:`annotate_clusters`, which
+    records the step in ``adata.uns["clustering_report"]`` and
+    ``adata.uns["clustering_tree"]``::
+
+        mapping = suggest_annotation(adata, "leiden", marker_dict)
+        annotate_clusters(adata, "leiden", mapping, notes="marker-based")
+
+    Parameters
+    ----------
+    adata : AnnData
+    cluster_key : str
+        Column in ``adata.obs`` holding the cluster labels to annotate.
+    marker_dict : dict
+        ``{cell_type: [marker, ...]}``. Markers absent from
+        ``adata.var_names`` are dropped with a warning; a cell type that loses
+        all of its markers is dropped too.
+    mode : {"auto", "manual"}, optional
+        ``"auto"`` (default) returns the proposal as-is. ``"manual"`` walks
+        through the clusters one at a time in a notebook, showing a per-marker
+        z-score barplot and prompting for confirmation, so the proposal can be
+        accepted or overridden cluster by cluster.
+    min_score : float, optional
+        Minimum score the top cell type must reach; below it the cluster is
+        proposed as ``"Unknown"``. Defaults to 0.1.
+    min_margin : float, optional
+        Minimum gap between the best and second-best score; below it the
+        cluster is proposed as ``"Mixed"``. Defaults to 0.25.
+    return_scores : bool, optional
+        If True, also return the clusters x cell types score table.
+        Defaults to False.
+    masks, images : optional
+        Pre-loaded segmentation masks/images, as in :func:`spacec.plotting.patch_QC`. Only used
+        by ``mode="manual"``: when both are given, its prompt gains a ``p`` option that opens
+        `patch_QC` for the current cluster (region auto-picked the same way
+        :func:`spacec.plotting.run_patch_QC` does), so an uncertain call can be checked visually
+        before accepting/overriding it, without leaving the review loop. Omitted (default) or
+        only one given, the ``p`` option is left off the prompt entirely -- it's opt-in, not a
+        new required setup step for `mode="manual"`.
+    region_col, x_col, y_col : str, optional
+        Passed through to `patch_QC` (and to region auto-selection) when the ``p`` option is
+        used. Defaults ``"unique_region"``, ``"x"``, ``"y"``.
+    n_patch_markers : int, optional
+        How many of the cluster's own top (most z-scored) markers `patch_QC` shows when the
+        ``p`` option is used -- not `marker_dict`'s per-cell-type panels, the cluster's own
+        highest-scoring markers overall, regardless of which candidate cell type they came from.
+        By default 4.
+    resume_dict : dict, optional
+        A previous (possibly partial) ``{cluster_label: cell_type}`` result -- e.g. one returned
+        after ``mode="manual"``'s ``q``/``quit`` option stopped review early. Every key must already be
+        one of this call's actual cluster labels (``ValueError`` otherwise -- the usual cause is
+        resuming with a mapping from a different `cluster_key`/round). Clusters already in
+        `resume_dict` are carried over as-is and never re-reviewed; only the remaining clusters
+        are scored/reviewed this call. The scores table (``return_scores=True``) doesn't depend
+        on `resume_dict` at all -- it's the same per-cluster z-score computation every call makes
+        regardless, so it's always complete, never partial.
+    style : SPACEcStyle, str, or pathlib.Path, optional
+        Style for `mode="manual"`'s barplot (spine removal via the active style's
+        `remove_top_spine`/`remove_right_spine`). Defaults to the active style.
+    legends : bool, optional
+        If False, hides both the per-cell-type color legend below `mode="manual"`'s barplot
+        and the on-figure "Options" reference panel next to it -- the same options are still
+        printed in the text prompt either way, so nothing about what you can type changes.
+        Defaults to True. If True, prints an options box and a legend on cell types associated
+        with markers, according to marker_dict. Markers present in multiple cell type
+        definitions get colored by the last cell type in the `marker_dict`.
+
+    Returns
+    -------
+    dict
+        ``{cluster_label: cell_type}``, keyed by cluster label as ``str`` (the
+        form :func:`annotate_clusters` matches against).
+    pandas.DataFrame
+        Only if ``return_scores=True``: the per-cluster score for every cell
+        type, indexed by cluster label.
+
+    Raises
+    ------
+    ValueError
+        If ``cluster_key`` is not in ``adata.obs``, if ``mode`` is not
+        ``"auto"``/``"manual"``, if no marker in ``marker_dict`` is present in
+        ``adata.var_names``, if ``adata.obs[cluster_key]`` holds fewer than
+        two distinct labels (scoring is relative, so a single cluster cannot
+        be scored against anything), or if ``resume_dict`` has a key that
+        isn't one of this call's actual cluster labels.
+
+    See Also
+    --------
+    annotate_clusters : Apply the returned mapping and record it.
+    spacec.plotting.marker_dotplot : Check the result across annotated types.
+    """
+    if cluster_key not in adata.obs:
+        raise ValueError(f"Column '{cluster_key}' not found in adata.obs")
+    if mode not in ("auto", "manual"):
+        raise ValueError(f"Invalid mode='{mode}'. Choose from 'auto', 'manual'.")
+
+    # Keep only markers that actually exist, and report what was dropped -- a
+    # panel dict is usually copy-pasted between datasets, so misses are normal.
+    var_names = set(adata.var_names)
+    valid_markers = {}
+    dropped = []
+    for cell_type, markers in marker_dict.items():
+        present = [m for m in markers if m in var_names]
+        dropped.extend(m for m in markers if m not in var_names)
+        if present:
+            valid_markers[cell_type] = present
+        else:
+            print(
+                f"Warning: cell type '{cell_type}' has no markers in adata.var_names; "
+                "skipped."
+            )
+    if dropped:
+        print(
+            f"Warning: marker(s) not in adata.var_names, ignored: {sorted(set(dropped))}"
+        )
+    if not valid_markers:
+        raise ValueError(
+            "None of the markers in marker_dict were found in adata.var_names."
+        )
+
+    unique_markers = list(dict.fromkeys(m for ms in valid_markers.values() for m in ms))
+
+    clusters = adata.obs[cluster_key].astype(str)
+    labels = sorted(clusters.dropna().unique())
+    if len(labels) < 2:
+        raise ValueError(
+            f"adata.obs['{cluster_key}'] has {len(labels)} distinct label(s); "
+            "marker scores are computed relative to the other clusters, so at "
+            "least 2 are required."
+        )
+
+    if resume_dict:
+        foreign = set(resume_dict) - set(labels)
+        if foreign:
+            raise ValueError(
+                f"resume_dict has label(s) not in adata.obs['{cluster_key}']: "
+                f"{sorted(foreign)} -- resuming a mapping from a different cluster_key "
+                "or round?"
+            )
+
+    X = adata[:, unique_markers].X
+    if not isinstance(X, np.ndarray):
+        X = X.toarray()
+    expr = pd.DataFrame(X, index=adata.obs_names, columns=unique_markers)
+    means = expr.groupby(clusters.values, observed=True).mean()
+    # replace(0, 1) rather than adding an epsilon: a marker that is constant
+    # across clusters would otherwise blow up to a ~1/eps z-score and win every
+    # cluster. A zero-variance marker should contribute 0, not dominate.
+    zscores = (means - means.mean()) / means.std().replace(0, 1)
+
+    scores = pd.DataFrame(
+        {ct: zscores[ms].mean(axis=1) for ct, ms in valid_markers.items()}
+    )
+
+    mapping = dict(resume_dict) if resume_dict else {}
+    to_review = [l for l in labels if l not in mapping]
+    already_done = len(mapping)  # captured before the loop -- mapping grows as it runs
+    if resume_dict:
+        print(
+            f"Resuming: {already_done} cluster(s) already annotated, {len(to_review)} remaining."
+        )
+    stopped_early = False
+
+    _style = _apply_style(style) if mode == "manual" else None
+
+    for j, label in enumerate(to_review, start=1):
+        i = (
+            already_done + j
+        )  # overall position across the full round, not just this session
+        row = scores.loc[label].sort_values(ascending=False)
+        best, best_score = row.index[0], row.iloc[0]
+        second_score = row.iloc[1] if len(row) > 1 else -np.inf
+
+        if best_score < min_score:
+            proposal, reason = "Unknown", f"top score {best_score:.2f} < {min_score}"
+        elif (best_score - second_score) < min_margin:
+            proposal, reason = (
+                "Mixed",
+                f"{best} {best_score:.2f} vs {row.index[1]} {second_score:.2f}, "
+                f"gap < {min_margin}",
+            )
+        else:
+            proposal, reason = best, f"score {best_score:.2f}"
+
+        if mode == "auto":
+            print(f"  Cluster {label:>6} -> {proposal}  ({reason})")
+            mapping[label] = proposal
+        else:
+            try:
+                mapping[label] = _review_cluster_annotation(
+                    label,
+                    proposal,
+                    reason,
+                    zscores,
+                    valid_markers,
+                    i,
+                    len(labels),
+                    adata=adata,
+                    cluster_key=cluster_key,
+                    masks=masks,
+                    images=images,
+                    region_col=region_col,
+                    x_col=x_col,
+                    y_col=y_col,
+                    n_patch_markers=n_patch_markers,
+                    style=_style,
+                    legends=legends,
+                )
+            except _StopAnnotationReview:
+                stopped_early = True
+                break
+
+    if mode == "manual":
+        from IPython.display import clear_output
+
+        clear_output(wait=True)
+        if stopped_early:
+            print(
+                f"\nStopped early -- {len(mapping)}/{len(labels)} cluster(s) annotated so far "
+                "('q'/'quit'). Resume later with resume_dict=<this mapping>."
+            )
+        print(f"\nProposed annotation ('{cluster_key}')")
+        print("─" * 46)
+        for label, ct in mapping.items():
+            print(f"  Cluster {label:>6} -> {ct}")
+        print("─" * 46)
+    print(f"\nApply with: annotate_clusters(adata, '{cluster_key}', mapping)")
+
+    if return_scores:
+        return mapping, scores
+    return mapping
+
+
+def _review_cluster_annotation(
+    label,
+    proposal,
+    reason,
+    zscores,
+    valid_markers,
+    i=1,
+    n_total=1,
+    adata=None,
+    cluster_key=None,
+    masks=None,
+    images=None,
+    region_col="unique_region",
+    x_col="x",
+    y_col="y",
+    n_patch_markers=4,
+    style=None,
+    legends=True,
+):
+    """Show one cluster's marker profile and prompt for its annotation.
+
+    Interactive helper for ``suggest_annotation(mode="manual")``; returns the
+    label the user chose (or ``proposal`` if they just accept it). ``i``/``n_total``
+    are only used for the progress line in the printed header.
+
+    ``masks``/``images`` (both required together -- see ``suggest_annotation``) enable an
+    opt-in ``p`` prompt option: opens ``patch_QC`` for this cluster's own top
+    ``n_patch_markers`` markers, in a region auto-picked the same way ``run_patch_QC`` does
+    (``_select_regions_for_cluster``, first pick only -- a quick spot-check here, not the
+    multi-region sweep ``run_patch_QC`` does). Choosing ``p`` re-prompts for the *same*
+    cluster afterward rather than advancing -- it's a look, not a decision.
+
+    ``q``/``quit`` (typed, not a literal keypress -- see ``suggest_annotation``'s docstring)
+    raises `_StopAnnotationReview`, letting the caller's loop stop and keep whatever was
+    already decided instead of continuing or crashing.
+
+    ``legends=False`` hides both the per-cell-type color legend and the on-figure "Options"
+    panel; the printed text prompt below the figure lists the same options regardless.
+
+    Markers present in multiple cell type definitions get colored by the last cell type in
+    the `marker_dict`.
+    """
+    patches_available = adata is not None and masks is not None and images is not None
+    _style = style if style is not None else _apply_style(None)
+    import seaborn as sns
+    from IPython.display import clear_output
+
+    # Single source of truth for both the prompt text and the options side-panel, so the two
+    # can't drift out of sync. "cell type" has no fixed trigger set -- it's whatever's left
+    # over once nothing else matches -- so it's display-only, not matched against `triggers`.
+    option_specs = [("accept", "[Enter]/y/yes", ("", "y", "yes"))]
+    option_specs.append(("unknown", "u/unknown", ("u", "unknown", "unk")))
+    option_specs.append(("cell type", "[any other string]", None))
+    if patches_available:
+        option_specs.append(("show patches", "p/patch", ("p", "patch")))
+    option_specs.append(("stop, keep progress", "q/quit", ("q", "quit")))
+
+    clear_output(wait=True)
+    print("=" * 60)
+    print(f"CLUSTER {label}   [{i}/{n_total}]")
+    bar_width = 30
+    filled = round(bar_width * i / n_total) if n_total else 0
+    print("[" + "█" * filled + "░" * (bar_width - filled) + "]")
+    print(f"Proposed: {proposal}  ({reason})")
+    print("=" * 60)
+
+    df_plot = pd.DataFrame(
+        [
+            {"Cell type": ct, "Marker": m, "Z-score": float(zscores.loc[label, m])}
+            for ct, markers in valid_markers.items()
+            for m in markers
+        ]
+    )
+    fig, ax = plt.subplots(figsize=(12, 4))
+    # hue="Cell type" groups/colors adjacent bars by candidate cell type (df_plot is already
+    # built cell-type-by-cell-type, so same-colored bars are already adjacent). The legend is
+    # the only way to read that color->cell-type mapping back off: the "Proposed: ..." line
+    # above only names the winning candidate, not the others also shown in this chart.
+    sns.barplot(
+        data=df_plot,
+        x="Marker",
+        y="Z-score",
+        hue="Cell type",
+        dodge=False,
+        ax=ax,
+    )
+    ax.axhline(0, color="black", linewidth=1)
+    ax.set_title(f"Cluster {label} marker profile")
+    plt.setp(ax.get_xticklabels(), rotation=90)
+
+    # seaborn's own default-positioned legend is never what we want (wrong place, or
+    # not wanted at all) -- grab its handles/labels, then remove it; passing
+    # legend=False to barplot() above instead of doing this would also drop the
+    # per-artist labels those handles come from, so the replacement below couldn't
+    # be built at all.
+    handles, legend_labels = ax.get_legend_handles_labels()
+    if ax.get_legend() is not None:
+        ax.get_legend().remove()
+
+    # How much vertical room the rotated tick labels + "Marker" axis title actually
+    # need varies with the active style (tick-label font size ranges from 6pt to 14pt
+    # across `_style.py`'s styles) and with marker-name length, so it's measured from
+    # the real render rather than assumed -- a fixed margin that looks right for one
+    # style/dataset overlaps the legend for another.
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    xaxis_gap = (
+        ax.get_window_extent(renderer).y0 - ax.xaxis.get_tightbbox(renderer).y0
+    ) / fig.bbox.height
+    pad, bottom_pad = 0.02, 0.01
+
+    bottom = xaxis_gap + pad  # overridden below when the legend is shown
+    if legends:
+        # A legend to the side (Tim's original placement) works for a handful of cell
+        # types, but `marker_dict` can realistically hold dozens -- a tall side legend
+        # then either overflows the figure or forces tight_layout() to crush the axes
+        # down to a sliver. A horizontal, multi-column legend below the axes scales
+        # much better: wrap into at most 6 columns, and size its own height to the
+        # number of rows that produces, so a 2-3-cell-type panel doesn't reserve the
+        # same empty space a 30-cell-type one needs.
+        n_cell_types = len(valid_markers)
+        ncol = min(n_cell_types, 6)
+        # bbox_transform=fig.transFigure (not the axes-fraction default) so the anchor
+        # lines up directly with the figure-fraction gap measured above, with no extra
+        # conversion for the axes' own (also dynamic) height. Still ax.legend(), not
+        # fig.legend(): that keeps the legend attached to the axes (ax.get_legend()),
+        # matching what the side panel and the existing tests expect.
+        legend = ax.legend(
+            handles,
+            legend_labels,
+            title="Associated cell type",
+            bbox_to_anchor=(0.5, bottom_pad),
+            bbox_transform=fig.transFigure,
+            loc="lower center",
+            ncol=ncol,
+            fontsize=8,
+            frameon=True,
+        )
+        # The legend's own height isn't just row count * a guessed row height --
+        # title size, row spacing, and padding all scale with the active style's
+        # rcParams too (e.g. `presentation()`'s larger legend.title_fontsize), so it's
+        # measured the same way as the x-axis gap above: its bottom edge is already
+        # pinned to bottom_pad (loc="lower center" above), so drawing once more and
+        # reading its real rendered height gives the axes margin that leaves it
+        # exactly enough room, with no change to its anchor.
+        fig.canvas.draw()
+        legend_h = legend.get_window_extent(renderer).height / fig.bbox.height
+        bottom = xaxis_gap + pad + bottom_pad + legend_h
+
+        # Small reference panel for the prompt's options, back in its original spot to the
+        # right of the axes -- that space is free again now that the color legend moved
+        # below the plot instead of competing for the same area. Built from the same
+        # option_specs as the prompt below, so the two can't drift out of sync.
+        legend_text = "Options:\n" + "\n".join(
+            f"  • {opt} ({trigger})" for opt, trigger, _ in option_specs
+        )
+        ax.text(
+            1.02,
+            0.5,
+            legend_text,
+            transform=ax.transAxes,
+            va="center",
+            ha="left",
+            fontsize=9,
+            bbox=dict(boxstyle="round", facecolor="white", edgecolor="#999999"),
+        )
+    _apply_spines(ax, _style)
+    # subplots_adjust, not tight_layout() -- tight_layout() doesn't account for a
+    # legend placed outside the axes via bbox_to_anchor and will mis-size the plot.
+    # The Options panel's own width doesn't depend on how many cell types there are
+    # (always the same handful of prompt lines), so it needs a fixed, roomier right
+    # margin -- 0.98 is fine with no side panel, but clips the Options box's text.
+    right = 0.8 if legends else 0.98
+    fig.subplots_adjust(bottom=bottom, right=right, top=0.9, left=0.06)
+    plt.show()
+
+    prompt = (
+        f"\nAccept '{proposal}'?\n  "
+        + ", ".join(f"{label} ({trigger})" for label, trigger, _ in option_specs)
+        + ": "
+    )
+
+    while True:
+        try:
+            response = input(prompt).strip()
+        except EOFError:
+            # No interactive stdin (script, CI, piped input): don't hang or crash
+            # halfway through the loop -- take the proposal and say so.
+            print(f"Warning: no interactive input available; accepted '{proposal}'.")
+            return proposal
+
+        resp = response.lower()
+        triggers = {label: opts for label, _, opts in option_specs if opts is not None}
+
+        if resp in triggers["stop, keep progress"]:
+            # "q"/"quit" are typed words, not a literal keypress -- input() is line-buffered
+            # (waits for Enter) and Jupyter's own input() widget is a plain text box, not a
+            # real terminal, so a single raw keystroke can't be captured either way.
+            raise _StopAnnotationReview()
+
+        if patches_available and resp in triggers["show patches"]:
+            top_markers = (
+                zscores.loc[label]
+                .sort_values(ascending=False)
+                .index[:n_patch_markers]
+                .tolist()
+            )
+            region = _select_regions_for_cluster(adata, cluster_key, label, region_col)[
+                0
+            ]
+            fig = patch_QC(
+                adata,
+                cluster_key,
+                label,
+                top_markers,
+                masks,
+                images,
+                region=region,
+                region_col=region_col,
+                x_col=x_col,
+                y_col=y_col,
+                style=_style,
+            )
+            plt.show()
+            plt.close(fig)
+            continue  # re-prompt for this same cluster -- looking isn't deciding
+
+        if resp in triggers["accept"]:
+            return proposal
+        if resp in triggers["unknown"]:
+            return "Unknown"
+        return response  # "cell type" option: whatever's left over is the custom label
+
+
+def _plot_kelbow(X, k_max, metric="distortion", **kmeans_kwargs):
+    """Fit MiniBatchKMeans for k in range(2, k_max) and plot the score curve."""
+    ks = list(range(2, k_max))
+    scores = []
+    for k in ks:
+        km = MiniBatchKMeans(n_clusters=k, **{"random_state": 0, **kmeans_kwargs})
+        labels = km.fit_predict(X)
+        if metric == "distortion":
+            scores.append(km.inertia_)
+        elif metric == "silhouette":
+            scores.append(silhouette_score(X, labels))
+        elif metric == "calinski_harabasz":
+            scores.append(calinski_harabasz_score(X, labels))
+        else:
+            raise ValueError(f"Unsupported metric: {metric}")
+
+    fig, ax = plt.subplots()
+    ax.plot(ks, scores, marker="o")
+    ax.set_xlabel("k")
+    ax.set_ylabel(metric)
+    ax.set_title(f"{metric.capitalize()} elbow for KMeans clustering")
+    plt.show()
 
 
 def neighborhood_analysis(
@@ -499,6 +1768,7 @@ def neighborhood_analysis(
     n_neighborhoods=30,
     elbow=False,
     metric="distortion",
+    kmeans_kwargs=None,
 ):
     """
     Compute for Cellular neighborhoods (CNs).
@@ -520,9 +1790,15 @@ def neighborhood_analysis(
     n_neighborhoods : int, optional
         Number of neighborhoods one ends up with, by default 30.
     elbow : bool, optional
-        Whether to test for optimal number of clusters and visualize as elbow plot or not, by default False. If set to True, the function will test 1 to n_neighborhoods and plot the distortion score in an elbow plot to assist the user in finding the optimal number of clusters.
+        Whether to test for optimal number of clusters and visualize as elbow plot or not, by default False. If set to True, the function will test k = 2 to n_neighborhoods - 1 and plot the distortion score in an elbow plot to assist the user in finding the optimal number of clusters.
     metric : str, optional
         The metric to use when calculating distance between instances in a feature array, by default "distortion". Other options include "silhouette" and "calinski_harabasz".
+    kmeans_kwargs : dict, optional
+        Extra keyword arguments passed to ``sklearn.cluster.MiniBatchKMeans``, by default None.
+        ``random_state`` defaults to 0; ``n_clusters`` is set by ``n_neighborhoods`` and must
+        not be passed here. E.g. ``{"batch_size": 100, "n_init": 3}`` restores scikit-learn's
+        pre-1.0 defaults (as used by nolanlab/NeighborhoodCoordination). Labels still won't be
+        bit-identical to scikit-learn 0.22, since the algorithm itself was reworked in 1.0.
 
     Returns
     -------
@@ -608,8 +1884,10 @@ def neighborhood_analysis(
     windows2 = windows[k]
     windows2[cluster_col] = cells[cluster_col]
 
+    km_params = {"random_state": 0, **(kmeans_kwargs or {})}
+
     if elbow != True:
-        km = MiniBatchKMeans(n_clusters=n_neighborhoods, random_state=0)
+        km = MiniBatchKMeans(n_clusters=n_neighborhoods, **km_params)
 
         labels = km.fit_predict(windows2[sum_cols].values)
         k_centroids[str(k)] = km.cluster_centers_
@@ -617,7 +1895,7 @@ def neighborhood_analysis(
         adata.uns[centroids_name] = k_centroids
 
     else:
-        km = MiniBatchKMeans(random_state=0)
+        km = MiniBatchKMeans(**km_params)
 
         X = windows2[sum_cols].values
 
@@ -626,11 +1904,7 @@ def neighborhood_analysis(
         adata.obs[neighborhood_name] = labels
         adata.uns[centroids_name] = k_centroids
 
-        visualizer = KElbowVisualizer(
-            km, k=(n_neighborhoods), timings=False, metric=metric
-        )
-        visualizer.fit(X)  # Fit the data to the visualizer
-        visualizer.show()  # Finalize and render the figure
+        _plot_kelbow(X, n_neighborhoods, metric=metric, **km_params)
 
     return adata
 
@@ -648,6 +1922,7 @@ def build_cn_map(
     sub_list=None,
     sub_col=None,
     rand_seed=1,
+    figsize=(9, 3.5),
 ):
     """
     Generate a cellular neighborhood (CN) map.
@@ -669,9 +1944,18 @@ def build_cn_map(
     Y : str, optional
         Y coordinate column name, by default "y".
     threshold : float, optional
-        Threshold for neighborhood computation, by default 0.85.
+        Cumulative-fraction cutoff that defines each window's CN combination, by
+        default 0.85. CNs are added in descending order of their fraction in the
+        window until the cumulative fraction exceeds ``threshold``; that smallest
+        set of top CNs is the window's combination (see
+        ``hf_get_thresh_simps``).
     per_keep_thres : float, optional
-        Threshold for keeping percentage, by default 0.85.
+        Diagnostic only, by default 0.85. Drawn as the dashed line in the
+        cumulative-frequency plot (with a count of how many top combinations
+        cover less than this fraction of windows); nothing is filtered by it.
+        Combinations occurring in fewer than 0.001 (0.1%) of windows are dropped
+        from the CN map regardless (``thresh_freq`` in
+        ``tl_build_graph_CN_comb_map``).
     sub_list : list, optional
         List of sub regions, by default None.
     sub_col : str, optional
@@ -686,7 +1970,8 @@ def build_cn_map(
     """
     ks = [k]
     cells_df = pd.DataFrame(adata.obs)
-    cells_df = cells_df[[X, Y, unique_region, cn_col]]
+    keep = [X, Y, unique_region, cn_col] + ([sub_col] if sub_col else [])
+    cells_df = cells_df[list(dict.fromkeys(keep))]
     cells_df.reset_index(inplace=True)
     sum_cols = cells_df[cn_col].unique()
     keep_cols = cells_df.columns
@@ -723,8 +2008,17 @@ def build_cn_map(
             sub_list = [sub_list]
         w = w[w[sub_col].isin(sub_list)]
     l = list(palette.keys())
+    # Palette may name CNs absent from this data; give them all-zero columns.
+    w = w.reindex(
+        columns=[*w.columns, *(c for c in l if c not in w.columns)], fill_value=0
+    )
     simps, simp_freqs, simp_sums = tl_calculate_neigh_combs(
-        w, l, k, threshold=threshold, per_keep_thres=per_keep_thres  # color palette
+        w,
+        l,
+        k,
+        threshold=threshold,
+        per_keep_thres=per_keep_thres,
+        figsize=figsize,  # color palette
     )
     g, tops, e0, e1 = tl_build_graph_CN_comb_map(simp_freqs)
     return {
@@ -740,47 +2034,50 @@ def build_cn_map(
     }
 
 
-def tl_format_for_squidpy(adata, x_col, y_col):
+def tl_format_for_squidpy(adata, x_col="x", y_col="y"):
     """
     Format an AnnData object for use with Squidpy.
+
+    Creates a new AnnData whose ``obsm["spatial"]`` contains the cell coordinates
+    expected by squidpy.  If the input already has ``obsm["spatial"]`` populated
+    (e.g. via :func:`make_anndata` or :func:`hf_sync_spatial_obsm`) it is used
+    directly; otherwise the coordinates are read from ``adata.obs[x_col]`` and
+    ``adata.obs[y_col]``.
 
     Parameters
     ----------
     adata : AnnData
         Annotated data matrix.
-    x_col : str
-        Column name for x spatial coordinates.
-    y_col : str
-        Column name for y spatial coordinates.
+    x_col : str, optional
+        Column name for x spatial coordinates in ``adata.obs``, by default ``"x"``.
+        Ignored when ``obsm["spatial"]`` is already present.
+    y_col : str, optional
+        Column name for y spatial coordinates in ``adata.obs``, by default ``"y"``.
+        Ignored when ``obsm["spatial"]`` is already present.
 
     Returns
     -------
     AnnData
-        Annotated data matrix formatted for Squidpy, with spatial data in the 'obsm' attribute.
+        New annotated data matrix with ``obsm["spatial"]`` (shape n_cells × 2,
+        columns [x, y]) as expected by squidpy.
     """
-    # Validate input types
     if not isinstance(adata, ad.AnnData):
         raise TypeError("adata must be an AnnData object")
-    if not isinstance(x_col, str) or not isinstance(y_col, str):
-        raise TypeError("x_col and y_col must be strings")
 
-    # Check if the columns exist in the 'obs' metadata
-    if x_col not in adata.obs.columns or y_col not in adata.obs.columns:
-        raise ValueError(f"Columns {x_col} and/or {y_col} not found in adata.obs")
+    # Prefer obsm["spatial"] if already populated (e.g. by make_anndata).
+    if "spatial" in adata.obsm:
+        spatial_coordinates = adata.obsm["spatial"]
+    else:
+        if not isinstance(x_col, str) or not isinstance(y_col, str):
+            raise TypeError("x_col and y_col must be strings")
+        if x_col not in adata.obs.columns or y_col not in adata.obs.columns:
+            raise ValueError(f"Columns {x_col} and/or {y_col} not found in adata.obs")
+        spatial_coordinates = adata.obs[[x_col, y_col]].to_numpy(dtype=float)
 
-    # Extract the count data from your original AnnData object
-    counts = adata.X
-
-    # Extract the spatial coordinates from the 'obs' metadata
-    spatial_coordinates = adata.obs[[x_col, y_col]].values
-
-    # Ensure spatial coordinates are numeric
     if not np.issubdtype(spatial_coordinates.dtype, np.number):
         raise ValueError("Spatial coordinates must be numeric")
 
-    # Create a new AnnData object with the expected format
-    new_adata = ad.AnnData(counts, obsm={"spatial": spatial_coordinates})
-
+    new_adata = ad.AnnData(adata.X, obsm={"spatial": spatial_coordinates})
     return new_adata
 
 
@@ -1049,7 +2346,7 @@ def get_triangulation_distances(
     Compute triangulation distances for each unique region with parallel processing.
 
     This function processes the input DataFrame by first ensuring datatype consistency
-    (optionally converting coordinate values to integers), and then computes triangulation
+    (optionally casting cell type and region to str), and then computes triangulation
     distances per region in parallel using half of the available CPU cores (by default).
 
     Parameters
@@ -1079,17 +2376,6 @@ def get_triangulation_distances(
     if correct_dtype:
         df_input[cell_type] = df_input[cell_type].astype(str)
         df_input[region] = df_input[region].astype(str)
-
-    if not issubclass(df_input[x_pos].dtype.type, np.integer):
-        print("This function expects integer values for xy coordinates.")
-        print(
-            x_pos
-            + " and "
-            + y_pos
-            + " will be changed to integer. Please check the generated output!"
-        )
-        df_input[x_pos] = df_input[x_pos].astype(int).values
-        df_input[y_pos] = df_input[y_pos].astype(int).values
 
     unique_regions = df_input[region].unique()
     df_input = df_input.loc[:, [id, x_pos, y_pos, cell_type, region]]
@@ -1303,9 +2589,9 @@ def add_missing_columns(
     for column in missing_columns:
         triangulation_distances[column] = pd.NA
         region_to_tissue = pd.Series(
-            metadata[column].values, index=metadata["unique_region"]
+            metadata[column].values, index=metadata[shared_column]
         ).to_dict()
-        triangulation_distances[column] = triangulation_distances["unique_region"].map(
+        triangulation_distances[column] = triangulation_distances[shared_column].map(
             region_to_tissue
         )
         triangulation_distances[column].fillna("Unknown", inplace=True)
@@ -1378,7 +2664,11 @@ def identify_interactions(
     region : str
         Column name for region information.
     comparison : str
-        Column name used to compare different conditions.
+        Column name used to compare different conditions. Must have exactly 2
+        unique values -- downstream ``filter_interactions`` pivots to one
+        column per unique value and requires simultaneous significance
+        across all of them, so more than 2 groups (e.g. an 8-category
+        location column) silently collapses its result toward empty.
     min_observed : int, optional
         Minimum number of observed distance measurements required to consider a significant interaction (default: 10).
     distance_threshold : int, optional
@@ -1400,6 +2690,18 @@ def identify_interactions(
         A tuple containing:
             - distance_pvals (pandas.DataFrame): DataFrame with p-values and log-fold changes for each pair of cell types.
             - triangulation_distances_dict (dict): Dictionary containing observed and iterated triangulation distance DataFrames.
+
+    Notes
+    -----
+    ``distance_pvals``'s ``expected``/``observed`` columns hold a list of
+    per-iteration/per-cell raw distances for each row, not a scalar -- storing
+    this DataFrame directly in ``adata.uns`` (e.g. ``adata.uns["x"] =
+    distance_pvals``) will fail on ``adata.write_h5ad`` with ``TypeError:
+    Can't implicitly convert non-string objects to strings``, since h5ad
+    cannot serialize object-dtype columns holding lists. Persist the raw
+    result externally instead (e.g. ``pickle.dump``), and only store
+    ``filter_interactions``'s scalar-valued ``dist_table`` output in
+    ``adata.uns`` if you want something saved with the AnnData.
     """
     df_input = pd.DataFrame(adata.obs)
     if cellid in df_input.columns:
@@ -1442,7 +2744,7 @@ def identify_interactions(
         num_iterations=num_iterations,
     )
 
-    metadata = df_input.loc[:, ["unique_region", comparison]].copy()
+    metadata = df_input.loc[:, [region, comparison]].copy()
     # Reformat observed dataset
     triangulation_distances_long = add_missing_columns(
         triangulation_distances, metadata, shared_column=region
@@ -1519,8 +2821,8 @@ def identify_interactions(
     # Collect final results
     triangulation_distances_dict = {
         "distance_pvals": distance_pvals,
-        "triangulation_distances_observed": iterated_triangulation_distances_long,
-        "triangulation_distances_iterated": triangulation_distances_long,
+        "triangulation_distances_observed": triangulation_distances_long,
+        "triangulation_distances_iterated": iterated_triangulation_distances_long,
     }
 
     return distance_pvals, triangulation_distances_dict
@@ -1559,6 +2861,13 @@ def filter_interactions(
     """
     Filters interactions based on p-value, logfold change, and other conditions.
 
+    A row is significant if its ``pvalue`` column is below the ``pvalue`` argument,
+    ``|logfold_group| > logfold_group_abs``, ``celltype1 != celltype2`` and
+    ``observed_mean`` is not NaN. A cell-type pair is kept if it is significant in at
+    least one of the two groups; ``dist_table`` further requires a ``logfold_group``
+    value in both groups (not significance in both). P-values are used as given, with
+    no multiple-testing correction.
+
     Parameters
     ----------
     distance_pvals : pandas.DataFrame
@@ -1576,7 +2885,28 @@ def filter_interactions(
         DataFrame containing logfold changes sorted into two columns by the comparison condition.
     distance_pvals_sig_sub : pandas.DataFrame
         Subset of the original DataFrame containing only significant interactions based on the specified conditions.
+
+    Raises
+    ------
+    ValueError
+        If ``distance_pvals[comparison]`` does not have exactly 2 unique values.
+        The final pivot produces one column per unique value and keeps only
+        rows with a value in every column -- with more than 2 groups this
+        silently requires simultaneous significance across all of them,
+        collapsing the result toward empty with no indication why.
     """
+    n_conditions = distance_pvals[comparison].nunique()
+    if n_conditions != 2:
+        raise ValueError(
+            f"filter_interactions expects exactly 2 unique values in the "
+            f"'{comparison}' column (found {n_conditions}: "
+            f"{sorted(distance_pvals[comparison].unique())}). The final pivot keeps "
+            "only pairs significant in every resulting column simultaneously, so "
+            "more than 2 groups silently collapses the result toward empty instead "
+            "of raising -- pass a binary grouping column (e.g. group A vs. "
+            "everything else) instead."
+        )
+
     # calculate absolute logfold difference
     distance_pvals["logfold_group_abs"] = distance_pvals["logfold_group"].abs()
 
@@ -1719,13 +3049,16 @@ def adata_stellar(
     epochs=50,
     num_seed_class=3,
     key_added="stellar_pred",
-    STELLAR_path="",
+    STELLAR_path=None,
     max_memory_usage=1.6e10,
     chunk_size=5000,
     wd=5e-2,
     lr=1e-3,
     seed=1,
     batch_size=1,
+    device="auto",
+    louvain_flavor="auto",
+    num_parts=100,
 ):
     """
     Apply the STELLAR algorithm to annotated and unannotated spatial single-cell data.
@@ -1761,8 +3094,10 @@ def adata_stellar(
         Number of seed classes, which are appended to the number of unique cell types, by default 3.
     key_added : str, optional
         Key under which the predicted labels will be stored in adata_unannotated.obs, by default "stellar_pred".
-    STELLAR_path : str, optional
-        Filesystem path to the STELLAR repository. This path is added to sys.path, by default "".
+    STELLAR_path : str or None, optional
+        Optional, legacy. Filesystem path to a source checkout of the STELLAR fork (its root
+        contains a `stellar/` package); prepended to sys.path if given. Not needed when STELLAR
+        is installed as a package (see `install_stellar`), by default None.
     max_memory_usage : float, optional
         Maximum allowable memory usage in bytes when computing pairwise distances; if exceeded,
         the computation will be done in chunks, by default 1.6e10.
@@ -1776,6 +3111,18 @@ def adata_stellar(
         Seed used for reproducibility, by default 1.
     batch_size : int, optional
         Batch size for model training, by default 1.
+    device : str, optional
+        Device to train on: "auto", "cuda", "mps", or "cpu". "auto" picks the best available
+        device, by default "auto".
+    louvain_flavor : str, optional
+        Louvain community detection backend passed through to STELLAR, by default "auto".
+        "auto" uses ``"vtraag"`` if the ``louvain`` package is installed
+        (``pip install 'spacec[legacy]'``) and otherwise falls back to ``"igraph"``
+        with a warning. The backends give different partitions, which affects
+        the result when ``num_seed_class > 0``.
+    num_parts : int, optional
+        Number of METIS graph partitions passed through to STELLAR, by default 100.
+        Clamped so that each partition holds at least 10 cells on small inputs.
 
     Returns
     -------
@@ -1795,8 +3142,8 @@ def adata_stellar(
       5. Constructs a GraphDataset and runs the STELLAR algorithm on it.
       6. Returns the modified adata_unannotated with predictions stored in obs[key_added].
 
-    The function assumes that helper functions (e.g., stellar_get_edge_index) and necessary modules,
-    including torch, argparse, and dataset utility modules, are available in the environment.
+    The function assumes that helper functions (e.g., stellar_get_edge_index) are available in
+    the environment.
     """
     print(
         "Please consider to cite the following paper when using STELLAR: "
@@ -1804,32 +3151,41 @@ def adata_stellar(
         "Nat Methods 19, 1411–1418 (2022). https://doi.org/10.1038/s41592-022-01651-8"
     )
 
-    sys.path.append(str(STELLAR_path))
-    from datasets import GraphDataset
-    from STELLAR import STELLAR
-    from utils import prepare_save_dir
+    if STELLAR_path:  # legacy: source checkout of the fork, its root contains stellar/
+        sys.path.insert(0, str(STELLAR_path))
+    try:
+        from stellar import STELLAR, GraphDataset
+        from stellar.utils import select_device, set_seed
+    except ImportError as e:
+        raise ImportError(
+            "STELLAR not installed. Run sp.tl.install_stellar() or see README "
+            "(pip install git+https://github.com/TKempchen/stellar-py3.12)."
+        ) from e
 
-    parser = argparse.ArgumentParser(description="STELLAR")
-    parser.add_argument("--seed", type=int, default=seed, metavar="S")
-    parser.add_argument("--name", type=str, default="STELLAR")
-    parser.add_argument("--epochs", type=int, default=50)
-    parser.add_argument("--lr", type=float, default=lr)
-    parser.add_argument("--wd", type=float, default=wd)
-    # Don't set input_dim here - let STELLAR set it from the dataset
-    parser.add_argument("--num-heads", type=int, default=13)
-    parser.add_argument("--num-seed-class", type=int, default=num_seed_class)
-    parser.add_argument("--sample-rate", type=float, default=sample_rate)
-    parser.add_argument("-b", "--batch-size", default=batch_size, type=int, metavar="N")
-    parser.add_argument("--distance_thres", default=50, type=int)
-    parser.add_argument("--savedir", type=str, default="./")
-
-    args = parser.parse_args(args=[])
-    args.cuda = torch.cuda.is_available()
-    args.device = torch.device("cuda" if args.cuda else "cpu")
-    args.epochs = epochs
-    args.distance_thres = distance_thres
-    # Set the number of heads based on the number of cell types (IMPORTANT)
-    args.num_heads = len(adata_train.obs[celltype_col].unique()) + num_seed_class
+    set_seed(seed)
+    args = argparse.Namespace(
+        seed=seed,
+        epochs=epochs,
+        lr=lr,
+        wd=wd,
+        batch_size=batch_size,
+        num_seed_class=num_seed_class,
+        sample_rate=sample_rate,
+        distance_thres=distance_thres,
+        # ponytail: ClusterLoader crashes on partitions with no internal edges, so keep
+        # >=10 nodes per METIS part on small inputs; pass a larger num_parts explicitly if needed.
+        num_parts=max(
+            1,
+            min(
+                num_parts,
+                round(sample_rate * adata_train.n_obs) // 10,
+                adata_unannotated.n_obs // 10,
+            ),
+        ),
+        louvain_flavor=louvain_flavor,
+        device=select_device(device),
+    )
+    args.cuda = args.device.type == "cuda"
 
     print("Preparing input data")
     # Create a mapping between original cell indices and sampled indices
@@ -1838,8 +3194,9 @@ def adata_stellar(
     train_df = pd.concat([train_df, positions_celltype], axis=1)
 
     # Create a key to track the original indices before sampling
+    assert 0 < sample_rate <= 1, "sample_rate must be in (0, 1]"
     train_df["original_idx"] = np.arange(len(train_df))
-    # train_df = train_df.sample(n=round(sample_rate * len(train_df)), random_state=1)
+    train_df = train_df.sample(frac=sample_rate, random_state=seed)
 
     # Get the mapping from sampled indices to original indices
     sampled_to_original = dict(enumerate(train_df["original_idx"].values))
@@ -1867,6 +3224,10 @@ def adata_stellar(
     for i, t in enumerate(cell_types):
         cell_type_dict[t] = i
         inverse_dict[i] = t
+
+    # Set the number of heads based on the number of cell types actually present
+    # after subsampling (IMPORTANT: a rare class can vanish during sampling)
+    args.num_heads = len(cell_types) + num_seed_class
 
     # Print dictionaries to verify proper mapping
     print(f"Cell type mapping size: {len(cell_type_dict)}")
@@ -2147,7 +3508,10 @@ def ml_train(
         - 'accurate_SVC': Uses SVC with probability=True (slower, provides predict_proba).
         - 'fast_SVC': Uses LinearSVC with CalibratedClassifierCV (faster, optional predict_proba).
         - 'knn': Uses KNeighborsClassifier with specified n_neighbors.
-        Default is 'accurate_SVC'.
+        Default is 'accurate_SVC'. Note: 'accurate_SVC' (``sklearn.svm.SVC`` with
+        ``probability=True``) scales roughly O(n^2)-O(n^3) with the number of training
+        cells and becomes impractically slow above roughly 20,000-50,000 cells: for
+        larger datasets, use 'fast_SVC' or 'knn', or subsample ``adata_train`` first.
     showfig : bool, optional
         Whether to display a heatmap of the classification report. Default is True.
     figsize : tuple, optional
@@ -2186,9 +3550,26 @@ def ml_train(
         y = y[y_msk]
     elif nan_policy_y != "raise":
         raise ValueError("nan_policy_y must be either 'omit' or 'raise'")
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=test_size, random_state=random_state
-    )
+    # Stratify by label so the held-out test fold keeps at least one example of every
+    # class present in y -- an unstratified split can drop the rarest classes from the
+    # test fold entirely, and the classification_report(target_names=svc.classes_) call
+    # a few lines below then raises ValueError: "Number of classes, N, does not match
+    # size of target_names, M" (every class trained on but not all seen in the test
+    # fold). stratify=y requires every class to have at least 2 members; fall back to
+    # an unstratified split (with a warning) for the rare case that isn't true.
+    try:
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=test_size, random_state=random_state, stratify=y
+        )
+    except ValueError as e:
+        print(
+            f"Warning: stratified split failed ({e}); falling back to an unstratified "
+            "split. Classes with very few samples may be under- or unrepresented in "
+            "the test fold."
+        )
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=test_size, random_state=random_state
+        )
     print("Unique labels:", np.unique(y))  # Adjusted for clarity
     print("Training now!")
     if mode == "accurate_SVC":
@@ -2214,10 +3595,20 @@ def ml_train(
         svm_label = svc.predict(X_test)  # No predict_proba for LinearSVC
     elif mode == "fast_SVC":
         svm_label = svc.predict(X_test)  # No predict_proba for LinearSVC
-    # Generate classification report
+    # Generate classification report. Passing `labels=target_names` explicitly (in
+    # addition to `target_names`) tells classification_report which full set of
+    # classes to report on regardless of which ones actually occur in y_test/svm_label
+    # -- without it, a class trained on but absent from the (possibly very small) test
+    # fold raises ValueError: "Number of classes, N, does not match size of
+    # target_names, M" instead of just reporting zero support for that class.
     target_names = svc.classes_
     svm_eval = classification_report(
-        y_true=y_test, y_pred=svm_label, target_names=target_names, output_dict=True
+        y_true=y_test,
+        y_pred=svm_label,
+        labels=target_names,
+        target_names=target_names,
+        output_dict=True,
+        zero_division=0,
     )
     if showfig:
         plt.figure(figsize=figsize)
@@ -2294,6 +3685,129 @@ def masks_to_outlines_scikit_image(masks):
         return find_boundaries(masks, mode="inner")
 
 
+def _count_contacts(mask):
+    """Number of distinct touching neighbor labels per cell in a 2D label image (4-connected:
+    pixels sharing an edge, not just a corner)."""
+    contacts = {}
+    for a_sl, b_sl in [(np.s_[:, :-1], np.s_[:, 1:]), (np.s_[:-1, :], np.s_[1:, :])]:
+        a, b = mask[a_sl], mask[b_sl]
+        border = (a != b) & (a > 0) & (b > 0)
+        if not border.any():
+            continue
+        pairs = np.unique(
+            np.column_stack([a[border].ravel(), b[border].ravel()]), axis=0
+        )
+        for l1, l2 in pairs:
+            contacts.setdefault(int(l1), set()).add(int(l2))
+            contacts.setdefault(int(l2), set()).add(int(l1))
+    return {label: len(neighbors) for label, neighbors in contacts.items()}
+
+
+def add_morphology_features(
+    adata,
+    masks=None,
+    region_col="unique_region",
+    feature_cols=("circularity", "axis_ratio", "extent", "solidity", "n_contacts"),
+):
+    """
+    Add per-cell shape and contact descriptors to `adata.obs`.
+
+    `circularity`, `axis_ratio`, and `solidity` are derived directly from morphology columns
+    `cell_segmentation`/`extract_features` already write to `adata.obs` (`area`, `perimeter`,
+    `axis_major_length`, `axis_minor_length`, `convex_area`) -- no mask needed for these three.
+    `extent` and `n_contacts` need the raw segmentation mask (bounding-box area and neighbor
+    counts aren't in `adata.obs`), matched to `adata.obs` rows by the exact `label` column
+    `cell_segmentation` assigns -- the same label-matching convention `hf_attach_masks` documents
+    -- rather than a pixel-centroid lookup.
+
+    Parameters
+    ----------
+    adata : AnnData
+        Annotated data matrix. Must already have `label` and `region_col` in `.obs`, plus
+        whichever of `area`/`perimeter`/`axis_major_length`/`axis_minor_length`/`convex_area`
+        the requested `feature_cols` need (all written by `cell_segmentation` by default).
+    masks : dict[str, numpy.ndarray], optional
+        Mapping of `region_col` value to that region's 2D integer-labeled mask array (e.g. from
+        `sp.hf.hf_load_masks`). Only required if `feature_cols` includes `"extent"` or
+        `"n_contacts"`.
+    region_col : str, optional
+        obs column identifying which mask each cell belongs to, by default "unique_region".
+    feature_cols : tuple of str, optional
+        Which features to add. Available: "circularity" (4*pi*area/perimeter^2, 1.0 = perfect
+        circle -- uses the plain regionprops perimeter already in `adata.obs`, not the Crofton
+        perimeter estimator), "axis_ratio" (minor/major ellipse axis length), "solidity"
+        (area / convex-hull area), "extent" (area / bounding-box area, needs `masks`),
+        "n_contacts" (number of distinct neighboring cells directly touching this one,
+        4-connected, needs `masks`).
+
+    Returns
+    -------
+    AnnData
+        `adata` with the requested columns added to `.obs`.
+    """
+    obs_requirements = {
+        "circularity": ("area", "perimeter"),
+        "axis_ratio": ("axis_minor_length", "axis_major_length"),
+        "solidity": ("area", "convex_area"),
+    }
+    mask_features = {"extent", "n_contacts"}
+
+    unknown = set(feature_cols) - set(obs_requirements) - mask_features
+    if unknown:
+        raise ValueError(f"Unknown feature_cols: {sorted(unknown)}")
+
+    needs_mask = [f for f in feature_cols if f in mask_features]
+    if needs_mask and masks is None:
+        raise ValueError(
+            f"feature_cols {needs_mask} require `masks` (e.g. sp.hf.hf_load_masks(...))"
+        )
+
+    missing_obs_cols = sorted(
+        {
+            col
+            for f in feature_cols
+            if f in obs_requirements
+            for col in obs_requirements[f]
+        }
+        - set(adata.obs.columns)
+    )
+    if missing_obs_cols:
+        raise ValueError(
+            f"adata.obs is missing columns required for {feature_cols}: {missing_obs_cols}"
+        )
+
+    obs = adata.obs
+    if "circularity" in feature_cols:
+        obs["circularity"] = 4 * np.pi * obs["area"] / obs["perimeter"] ** 2
+    if "axis_ratio" in feature_cols:
+        obs["axis_ratio"] = obs["axis_minor_length"] / obs["axis_major_length"]
+    if "solidity" in feature_cols:
+        obs["solidity"] = obs["area"] / obs["convex_area"]
+
+    if needs_mask:
+        for col in needs_mask:
+            obs[col] = np.nan
+        for region, mask in masks.items():
+            in_region = (obs[region_col] == region).to_numpy()
+            if not in_region.any():
+                continue
+            props = pd.DataFrame(
+                regionprops_table(mask, properties=["label", "area", "area_bbox"])
+            ).set_index("label")
+            props["extent"] = props["area"] / props["area_bbox"]
+            props["n_contacts"] = (
+                pd.Series(_count_contacts(mask), dtype=float)
+                .reindex(props.index)
+                .fillna(0)
+                .astype(int)
+            )
+            labels = obs.loc[in_region, "label"].to_numpy()
+            cell_feats = props.reindex(labels)[needs_mask].to_numpy()
+            obs.loc[in_region, needs_mask] = cell_feats
+
+    return adata
+
+
 def download_file_tm(url, save_path):
     """
     Download a file from a given URL and save it to a specified path.
@@ -2321,14 +3835,9 @@ def check_download_tm_plugins():
     """
     Check and download the TissUUmaps plugins if they are not already present.
 
-    This function checks if the required TissUUmaps plugins are present in the
-    appropriate directory within the active Conda environment. If any plugins
-    are missing, they are downloaded from the specified URLs.
-
-    Raises
-    ------
-    EnvironmentError
-        If the Conda environment is not activated.
+    Plugins live in the ``plugins`` folder of the installed ``tissuumaps``
+    package, so this works in any environment (venv, conda, system Python).
+    Missing plugins are downloaded from the TissUUmaps website.
     """
     urls = [
         "https://tissuumaps.github.io/TissUUmaps/plugins/latest/ClassQC.js",
@@ -2338,33 +3847,14 @@ def check_download_tm_plugins():
         "https://tissuumaps.github.io/TissUUmaps/plugins/latest/Feature_Space.js",
     ]
 
-    conda_env_path = os.getenv("CONDA_PREFIX")
-    if not conda_env_path:
-        raise EnvironmentError("Conda environment is not activated.")
+    save_directory = os.path.join(os.path.dirname(tj.__file__), "plugins")
+    os.makedirs(save_directory, exist_ok=True)
 
-    python_version = f"python{sys.version_info.major}.{sys.version_info.minor}"
-    save_directory = os.path.join(
-        conda_env_path, "lib", python_version, "site-packages", "tissuumaps", "plugins"
-    )
-
-    if not os.path.exists(save_directory):
-        save_directory_option = os.path.join(
-            conda_env_path, "lib", "site-packages", "tissuumaps", "plugins"
-        )
-        for url in urls:
-            file_name = os.path.basename(url)
-            save_path = os.path.join(save_directory_option, file_name)
-            if not os.path.exists(save_path):
-                download_file_tm(url, save_path)
-                print(f"Plug-in downloaded and saved to {save_path}")
-
-    else:
-        for url in urls:
-            file_name = os.path.basename(url)
-            save_path = os.path.join(save_directory, file_name)
-            if not os.path.exists(save_path):
-                download_file_tm(url, save_path)
-                print(f"Plug-in downloaded and saved to {save_path}")
+    for url in urls:
+        save_path = os.path.join(save_directory, os.path.basename(url))
+        if not os.path.exists(save_path):
+            download_file_tm(url, save_path)
+            print(f"Plug-in downloaded and saved to {save_path}")
 
 
 def tm_viewer(
@@ -2648,57 +4138,6 @@ def tm_viewer_catplot(
     return csv_paths
 
 
-def install_gpu_leiden(CUDA="12"):
-    """
-    Install the necessary packages for GPU-accelerated Leiden clustering.
-
-    Parameters
-    ----------
-    CUDA : str, optional
-        The version of CUDA to use for the installation. Options are '11' and '12'. Default is '12'.
-
-    Returns
-    -------
-    None
-
-    Notes
-    -----
-    This function runs a series of pip install commands to install the necessary packages. The specific packages and versions installed depend on the CUDA
-    version. The function prints the output and any errors from each command.
-    """
-    if platform.system() != "Linux":
-        print("This feature is currently only supported on Linux.")
-
-    else:
-        print("installing rapids_singlecell")
-        # Define the commands to run
-        if CUDA == "11":
-            commands = [
-                "pip install rapids-singlecell==0.9.5",
-                "pip install --extra-index-url=https://pypi.nvidia.com cudf-cu11==24.2.* dask-cudf-cu11==24.2.* cuml-cu11==24.2.* cugraph-cu11==24.2.* cuspatial-cu11==24.2.* cuproj-cu11==24.2.* cuxfilter-cu11==24.2.* cucim-cu11==24.2.* pylibraft-cu11==24.2.* raft-dask-cu11==24.2.*",
-                "pip install protobuf==3.20",
-            ]
-        else:
-            commands = [
-                "pip install rapids-singlecell==0.9.5",
-                "pip install --extra-index-url=https://pypi.nvidia.com cudf-cu12==24.2.* dask-cudf-cu12==24.2.* cuml-cu12==24.2.* cugraph-cu12==24.2.* cuspatial-cu12==24.2.* cuproj-cu12==24.2.* cuxfilter-cu12==24.2.* cucim-cu12==24.2.* pylibraft-cu12==24.2.* raft-dask-cu12==24.2.*",
-                "pip install protobuf==3.20",
-            ]
-
-        # Run each command
-        for command in commands:
-            process = subprocess.Popen(
-                command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-            )
-            stdout, stderr = process.communicate()
-
-            # Print the output and error, if any
-            if stdout:
-                print(f"Output:\n{stdout.decode()}")
-            if stderr:
-                print(f"Error:\n{stderr.decode()}")
-
-
 def anndata_to_GPU(
     adata: AnnData,
     layer: str | None = None,
@@ -2802,535 +4241,46 @@ def anndata_to_CPU(
         return adata
 
 
-def install_stellar(CUDA=12):
-    if CUDA == 12:
-        subprocess.run(["pip", "install", "torch"], check=True)
-        subprocess.run(["pip", "install", "torch_geometric"], check=True)
-        subprocess.run(
-            [
-                "pip",
-                "install",
-                "pyg_lib",
-                "torch_scatter",
-                "torch_sparse",
-                "torch_cluster",
-                "torch_spline_conv",
-                "-f",
-                "https://data.pyg.org/whl/torch-2.3.0+cu121.html",
-            ],
-            check=True,
-        )
-    elif CUDA == 11.8:
-        subprocess.run(
-            [
-                "pip3",
-                "install",
-                "torch",
-                "--index-url",
-                "https://download.pytorch.org/whl/cu118",
-            ],
-            check=True,
-        )
-        subprocess.run(["pip", "install", "torch_geometric"], check=True)
-        subprocess.run(
-            [
-                "pip",
-                "install",
-                "pyg_lib",
-                "torch_scatter",
-                "torch_sparse",
-                "torch_cluster",
-                "torch_spline_conv",
-                "-f",
-                "https://data.pyg.org/whl/torch-2.3.0+cu118.html",
-            ],
-            check=True,
-        )
-    else:
-        print("Please choose between CUDA 12 or 11.8")
-        print(
-            "If neither is working for you check the installation guide at: https://pytorch.org/get-started/locally/ and https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html"
-        )
-
-
-def launch_interactive_clustering(adata=None, output_dir=None):
+def install_stellar(cuda=None):
     """
-    Launch an interactive clustering application for single-cell data analysis.
+    Install PyTorch Geometric and the Python 3.12 STELLAR fork for the installed torch.
 
     Parameters
     ----------
-    adata : AnnData, optional
-        An AnnData object containing single-cell data. If provided, the data will be loaded automatically.
-    output_dir : str, optional
-        The directory where the annotated AnnData object will be saved. Required if `adata` is provided.
+    cuda : str or None, optional
+        CUDA wheel tag to install torch-scatter/torch-sparse for, e.g. "cu124". If None,
+        it is derived from `torch.version.cuda` ("cpu" if torch has no CUDA build), by
+        default None.
 
     Returns
     -------
-    main_layout : panel.layout.Row
-        The main layout of the interactive clustering application.
-
-    Raises
-    ------
-    ValueError
-        If `adata` is provided but `output_dir` is not specified, or if `output_dir` is not a string.
+    None
+        Packages (torch-geometric, torch-scatter, torch-sparse, and the
+        `stellar-gnn` package from https://github.com/TKempchen/stellar-py3.12) are
+        installed via pip as a side effect.
     """
-    warnings.filterwarnings("ignore")
-    pn.extension("deckgl", design="bootstrap", theme="default", template="bootstrap")
-    pn.state.template.config.raw_css.append(
-        """
-    #main {
-    padding: 0;
-    }"""
+    v = torch.__version__.split("+")[0]
+    if cuda is None:
+        cuda = (
+            "cpu"
+            if torch.version.cuda is None
+            else "cu" + torch.version.cuda.replace(".", "")
+        )
+    pip = [sys.executable, "-m", "pip", "install"]
+    subprocess.run(pip + ["torch-geometric>=2.4"], check=True)
+    subprocess.run(
+        pip
+        + [
+            "torch-scatter",
+            "torch-sparse",
+            "-f",
+            f"https://data.pyg.org/whl/torch-{v}+{cuda}.html",
+        ],
+        check=True,
     )
-
-    # check if output_dir is provided if adata is provided
-    if adata is not None and not output_dir:
-        raise ValueError(
-            "Please provide an output directory to save the annotated AnnData object."
-        )
-        # exit the function if output_dir is not provided
-        return
-
-    else:
-        # check if output_dir is a string
-        if output_dir and not isinstance(output_dir, str):
-            raise ValueError("output_dir must be a string.")
-
-        # check if output directory exists and create if not:
-        if output_dir and not os.path.exists(output_dir):
-            os.makedirs(output_dir)
-
-    # Define the app
-    def create_clustering_app():
-
-        # Callback to load data
-        def load_data(event=None):
-            if adata is not None:
-                adata_container["adata"] = adata
-                marker_list_input.options = list(adata.var_names)
-                output_area.object = "**AnnData object loaded successfully.**"
-                return
-            if not input_path.value or not os.path.isfile(input_path.value):
-                output_area.object = "**Please enter a valid AnnData file path.**"
-                return
-            loaded_adata = sc.read_h5ad(input_path.value)
-            adata_container["adata"] = loaded_adata
-            marker_list_input.options = list(loaded_adata.var_names)
-            output_area.object = "**AnnData file loaded successfully.**"
-
-        # Callback to run clustering
-        def run_clustering(event):
-            adata = adata_container.get("adata", None)
-            if adata is None:
-                output_area.object = "**Please load an AnnData file first.**"
-                return
-            marker_list = (
-                list(marker_list_input.value) if marker_list_input.value else None
-            )
-            key_added = (
-                key_added_input.value
-                if key_added_input.value
-                else clustering_method.value + "_" + str(resolution.value)
-            )
-            # Start loading indicator
-            loading_indicator.active = True
-            output_area.object = "**Clustering in progress...**"
-            # Run clustering
-            try:
-                adata = clustering(
-                    adata,
-                    clustering=clustering_method.value,
-                    marker_list=marker_list,
-                    resolution=resolution.value,
-                    n_neighbors=n_neighbors.value,
-                    reclustering=reclustering.value,
-                    key_added=key_added,
-                    key_filter=None,
-                    subset_cluster=None,
-                    seed=42,
-                    fs_xdim=fs_xdim.value,
-                    fs_ydim=fs_ydim.value,
-                    fs_rlen=fs_rlen.value,
-                )
-
-                adata_container["adata"] = adata
-                output_area.object = "**Clustering completed.**"
-                # Automatically generate visualization
-                key_to_visualize = key_added
-                tabs = []
-                sc.pl.umap(adata, color=[key_to_visualize], show=False)
-                umap_fig = plt.gcf()
-                plt.close()
-                tabs.append(("UMAP", pn.pane.Matplotlib(umap_fig, dpi=100)))
-                if marker_list:
-                    sc.pl.dotplot(
-                        adata,
-                        marker_list,
-                        groupby=key_to_visualize,
-                        dendrogram=True,
-                        show=False,
-                    )
-                    dotplot_fig = plt.gcf()
-                    plt.close()
-                    tabs.append(("Dotplot", pn.pane.Matplotlib(dotplot_fig, dpi=100)))
-                # Generate histogram plot
-                cluster_counts = adata.obs[key_to_visualize].value_counts()
-                cluster_counts.sort_index(inplace=True)
-                cluster_counts.plot(kind="bar")
-                plt.xlabel("Cluster")
-                plt.ylabel("Number of Cells")
-                plt.title(f"Cluster Counts for {key_to_visualize}")
-                hist_fig = plt.gcf()
-                plt.close()
-                tabs.append(("Histogram", pn.pane.Matplotlib(hist_fig, dpi=100)))
-                # Add new tabs to visualization area
-                for name, pane in tabs:
-                    visualization_area.append((name, pane))
-                # Update cluster annotations
-                clusters = adata.obs[key_to_visualize].unique().astype(str)
-                annotations_df = pd.DataFrame(
-                    {"Cluster": clusters, "Annotation": [""] * len(clusters)}
-                )
-                cluster_annotation.value = annotations_df
-            except Exception as e:
-                output_area.object = f"**Error during clustering: {e}**"
-            finally:
-                # Stop loading indicator
-                loading_indicator.active = False
-
-        # Callback to run subclustering
-        def run_subclustering(event):
-            adata = adata_container.get("adata", None)
-            if adata is None:
-                output_area.object = "**Please run clustering first.**"
-                return
-            if not subcluster_key.value or not subcluster_values.value:
-                output_area.object = "**Please provide subcluster key and values.**"
-                return
-            clusters = [c.strip() for c in subcluster_values.value.split(",")]
-            key_added = subcluster_key.value + "_subcluster"
-            # Start loading indicator for subclustering
-            loading_indicator_subcluster.active = True
-            output_area.object = "**Subclustering in progress...**"
-            try:
-                sc.tl.leiden(
-                    adata,
-                    seed=seed.value,
-                    restrict_to=(subcluster_key.value, clusters),
-                    resolution=subcluster_resolution.value,
-                    key_added=key_added,
-                )
-                adata_container["adata"] = adata
-                output_area.object = "**Subclustering completed.**"
-                # Update visualization
-                tabs = []
-                sc.pl.umap(adata, color=[key_added], show=False)
-                umap_fig = plt.gcf()
-                plt.close()
-                tabs.append(("UMAP_Sub", pn.pane.Matplotlib(umap_fig, dpi=100)))
-                marker_list = (
-                    list(marker_list_input.value) if marker_list_input.value else None
-                )
-                if marker_list:
-                    sc.pl.dotplot(
-                        adata,
-                        marker_list,
-                        groupby=key_added,
-                        dendrogram=True,
-                        show=False,
-                    )
-                    dotplot_fig = plt.gcf()
-                    plt.close()
-                    tabs.append(
-                        ("Dotplot_Sub", pn.pane.Matplotlib(dotplot_fig, dpi=100))
-                    )
-                # Generate histogram plot
-                cluster_counts = adata.obs[key_added].value_counts()
-                cluster_counts.sort_index(inplace=True)
-                cluster_counts.plot(kind="bar")
-                plt.xlabel("Subcluster")
-                plt.ylabel("Number of Cells")
-                plt.title(f"Subcluster Counts for {key_added}")
-                hist_fig = plt.gcf()
-                plt.close()
-                tabs.append(("Histogram_Sub", pn.pane.Matplotlib(hist_fig, dpi=100)))
-                # Add new tabs to visualization area
-                for name, pane in tabs:
-                    visualization_area.append((name, pane))
-                # Update cluster annotations
-                clusters = adata.obs[key_added].unique().astype(str)
-                annotations_df = pd.DataFrame(
-                    {"Cluster": clusters, "Annotation": [""] * len(clusters)}
-                )
-                cluster_annotation.value = annotations_df
-            except Exception as e:
-                output_area.object = f"**Error during subclustering: {e}**"
-            finally:
-                # Stop loading indicator for subclustering
-                loading_indicator_subcluster.active = False
-
-        # Callback to save annotations
-        def save_annotations(event):
-            adata = adata_container.get("adata", None)
-            if adata is None:
-                output_area.object = "**No AnnData object to annotate.**"
-                return
-            annotation_dict = dict(
-                zip(
-                    cluster_annotation.value["Cluster"],
-                    cluster_annotation.value["Annotation"],
-                )
-            )
-            key_to_annotate = (
-                key_added_input.value
-                if key_added_input.value
-                else clustering_method.value + "_" + str(resolution.value)
-            )
-            adata.obs["cell_type"] = (
-                adata.obs[key_to_annotate]
-                .astype(str)
-                .map(annotation_dict)
-                .astype("category")
-            )
-            output_area.object = "**Annotations saved to AnnData object.**"
-
-        def save_adata(event):
-            adata = adata_container.get("adata", None)
-            if adata is None:
-                output_area.object = "**No AnnData object to save.**"
-                return
-            if not output_dir_widget.value:
-                output_area.object = "**Please specify an output directory.**"
-                return
-            os.makedirs(output_dir_widget.value, exist_ok=True)
-            output_filepath = os.path.join(
-                output_dir_widget.value, "adata_annotated.h5ad"
-            )
-            adata.write(output_filepath)
-            output_area.object = f"**AnnData saved to {output_filepath}.**"
-
-        # Callback to run spatial visualization
-        def run_spatial_visualization(event):
-            adata = adata_container.get("adata", None)
-            if adata is None:
-                output_area.object = "**Please load an AnnData file first.**"
-                return
-            try:
-                catplot(
-                    adata,
-                    color=spatial_color.value,
-                    unique_region=spatial_unique_region.value,
-                    X=spatial_x.value,
-                    Y=spatial_y.value,
-                    n_columns=spatial_n_columns.value,
-                    palette=spatial_palette.value,
-                    savefig=spatial_savefig.value,
-                    output_fname=spatial_output_fname.value,
-                    output_dir=output_dir_widget.value,
-                    figsize=spatial_figsize.value,
-                    size=spatial_size.value,
-                )
-                spatial_fig = plt.gcf()
-                plt.close()
-                # Add new tab to visualization area
-                visualization_area.append(
-                    ("Spatial Visualization", pn.pane.Matplotlib(spatial_fig, dpi=100))
-                )
-                output_area.object = "**Spatial visualization completed.**"
-            except Exception as e:
-                output_area.object = f"**Error during spatial visualization: {e}**"
-
-        # File paths
-        input_path = pn.widgets.TextInput(
-            name="AnnData File Path", placeholder="Enter path to .h5ad file"
-        )
-        output_dir_widget = pn.widgets.TextInput(
-            name="Output Directory",
-            placeholder="Enter output directory path",
-            value=output_dir if output_dir else "",
-        )
-        load_data_button = pn.widgets.Button(name="Load Data", button_type="primary")
-
-        # Clustering parameters
-        clustering_method = pn.widgets.Select(
-            name="Clustering Method",
-            options=["leiden", "louvain", "flowSOM", "leiden_gpu"],
-        )
-        resolution = pn.widgets.FloatInput(name="Resolution", value=1.0)
-        n_neighbors = pn.widgets.IntInput(name="Number of Neighbors", value=10)
-        reclustering = pn.widgets.Checkbox(name="Reclustering", value=False)
-        seed = pn.widgets.IntInput(name="Random Seed", value=42)
-        key_added_input = pn.widgets.TextInput(
-            name="Key Added", placeholder="Enter key to add to AnnData.obs", value=""
-        )
-        marker_list_input = pn.widgets.MultiChoice(
-            name="Marker List", options=[], width=950
-        )
-
-        # Subclustering parameters
-        subcluster_key = pn.widgets.TextInput(
-            name="Subcluster Key",
-            placeholder='Enter key to filter on (e.g., "leiden_1")',
-        )
-        subcluster_values = pn.widgets.TextInput(
-            name="Subcluster Values",
-            placeholder="Enter clusters to subset (comma-separated)",
-        )
-        subcluster_resolution = pn.widgets.FloatInput(
-            name="Subcluster Resolution", value=0.3
-        )
-        subcluster_button = pn.widgets.Button(
-            name="Run Subclustering", button_type="primary"
-        )
-
-        # Cluster annotation
-        cluster_annotation = pn.widgets.DataFrame(
-            pd.DataFrame(columns=["Cluster", "Annotation"]),
-            name="Cluster Annotations",
-            autosize_mode="fit_columns",
-        )
-        save_annotations_button = pn.widgets.Button(
-            name="Save Annotations", button_type="success"
-        )
-
-        fs_xdim = pn.widgets.IntInput(name="FlowSOM xdim", value=10)
-        fs_ydim = pn.widgets.IntInput(name="FlowSOM ydim", value=10)
-        fs_rlen = pn.widgets.IntInput(name="FlowSOM rlen", value=10)
-
-        # Buttons
-        run_clustering_button = pn.widgets.Button(
-            name="Run Clustering", button_type="primary"
-        )
-        save_adata_button = pn.widgets.Button(
-            name="Save AnnData", button_type="success"
-        )
-
-        # Loading indicators
-        loading_indicator = pn.widgets.Progress(
-            name="Clustering Progress", active=False, bar_color="primary"
-        )
-        loading_indicator_subcluster = pn.widgets.Progress(
-            name="Subclustering Progress", active=False, bar_color="primary"
-        )
-
-        # Output areas
-        output_area = pn.pane.Markdown()
-        visualization_area = pn.Tabs()  # Changed to pn.Tabs to hold multiple plots
-
-        # Global variable to hold the AnnData object
-        adata_container = {}
-
-        # Spatial visualization parameters
-        spatial_color = pn.widgets.TextInput(
-            name="Color By Column",
-            placeholder="Enter group column name (e.g., cell_type_coarse)",
-        )
-        spatial_unique_region = pn.widgets.TextInput(
-            name="Unique Region Column", value="unique_region"
-        )
-        spatial_x = pn.widgets.TextInput(name="X Coordinate Column", value="x")
-        spatial_y = pn.widgets.TextInput(name="Y Coordinate Column", value="y")
-        spatial_n_columns = pn.widgets.IntInput(name="Number of Columns", value=2)
-        spatial_palette = pn.widgets.TextInput(name="Color Palette", value="tab20")
-        spatial_figsize = pn.widgets.FloatInput(name="Figure Size", value=17)
-        spatial_size = pn.widgets.FloatInput(name="Point Size", value=20)
-        spatial_savefig = pn.widgets.Checkbox(name="Save Figure", value=False)
-        spatial_output_fname = pn.widgets.TextInput(
-            name="Output Filename", placeholder="Enter output filename"
-        )
-        run_spatial_visualization_button = pn.widgets.Button(
-            name="Run Spatial Visualization", button_type="primary"
-        )
-
-        # Link callbacks
-        load_data_button.on_click(load_data)
-        run_clustering_button.on_click(run_clustering)
-        subcluster_button.on_click(run_subclustering)
-        save_annotations_button.on_click(save_annotations)
-        save_adata_button.on_click(save_adata)
-        run_spatial_visualization_button.on_click(run_spatial_visualization)
-
-        # Clustering Tab Layout
-        clustering_tab = pn.Column(
-            pn.pane.Markdown("### Load Data"),
-            (
-                pn.Row(input_path, output_dir_widget, load_data_button)
-                if adata is None
-                else pn.pane.Markdown("AnnData object loaded.")
-            ),
-            pn.layout.Divider(),
-            pn.pane.Markdown("### Clustering Parameters"),
-            pn.Row(clustering_method, resolution, n_neighbors),
-            pn.Row(seed, reclustering),
-            pn.Row(fs_xdim, fs_ydim, fs_rlen),
-            key_added_input,
-            marker_list_input,
-            pn.layout.Divider(),
-            pn.Row(run_clustering_button, loading_indicator),
-            output_area,
-        )
-
-        # Subclustering Tab Layout
-        subclustering_tab = pn.Column(
-            pn.pane.Markdown("### Subclustering Parameters"),
-            pn.Row(subcluster_key, subcluster_values, subcluster_resolution),
-            pn.layout.Divider(),
-            pn.Row(subcluster_button, loading_indicator_subcluster),
-            output_area,
-        )
-
-        # Annotation Tab Layout
-        annotation_tab = pn.Column(
-            pn.pane.Markdown("### Cluster Annotation"),
-            cluster_annotation,
-            pn.layout.Divider(),
-            save_annotations_button,
-            output_area,
-        )
-
-        # Save Tab Layout
-        save_tab = pn.Column(
-            pn.pane.Markdown("### Save Data"), save_adata_button, output_area
-        )
-
-        # Spatial Visualization Tab Layout
-        spatial_visualization_tab = pn.Column(
-            pn.pane.Markdown("### Spatial Visualization Parameters"),
-            pn.Row(spatial_color, spatial_palette),
-            pn.Row(spatial_unique_region, spatial_n_columns),
-            pn.Row(spatial_x, spatial_y),
-            pn.Row(spatial_figsize, spatial_size),
-            pn.layout.Divider(),
-            pn.Row(spatial_savefig, spatial_output_fname),
-            pn.layout.Divider(),
-            pn.Row(run_spatial_visualization_button),
-            output_area,
-        )
-
-        # Assemble Tabs
-        tabs = pn.Tabs(
-            ("Clustering", clustering_tab),
-            ("Subclustering", subclustering_tab),
-            ("Annotation", annotation_tab),
-            ("Spatial Visualization", spatial_visualization_tab),
-            ("Save", save_tab),
-        )
-
-        # Main Layout with Visualization Area
-        main_layout = pn.Row(tabs, visualization_area, sizing_mode="stretch_both")
-
-        # Automatically load data if adata is provided
-        if adata is not None:
-            load_data()
-
-        return main_layout
-
-    # Run the app
-    main_layout = create_clustering_app()
-
-    main_layout.servable(title="SPACEc Clustering App")
-
-    return main_layout
+    subprocess.run(
+        pip + ["git+https://github.com/TKempchen/stellar-py3.12"], check=True
+    )
 
 
 # Functions for PPA
@@ -3501,21 +4451,6 @@ def precompute(df, x_column, y_column, full_df, identification_column, edge_neig
 
 
 def process_cluster(args, nbrs, unique_clusters):
-    (
-        df,
-        cluster,
-        cluster_column,
-        x_column,
-        y_column,
-        concave_hull_length_threshold,
-        edge_neighbours,
-        full_df,
-        radius,
-        plot,
-        identification_column,
-        concavity,
-    ) = args
-
     """
     Process a single cluster to identify points in proximity and generate hull points.
 
@@ -3523,6 +4458,7 @@ def process_cluster(args, nbrs, unique_clusters):
     ----------
     args : tuple
         Tuple containing the following elements:
+
         - df : pandas.DataFrame
             DataFrame containing the points to be processed.
         - cluster : int
@@ -3539,8 +4475,8 @@ def process_cluster(args, nbrs, unique_clusters):
             Number of edge neighbours.
         - full_df : pandas.DataFrame
             Full DataFrame containing all points.
-        - radius : int
-            Radius for proximity search.
+        - radius : int or list
+            Radius (or list of radii) for proximity search.
         - plot : bool
             Whether to plot the results.
         - identification_column : str
@@ -3548,17 +4484,32 @@ def process_cluster(args, nbrs, unique_clusters):
         - concavity : int
             Concavity parameter for hull generation.
     nbrs : sklearn.neighbors.NearestNeighbors
-        Fitted NearestNeighbors model.
+        Fitted NearestNeighbors model used to find hull-point neighbors.
     unique_clusters : numpy.ndarray
-        Array of unique cluster identifiers.
+        Array of unique cluster identifiers present in the data.
 
     Returns
     -------
     prox_points : pandas.DataFrame
-        DataFrame containing points within the proximity of the cluster.
+        DataFrame containing points within the proximity of the cluster hull
+        that belong to a different cluster.
     hull_nearest_neighbors : pandas.DataFrame
-        DataFrame containing the nearest neighbors of the hull points.
+        DataFrame containing the nearest neighbors of the concave hull points.
     """
+    (
+        df,
+        cluster,
+        cluster_column,
+        x_column,
+        y_column,
+        concave_hull_length_threshold,
+        edge_neighbours,
+        full_df,
+        radius,
+        plot,
+        identification_column,
+        concavity,
+    ) = args
 
     # Filter DataFrame for the current cluster
     subset = df.loc[df[cluster_column] == cluster]
@@ -3601,7 +4552,7 @@ def process_cluster(args, nbrs, unique_clusters):
         # Collect all points within the circle but from a different cluster
         r_in_circle_diff_cluster = full_df[np.any(in_circle_diff_cluster, axis=1)]
         # Remove duplicates
-        r_prox_points = r_in_circle_diff_cluster.drop_duplicates()
+        r_prox_points = r_in_circle_diff_cluster.drop_duplicates().copy()
         # Add patch_id and distance_from_patch columns
         r_prox_points["patch_id"] = cluster
         r_prox_points["distance_from_patch"] = r
@@ -4150,8 +5101,10 @@ def patch_proximity_analysis(
         The specific group (e.g. cell type or patch identifier) on which the proximity analysis
         is to be performed.
     min_cluster_size : int, optional
-        The minimum number of cells required in a region to perform the analysis. Regions with fewer
-        cells than this value will be skipped. Default is 80.
+        Serves two roles, default 80: (1) regions with fewer cells of ``group`` than this value are
+        skipped; (2) it is passed as HDBSCAN ``min_samples`` when clustering those cells into patches
+        (see ``apply_dbscan_clustering``), so larger values give fewer, denser patches and more cells
+        labeled as noise.
     x_column : str, optional
         The column name in adata.obs corresponding to the x-coordinate of each cell. Default is "x".
     y_column : str, optional
@@ -4183,8 +5136,11 @@ def patch_proximity_analysis(
     concavity : int, optional
         Parameter specifying the degree of concavity when calculating the hull boundary. Default is 2.
     original_unit_scale : int or float, optional
-        A scaling factor to convert the radius from its given unit to the coordinate system unit.
-        Default is 1.
+        A scaling factor to convert the radius from its given unit to the coordinate system unit
+        (``radius`` is multiplied by this value internally). Default is 1. Example: if your
+        coordinates are in pixels at ``S`` micrometers/pixel and you want to pass ``radius`` in
+        micrometers, use ``original_unit_scale = 1 / S`` (pixels per micrometer) -- not ``S``
+        itself, which is the easy way to get this backwards.
     tolerance_distance : float, optional
         Tolerance value for buffering in the peripheral analysis (used when method is "hull_expansion").
         Default is 0.001.
@@ -4400,9 +5356,13 @@ def patch_proximity_analysis(
                     columns={"dist": "distance_from_patch"}, inplace=True
                 )
 
-                # remove column unique_region_numeric and buffer_distance
+                # remove column unique_region_numeric and buffer_distance, and the per-cell
+                # Point `geometry` inherited from codex_gdf -- it only duplicates x_column/
+                # y_column (already present as plain floats) and has no registered anndata
+                # writer, so leaving it in would break adata.write() once this DataFrame is
+                # stored in adata.uns below.
                 combined_df.drop(
-                    columns=["unique_region_numeric", "buffer_distance"],
+                    columns=["unique_region_numeric", "buffer_distance", "geometry"],
                     inplace=True,
                     errors="ignore",
                 )
@@ -4462,15 +5422,14 @@ def patch_proximity_analysis(
 
     outlines_results = pd.concat(outlines)
 
-    # add as key to adata.uns
-    if key_name is None:
-        key_name = "ppa_result"
-    if key_name in adata.uns:
-        adata.uns[key_name] = pd.concat([adata.uns[key_name], final_results])
-    else:
-        adata.uns[key_name] = final_results
-
-    # generate new column named unique_patch_ID that combines the region, group and patch ID
+    # generate new column named unique_patch_ID that combines the region, group and patch ID --
+    # must happen before storing into adata.uns below. Storing used to come first, and this
+    # column only ended up in adata.uns[key_name] by accident the first time a given key_name
+    # was used, because `adata.uns[key_name] = final_results` shares the same DataFrame object
+    # that this in-place column assignment then mutated. On a second call reusing the same
+    # key_name, `pd.concat([adata.uns[key_name], final_results])` makes a new object before
+    # this column existed on `final_results`, leaving it NaN for the new rows -- a NaN/str
+    # mixed column that h5py's vlen-string writer can't serialize on adata.write().
     final_results["unique_patch_ID"] = (
         final_results[region_column]
         + "_"
@@ -4479,6 +5438,14 @@ def patch_proximity_analysis(
         + "patch_no_"
         + final_results["patch_id"].astype(str)
     )
+
+    # add as key to adata.uns
+    if key_name is None:
+        key_name = "ppa_result"
+    if key_name in adata.uns:
+        adata.uns[key_name] = pd.concat([adata.uns[key_name], final_results])
+    else:
+        adata.uns[key_name] = final_results
 
     return final_results, outlines_results
 

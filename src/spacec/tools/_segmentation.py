@@ -1,149 +1,90 @@
 import gc
 import os
 import pathlib
-import shutil
 import sys
 import time
+import warnings
 
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import requests
 import skimage
 import skimage.io
-import tensorflow as tf
 import tifffile
-from cellpose import io
 from cellpose import models as cellpose_models  # fixed
-from deepcell.applications import Mesmer
-from deepcell.utils.plot_utils import create_rgb_image, make_outline_overlay
+from cellpose import version as _cellpose_version
+from cellpose.core import use_gpu as cellpose_use_gpu
 from IPython.display import clear_output
 from scipy.ndimage import gaussian_filter, label
 from skimage.measure import regionprops_table
 from skimage.segmentation import relabel_sequential
-from tensorflow.keras.models import load_model
 from tqdm import tqdm
 from tqdm.notebook import (
     tqdm as notebook_tqdm,  # Use notebook version for better display
 )
 
+from .._shared.overlay_utils import create_rgb_image, make_outline_overlay
 from .._shared.segmentation import (
     combine_channels,
     create_multichannel_tiff,
     format_CODEX,
+    load_image_dictionary,
 )
 
+# Cellpose 4.x ("Cellpose-SAM") replaces the per-model zoo with a single
+# generalist model and removes the `models.Cellpose` size-model wrapper, so
+# behavior is branched on the installed major version at import time.
+_CELLPOSE_MAJOR = int(_cellpose_version.split(".")[0])
+_CELLPOSE_SAM = _CELLPOSE_MAJOR >= 4
+_HAS_SIZE_MODEL = hasattr(cellpose_models, "Cellpose")  # v3 only
 
-def load_image_dictionary(file_name, channel_file, input_format, nuclei_channel):
+_LEGACY_CELLPOSE_MODELS = {
+    "cyto",
+    "cyto2",
+    "cyto3",
+    "nuclei",
+    "tissuenet_cp3",
+    "livecell_cp3",
+}
+
+
+def _resolve_cellpose_model(model):
+    """Resolve the ``model`` argument to a concrete Cellpose model name.
+
+    ``model=None`` auto-selects the right generalist model for whichever
+    cellpose is installed (``cpsam`` on 4.x, ``cyto3`` on 3.x). Legacy model
+    names requested on cellpose 4.x are remapped to ``cpsam`` with a loud
+    notice, since cellpose 4 silently ignores per-model names otherwise.
     """
-    Loads images and channel names based on the specified format using tifffile.
+    if model is None:
+        return "cpsam" if _CELLPOSE_SAM else "cyto3"
 
-    Memory Consideration: Loading large 'Multichannel' or 'CODEX' files directly
-    with tifffile.imread can consume significant memory. For very large files,
-    consider using memory mapping (e.g., tifffile.imread(..., aszarr=True)) if needed
-    (requires downstream code modification to handle Zarr arrays). 'Channels' format reads
-    individual files, which can also be memory-intensive if there are many large files.
-
-    Parameters:
-        file_name (str or Path): Path to image file (Multichannel/CODEX) or directory (Channels).
-        channel_file (str or Path): Path to file containing channel names (one per line). Used for Multichannel/CODEX.
-        input_format (str): 'Multichannel', 'Channels', or 'CODEX'.
-        nuclei_channel (str): Name of the nuclei channel (must exist in the loaded channels).
-
-    Returns:
-        tuple: (img_ref, image_dict, channel_names_list)
-               img_ref (ndarray): Reference image (typically nuclei channel or the raw loaded stack).
-               image_dict (dict): Dictionary mapping channel names to 2D NumPy arrays.
-               channel_names_list (list): List of loaded channel names.
-               Returns (None, None, None) on error.
-    """
-    print(f"--- Loading Image Data (Format: {input_format}) ---")
-    img_ref = None
-    image_dict = None
-    channel_names_list = None
-
-    try:
-        if input_format == "Channels":
-            # file_name is the directory path
-            # format_CODEX now uses tifffile internally for 'Channels'
-            image_dict, channel_names_list = format_CODEX(
-                image=file_name,
-                input_format=input_format,
+    if model == "cpsam":
+        if not _CELLPOSE_SAM:
+            raise ValueError(
+                "model='cpsam' requires cellpose>=4 (Cellpose-SAM), but "
+                f"cellpose {_cellpose_version} is installed. Upgrade with "
+                "sp.hf.set_cellpose_version(4), or use sp.hf.set_cellpose_version "
+                "to check what's installed."
             )
-            if image_dict is None:
-                raise ValueError("Image formatting failed.")  # Check format_CODEX error
+        return "cpsam"
 
-            if nuclei_channel not in image_dict:
-                raise ValueError(
-                    f"Specified nuclei_channel '{nuclei_channel}' not found in loaded channels: {list(image_dict.keys())}"
-                )
-            img_ref = image_dict[nuclei_channel]  # Use nuclei as reference
+    if model in _LEGACY_CELLPOSE_MODELS and _CELLPOSE_SAM:
+        warnings.warn(
+            f"model='{model}' is a cellpose 3.x model name and is not "
+            f"available in cellpose {_cellpose_version} (Cellpose-SAM). "
+            "Falling back to the 'cpsam' generalist model instead.",
+            UserWarning,
+            stacklevel=3,
+        )
+        print(
+            f"*** NOTICE: model='{model}' is not available in this cellpose "
+            "version. Using 'cpsam' (Cellpose-SAM) instead. ***"
+        )
+        return "cpsam"
 
-        elif input_format in ["Multichannel", "CODEX"]:
-            # file_name is the image file path
-            if not os.path.exists(file_name):
-                raise FileNotFoundError(f"Image file not found: {file_name}")
-            if not os.path.exists(channel_file):
-                raise FileNotFoundError(f"Channel file not found: {channel_file}")
-
-            print(f"Loading image: {file_name}")
-            # Memory intensive step for large files - use tifffile
-            # Consider tifffile.imread(file_name, aszarr=True) for memory mapping if needed later
-            loaded_img = skimage.io.imread(file_name)
-            img_ref = loaded_img  # Store raw loaded image as reference
-            print(f"Loaded image shape: {loaded_img.shape}")
-
-            with open(channel_file, "r") as f:
-                channel_names_from_file = f.read().splitlines()
-            print(
-                f"Loaded {len(channel_names_from_file)} channel names from: {channel_file}"
-            )
-
-            # Determine CODEX parameters if needed (example, needs actual logic)
-            number_cycles = None
-            images_per_cycle = None
-            if input_format == "CODEX":
-                # Placeholder: Infer or require these parameters
-                if loaded_img.ndim != 4:
-                    raise ValueError(
-                        f"CODEX input image must be 4D. Got shape: {loaded_img.shape}"
-                    )
-                # Assuming CODEX format is (cycles, H, W, images_per_cycle)
-                # Adjust if your CODEX format is different (e.g., (cycles, images_per_cycle, H, W))
-                number_cycles = loaded_img.shape[0]
-                images_per_cycle = loaded_img.shape[3]
-                print(
-                    f"Inferred CODEX params: Cycles={number_cycles}, Channels/Cycle={images_per_cycle}"
-                )
-
-            image_dict, channel_names_list = format_CODEX(
-                image=loaded_img,
-                channel_names=channel_names_from_file,
-                number_cycles=number_cycles,
-                images_per_cycle=images_per_cycle,
-                input_format=input_format,
-            )
-            if image_dict is None:
-                raise ValueError("Image formatting failed.")  # Check format_CODEX error
-
-            if nuclei_channel not in image_dict:
-                raise ValueError(
-                    f"Specified nuclei_channel '{nuclei_channel}' not found in loaded channels: {list(image_dict.keys())}"
-                )
-
-        else:
-            raise ValueError(f"Invalid input_format: {input_format}")
-
-        print(f"Image dictionary created with {len(image_dict)} channels.")
-        return img_ref, image_dict, channel_names_list
-
-    except (FileNotFoundError, ValueError, MemoryError) as e:
-        print(f"Error loading image dictionary: {e}")
-        return None, None, None
-    except Exception as e:
-        print(f"An unexpected error occurred during image loading: {e}")
-        return None, None, None
+    return model
 
 
 # --------------------------------------------------------------------------
@@ -152,31 +93,25 @@ def load_image_dictionary(file_name, channel_file, input_format, nuclei_channel)
 
 
 def setup_gpu(use_gpu=True, set_memory_growth=True):
-    """Configures TensorFlow GPU memory growth to avoid allocating all memory at once."""
-    if use_gpu:
-        gpus = tf.config.list_physical_devices("GPU")
-        if gpus:
-            try:
-                for gpu in gpus:
-                    if set_memory_growth == True:
-                        tf.config.experimental.set_memory_growth(
-                            gpu, True
-                        )  # As your model requires more memory during execution, TensorFlow will gradually increase the allocation. Rather than just allocating all memory!
-                        print(f"GPU(s) available: {len(gpus)}. Memory growth enabled.")
-                    else:
-                        print(f"GPU(s) available: {len(gpus)}. Memory growth not set.")
-            except RuntimeError as e:
-                print(
-                    f"Warning: Could not set memory growth (may already be initialized): {e}"
-                )
-        else:
-            print("No GPU detected by TensorFlow.")
-            use_gpu = False  # Ensure CPU is used if no GPU found
-    else:
+    """Checks Cellpose GPU availability and returns effective GPU usage flag."""
+    if not set_memory_growth:
+        warnings.warn(
+            "setup_gpu(set_memory_growth=...) has no effect after TensorFlow removal.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
+    if not use_gpu:
         print("GPU usage explicitly disabled.")
-        # Optionally force CPU only
-        # tf.config.set_visible_devices([], 'GPU')
-    return use_gpu  # Return status in case it changed
+        return False
+
+    gpu_available = bool(cellpose_use_gpu())
+    if gpu_available:
+        print("GPU detected for Cellpose.")
+        return True
+
+    print("No GPU detected for Cellpose. Falling back to CPU.")
+    return False
 
 
 def prepare_segmentation_dict(image_dict, nuclei_channel, membrane_channel_list):
@@ -540,9 +475,12 @@ def cellpose_segmentation(
     cytoplasm_channel_name=None,  # Name of cytoplasm channel in image_dict
     nucleus_channel_name=None,  # Name of nucleus channel in image_dict
     use_gpu=True,
-    model="cyto3",  # Default Cellpose model
+    model=None,  # None = auto-select generalist model (cpsam on cellpose>=4, cyto3 on cellpose 3.x)
     custom_model=False,  # Set to True if 'model' is a path to a custom model file
     diameter=None,  # Cell diameter estimate (recommended)
+    flow_threshold=0.4,  # Cellpose flow error threshold
+    cellprob_threshold=0.0,  # Cellpose cell probability threshold
+    batch_size=8,  # Cellpose eval batch size
     save_mask_as_png=False,  # Save Cellpose overlay PNG
 ):
     """
@@ -555,13 +493,20 @@ def cellpose_segmentation(
         cytoplasm_channel_name (str, optional): Key in image_dict for cytoplasm channel.
         nucleus_channel_name (str): Key in image_dict for nucleus channel.
         use_gpu (bool): Whether to use GPU.
-        model (str): Cellpose model name (e.g., 'cyto3', 'nuclei') or path to custom model.
+        model (str, optional): Cellpose model name (e.g., 'cyto3', 'nuclei', 'cpsam') or path to
+            custom model. Defaults to None, which auto-selects the generalist model for whichever
+            cellpose is installed ('cpsam' on cellpose>=4, 'cyto3' on cellpose 3.x). Legacy model
+            names are remapped to 'cpsam' with a warning when cellpose>=4 is installed.
         custom_model (bool): True if 'model' is a path.
         diameter (float, optional): Estimated cell diameter.
+        flow_threshold (float): Cellpose flow error threshold (cellpose default 0.4).
+        cellprob_threshold (float): Cellpose cell probability threshold (cellpose default 0.0).
+        batch_size (int): Number of image patches evaluated simultaneously (cellpose default 8).
         save_mask_as_png (bool): If True, saves Cellpose's diagnostic PNG.
 
     Returns:
-        tuple: (masks, flows, styles) from cellpose.eval() or (None, None, None) on error.
+        tuple: (masks, flows, styles) from cellpose.eval(), or (None, None, None) if the
+               nucleus channel is missing. Errors from Cellpose itself are raised.
                'masks' is the 2D labeled mask array.
     """
     if not nucleus_channel_name or nucleus_channel_name not in image_dict:
@@ -603,44 +548,55 @@ def cellpose_segmentation(
         print("Error: Failed to prepare input image for Cellpose.")
         return None, None, None
 
-    # Run CellPose core function
-    try:
-        masks, flows, styles = run_cellpose(
-            image=input_image,
-            output_dir=output_dir,
-            use_gpu=use_gpu,
-            model=model,
-            custom_model=custom_model,
-            diameter=diameter,
-            channels=channels_arg,
-            save_mask_as_png=save_mask_as_png,
-        )
-        return masks, flows, styles
-    except Exception as e:
-        print(f"Error during Cellpose segmentation run: {e}")
-        return None, None, None
+    # Run CellPose core function. Errors propagate: a missing or incompatible
+    # model must stop the pipeline, not turn into an empty result.
+    return run_cellpose(
+        image=input_image,
+        output_dir=output_dir,
+        use_gpu=use_gpu,
+        model=model,
+        custom_model=custom_model,
+        diameter=diameter,
+        channels=channels_arg,
+        flow_threshold=flow_threshold,
+        cellprob_threshold=cellprob_threshold,
+        batch_size=batch_size,
+        save_mask_as_png=save_mask_as_png,
+    )
 
 
 def run_cellpose(
     image,
     output_dir,
     use_gpu=True,
-    model="cyto3",
+    model=None,
     custom_model=False,
     diameter=None,
     channels=[0, 0],
+    flow_threshold=0.4,
+    cellprob_threshold=0.0,
+    batch_size=8,
     save_mask_as_png=False,
 ):
     """
     Internal helper to initialize and run the Cellpose model evaluation.
+
+    Supports both cellpose 3.x (per-model zoo, e.g. 'cyto3') and cellpose>=4
+    ("Cellpose-SAM", single generalist 'cpsam' model). See
+    `_resolve_cellpose_model` for how `model` is interpreted across versions.
 
     Parameters: (See cellpose_segmentation docstring)
 
     Returns:
         tuple: (masks, flows, styles) from model.eval().
     """
+    if not custom_model:
+        model = _resolve_cellpose_model(model)
+
     print(
-        f"Running Cellpose: model='{model}', custom={custom_model}, diameter={diameter}, channels={channels}, gpu={use_gpu}"
+        f"Running Cellpose: model='{model}', custom={custom_model}, diameter={diameter}, "
+        f"channels={channels}, flow_threshold={flow_threshold}, "
+        f"cellprob_threshold={cellprob_threshold}, batch_size={batch_size}, gpu={use_gpu}"
     )
 
     # Initialize model
@@ -649,17 +605,35 @@ def run_cellpose(
         if custom_model:
             if not os.path.exists(model):
                 raise FileNotFoundError(f"Custom Cellpose model not found at: {model}")
-            # Use CellposeModel for custom models
+            try:
+                model_obj = cellpose_models.CellposeModel(
+                    pretrained_model=model, gpu=use_gpu
+                )
+            except Exception as load_err:
+                if _CELLPOSE_SAM:
+                    raise RuntimeError(
+                        f"Failed to load custom Cellpose model '{model}' with "
+                        f"cellpose {_cellpose_version} (Cellpose-SAM). Custom models "
+                        "fine-tuned on cellpose 3.x use a different backbone and are "
+                        "not compatible with Cellpose-SAM. Pin cellpose<4 "
+                        "(sp.hf.set_cellpose_version(3)) to use this model, or "
+                        "retrain it on cpsam."
+                    ) from load_err
+                raise
+            print(f"Loaded custom Cellpose model from: {model}")
+        elif _CELLPOSE_SAM:
+            # Cellpose-SAM only exposes CellposeModel; per-model zoo (models.Cellpose)
+            # was removed. 'model' is passed as pretrained_model (e.g. 'cpsam').
             model_obj = cellpose_models.CellposeModel(
                 pretrained_model=model, gpu=use_gpu
             )
-            print(f"Loaded custom Cellpose model from: {model}")
+            print(f"Initialized Cellpose model: {model}")
         else:
-            # Use Cellpose or CellposeModel based on model type (nuclei often needs Cellpose)
-            # Check if model is 'nuclei' or similar that might require the base class
-            if model in ["nuclei"]:  # Add other models if needed
+            # cellpose 3.x: 'nuclei' needs the size-model wrapper; other models
+            # (cyto, cyto2, cyto3, ...) use CellposeModel directly.
+            if _HAS_SIZE_MODEL and model == "nuclei":
                 model_obj = cellpose_models.Cellpose(model_type=model, gpu=use_gpu)
-            else:  # Default to CellposeModel for 'cyto', 'cyto2', 'cyto3' etc.
+            else:
                 model_obj = cellpose_models.CellposeModel(model_type=model, gpu=use_gpu)
             print(f"Initialized Cellpose model: {model}")
     except Exception as e:
@@ -669,19 +643,32 @@ def run_cellpose(
     # Run evaluation
     masks, flows, styles, diams = None, None, None, None  # Initialize
     try:
-        # The eval signature might differ slightly based on Cellpose version and class used
-        if isinstance(model_obj, cellpose_models.Cellpose):
-            masks, flows, styles, diams = model_obj.eval(
-                image, diameter=diameter, channels=channels, do_3D=False
-            )
+        eval_kwargs = dict(
+            diameter=diameter,
+            do_3D=False,
+            flow_threshold=flow_threshold,
+            cellprob_threshold=cellprob_threshold,
+            batch_size=batch_size,
+        )
+        if _CELLPOSE_SAM:
+            # `channels` is deprecated and ignored by cellpose>=4 (the model is
+            # channel-invariant); pass channel_axis instead for HWC input.
+            if image.ndim == 3:
+                eval_kwargs["channel_axis"] = -1
+        else:
+            eval_kwargs["channels"] = channels
+
+        # The eval signature might differ slightly based on Cellpose version and class used.
+        # `cellpose_models.Cellpose` doesn't exist at all on cellpose>=4 (removed, not just
+        # deprecated), so `_HAS_SIZE_MODEL` must short-circuit before it's ever referenced.
+        if _HAS_SIZE_MODEL and isinstance(model_obj, cellpose_models.Cellpose):
+            masks, flows, styles, diams = model_obj.eval(image, **eval_kwargs)
             print(
                 f"Cellpose segmentation complete. Found {np.max(masks)} objects. Est. diameter: {diams:.2f}"
             )
         elif isinstance(model_obj, cellpose_models.CellposeModel):
             # CellposeModel.eval might not return diameter directly in all versions
-            eval_output = model_obj.eval(
-                image, diameter=diameter, channels=channels, do_3D=False
-            )
+            eval_output = model_obj.eval(image, **eval_kwargs)
             if len(eval_output) == 4:  # Older versions might return diams
                 masks, flows, styles, diams = eval_output
                 print(
@@ -711,7 +698,8 @@ def run_cellpose(
     # Save output PNG if requested
     if save_mask_as_png:
         try:
-            from cellpose import io as cellpose_io  # Use cellpose io module
+            from cellpose import plot as cellpose_plot
+            from cellpose import transforms as cellpose_transforms
 
             output_dir_path = pathlib.Path(output_dir)
             output_dir_path.mkdir(parents=True, exist_ok=True)
@@ -721,19 +709,7 @@ def run_cellpose(
             )
             filename = output_dir_path / f"{base_fname}_seg.png"
 
-            # Use cellpose_io.save_masks or masks_flows_to_seg depending on needs
-            # masks_flows_to_seg creates the standard diagnostic image
-            # Need diameter value (estimated or provided)
-            effective_diameter = diams if diams is not None else diameter
-            if effective_diameter is None:
-                print("Warning: Diameter not available for saving PNG. Using default.")
-                effective_diameter = 30.0  # Default for saving function if unknown
-
-            # Ensure image is suitable for saving (e.g., rescale if needed, handle multi-channel input)
-            # masks_flows_to_seg expects an image that can be displayed (e.g., uint8 or float scaled 0-1)
-            # It might handle the input 'image' directly, but let's prepare a displayable version
-            from cellpose import utils
-
+            # Ensure image is suitable for display (e.g., rescale if needed, handle multi-channel input)
             img_display = image  # Use the input image directly first
             if image.ndim == 3 and image.shape[-1] == 3:  # RGB-like input
                 # Cellpose plotting utils often work with channel-first or specific channel indices
@@ -750,17 +726,18 @@ def run_cellpose(
 
             # Normalize image for display if it's not uint8
             if img_display.dtype != np.uint8:
-                img_display = utils.normalize99(img_display) * 255
-                img_display = img_display.astype(np.uint8)
+                img_display = cellpose_transforms.normalize99(img_display) * 255
+                img_display = np.clip(img_display, 0, 255).astype(np.uint8)
 
-            cellpose_io.masks_flows_to_seg(
-                img_display, masks, flows, effective_diameter, filename, channels
-            )
+            # Render a colored mask overlay on the (grayscale/RGB) input image and
+            # save it as an actual PNG diagnostic image.
+            overlay = cellpose_plot.mask_overlay(img_display, masks)
+            skimage.io.imsave(str(filename), overlay)
             print(f"Saved Cellpose segmentation overlay to: {filename}")
 
         except ImportError:
             print(
-                "Warning: Could not import cellpose.io or cellpose.utils. Skipping saving PNG."
+                "Warning: Could not import cellpose.plot or cellpose.transforms. Skipping saving PNG."
             )
         except Exception as e:
             print(f"Warning: Error saving Cellpose PNG: {e}")
@@ -769,79 +746,19 @@ def run_cellpose(
 
 
 def load_mesmer_model(model_dir):
+    """Deprecated compatibility shim retained for external callers.
+
+    Deprecated:
+        Mesmer model loading was removed with DeepCell/TensorFlow migration.
+        Use :func:`cell_segmentation` with ``seg_method='cellpose'``.
     """
-    Loads the Mesmer model from a specified directory. Downloads if not found.
-
-    Parameters:
-        model_dir (str or Path): Directory where 'Mesmer_model/MultiplexSegmentation'
-                                 is located or will be downloaded to.
-
-    Returns:
-        tensorflow.keras.Model: The loaded Mesmer model, or None on error.
-    """
-    model_dir_path = pathlib.Path(model_dir)
-    mesmer_subdir = "Mesmer_model"
-    model_name = "MultiplexSegmentation"
-    full_model_path = model_dir_path / mesmer_subdir / model_name
-
-    if not full_model_path.exists():
-        print(f"Mesmer model not found at {full_model_path}. Attempting download...")
-        try:
-            (model_dir_path / mesmer_subdir).mkdir(parents=True, exist_ok=True)
-
-            # Download URL and target file path
-            url = "https://deepcell-data.s3-us-west-1.amazonaws.com/saved-models/MultiplexSegmentation-9.tar.gz"
-            tar_path = model_dir_path / mesmer_subdir / "MultiplexSegmentation.tar.gz"
-            extract_target_dir = model_dir_path / mesmer_subdir
-
-            # Download
-            print(f"Downloading Mesmer model from {url}...")
-            response = requests.get(url, stream=True)
-            response.raise_for_status()  # Check for download errors
-            with open(tar_path, "wb") as f:
-                for chunk in tqdm(
-                    response.iter_content(chunk_size=8192 * 16),
-                    desc="Downloading Mesmer",
-                ):  # Larger chunk size + tqdm
-                    f.write(chunk)
-            print(f"Downloaded model archive to {tar_path}")
-
-            # Unpack
-            print(f"Unpacking {tar_path}...")
-            shutil.unpack_archive(tar_path, extract_target_dir)
-            print(f"Unpacked model to {extract_target_dir}")
-
-            # Check if the expected model directory exists after unpacking
-            if not full_model_path.exists():
-                raise FileNotFoundError(
-                    f"Model directory '{model_name}' not found in {extract_target_dir} after unpacking."
-                )
-
-            # Clean up downloaded archive
-            os.remove(tar_path)
-            print(f"Removed downloaded archive {tar_path}")
-
-        except requests.exceptions.RequestException as e:
-            print(f"Error downloading Mesmer model: {e}")
-            return None
-        except (shutil.ReadError, FileNotFoundError, Exception) as e:
-            print(f"Error setting up Mesmer model: {e}")
-            if "tar_path" in locals() and os.path.exists(tar_path):
-                os.remove(tar_path)  # Clean up failed download
-            return None
-    else:
-        print(f"Found existing Mesmer model at: {full_model_path}")
-
-    # Load the model
-    print("Loading Mesmer model...")
-    try:
-        # Use tf.keras.models.load_model (already imported)
-        mesmer_pretrained_model = load_model(str(full_model_path), compile=False)
-        print("Mesmer model loaded successfully.")
-        return mesmer_pretrained_model
-    except Exception as e:
-        print(f"Error loading Mesmer model from {full_model_path}: {e}")
-        return None
+    warnings.warn(
+        "load_mesmer_model is deprecated: Mesmer model loading is no longer supported. "
+        "Use cell_segmentation(seg_method='cellpose') instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return None
 
 
 def mesmer_segmentation(
@@ -852,152 +769,92 @@ def mesmer_segmentation(
     compartment="whole-cell",  # 'whole-cell' or 'nuclear'
     model_path="./models",  # Base directory for Mesmer model download/load
 ):
+    """Deprecated Mesmer compatibility alias implemented via Cellpose.
+
+    Deprecated:
+        Mesmer runtime support was removed. This function maps inputs to
+        Cellpose segmentation and returns a Cellpose mask.
     """
-    Perform segmentation using the DeepCell Mesmer model.
+    warnings.warn(
+        "mesmer_segmentation is deprecated and now uses Cellpose fallback.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
 
-    Parameters:
-        nuclei_image (ndarray): 2D NumPy array for nuclei.
-        membrane_image (ndarray or None): 2D NumPy array for membrane/cytoplasm, or None for nuclear segmentation.
-        image_mpp (float): Microns per pixel.
-        plot_predictions (bool): Whether to plot segmentation overlay.
-        compartment (str): 'whole-cell' or 'nuclear'.
-        model_path (str or Path): Directory for Mesmer model.
-
-    Returns:
-        ndarray: 2D integer-labeled segmentation mask, or None on error.
-    """
-    print(f"Running Mesmer segmentation: compartment='{compartment}', mpp={image_mpp}")
-
-    # Load Mesmer model
-    mesmer_pretrained_model = load_mesmer_model(model_path)
-    if mesmer_pretrained_model is None:
-        return None  # Error loading model
-
-    # Initialize Mesmer application
-    try:
-        app = Mesmer(model=mesmer_pretrained_model)
-    except Exception as e:
-        print(f"Error initializing Mesmer application: {e}")
-        return None
-
-    # Prepare input image stack for Mesmer: (batch, height, width, channels)
-    # Channels: [Nuclear, Membrane/Cytoplasm]
     if nuclei_image.ndim != 2:
         print(f"Error: Nuclei image must be 2D, but got shape {nuclei_image.shape}")
         return None
 
-    if compartment == "whole-cell":
-        if membrane_image is None:
-            print(
-                "Warning: compartment is 'whole-cell' but membrane_image is None. Performing nuclear segmentation instead."
-            )
-            compartment = "nuclear"  # Switch to nuclear
-            membrane_channel = np.zeros_like(nuclei_image)  # Dummy channel
-        elif membrane_image.shape != nuclei_image.shape:
-            print(
-                f"Error: Nuclei ({nuclei_image.shape}) and membrane ({membrane_image.shape}) images must have the same shape."
-            )
-            return None
-        else:
-            membrane_channel = membrane_image
-    elif compartment == "nuclear":
-        membrane_channel = np.zeros_like(nuclei_image)  # Dummy channel if nuclear only
-    else:
+    if membrane_image is not None and membrane_image.shape != nuclei_image.shape:
+        print(
+            f"Error: Nuclei ({nuclei_image.shape}) and membrane ({membrane_image.shape}) images must have the same shape."
+        )
+        return None
+
+    if compartment not in {"whole-cell", "nuclear"}:
         print(
             f"Error: Invalid compartment: {compartment}. Choose 'whole-cell' or 'nuclear'."
         )
         return None
 
-    # Stack channels and add batch dimension
+    seg_dict = {"_nuclei": nuclei_image}
+    membrane_channel = None
+    if compartment == "whole-cell" and membrane_image is not None:
+        seg_dict["_membrane"] = membrane_image
+        membrane_channel = "_membrane"
+
+    compat_output_dir = pathlib.Path(model_path)
     try:
-        # Normalize images (Mesmer often expects float inputs, check docs if needed)
-        # Example normalization (adjust based on expected input range):
-        # nuclei_norm = (nuclei_image - np.min(nuclei_image)) / (np.max(nuclei_image) - np.min(nuclei_image) + 1e-6)
-        # membrane_norm = (membrane_channel - np.min(membrane_channel)) / (np.max(membrane_channel) - np.min(membrane_channel) + 1e-6)
-        # combined_image = np.stack([nuclei_norm, membrane_norm], axis=-1)
-
-        # Using images as is for now, assuming Mesmer handles scaling or prefers raw values
-        combined_image = np.stack([nuclei_image, membrane_channel], axis=-1)
-        combined_image_batch = np.expand_dims(combined_image, axis=0).astype(
-            np.float32
-        )  # Mesmer expects float32
-        # print(f\"Prepared Mesmer input batch with shape: {combined_image_batch.shape}\")
-    except Exception as e:
-        print(f"Error preparing Mesmer input stack: {e}")
-        return None
-
-    # Run the Mesmer model prediction
-    print("Predicting with Mesmer...")
-    try:
-        segmented_batch = app.predict(
-            combined_image_batch, image_mpp=image_mpp, compartment=compartment
+        segmented_mask, _, _ = cellpose_segmentation(
+            image_dict=seg_dict,
+            output_dir=compat_output_dir,
+            membrane_channel_name=membrane_channel,
+            cytoplasm_channel_name=None,
+            nucleus_channel_name="_nuclei",
+            use_gpu=True,
+            model="cyto3" if membrane_channel else "nuclei",
+            custom_model=False,
+            diameter=None,
+            save_mask_as_png=False,
         )
-        # print(f\"Mesmer prediction output batch shape: {segmented_batch.shape}\")
     except Exception as e:
-        print(f"Error during Mesmer prediction: {e}")
+        print(f"Error during Cellpose fallback for Mesmer alias: {e}")
         return None
 
-    # Extract the single mask from the batch: (1, H, W, 1) -> (H, W)
-    if (
-        segmented_batch is None
-        or segmented_batch.shape[0] != 1
-        or segmented_batch.shape[-1] != 1
-    ):
-        print(
-            f"Warning: Unexpected Mesmer output shape {segmented_batch.shape if segmented_batch is not None else 'None'}. Cannot extract mask."
-        )
+    if segmented_mask is None:
+        print("Warning: Cellpose fallback returned no mask for Mesmer alias.")
         return None
-    segmented_mask = np.squeeze(segmented_batch).astype(np.int32)
-    print(
-        f"Extracted Mesmer mask with shape: {segmented_mask.shape}, max label: {np.max(segmented_mask)}"
-    )
 
-    # Plotting (optional)
+    segmented_mask = segmented_mask.astype(np.int32)
     if plot_predictions:
         try:
-            from deepcell.utils.plot_utils import create_rgb_image, make_outline_overlay
-
-            print("Plotting Mesmer predictions...")
-            # Use the original (non-batch) combined image for plotting colors
-            channel_colors = [
-                "blue",
-                "green",
-            ]  # Nuc=Blue, Memb=Green (adjust as preferred)
+            if membrane_channel:
+                combined_image = np.stack([nuclei_image, membrane_image], axis=-1)
+                channel_colors = ["blue", "green"]
+            else:
+                combined_image = np.stack([nuclei_image], axis=-1)
+                channel_colors = ["blue"]
             rgb_images = create_rgb_image(
                 np.expand_dims(combined_image, axis=0), channel_colors=channel_colors
             )
             overlay_data = make_outline_overlay(
-                rgb_data=rgb_images, predictions=segmented_batch
+                rgb_data=rgb_images,
+                predictions=np.expand_dims(segmented_mask, axis=0),
             )
 
             fig, ax = plt.subplots(1, 2, figsize=(15, 7))
             ax[0].imshow(rgb_images[0, ...])
-            ax[0].set_title(
-                f"Input (Nuc: {channel_colors[0]}, Memb: {channel_colors[1]})"
-            )
             ax[0].axis("off")
+            ax[0].set_title("Cellpose Input Preview")
             ax[1].imshow(overlay_data[0, ...])
-            ax[1].set_title(f"Mesmer {compartment} Predictions")
             ax[1].axis("off")
+            ax[1].set_title(f"Cellpose ({compartment})")
             plt.tight_layout()
             plt.show()
-        except ImportError:
-            print(
-                "Warning: deepcell.utils.plot_utils not found. Cannot plot Mesmer predictions."
-            )
         except Exception as e:
-            print(f"Warning: Error during Mesmer plotting: {e}")
+            print(f"Warning: Error during fallback plotting: {e}")
 
-    # Clean up
-    del (
-        combined_image,
-        combined_image_batch,
-        segmented_batch,
-        app,
-        mesmer_pretrained_model,
-    )
     gc.collect()
-
     return segmented_mask
 
 
@@ -1075,6 +932,12 @@ def stitch_masks(tiles_info, tile_masks, full_shape, tile_overlap=32, sigma=128)
     if not tiles_info or not tile_masks or len(tiles_info) != len(tile_masks):
         print("Warning: Invalid input tiles_info or tile_masks. Returning empty mask.")
         return np.zeros(full_shape, dtype=np.int32)
+    # None marks a failed tile (an empty array is a valid tile with no cells).
+    # If every tile failed, an all-zero mask would look like "0 cells found".
+    if all(m is None for m in tile_masks):
+        raise RuntimeError(
+            "Segmentation failed on every tile; see the messages above for the cause."
+        )
 
     # Ensure tile_overlap is valid
     tile_overlap = max(0, int(tile_overlap))
@@ -1790,6 +1653,9 @@ def _perform_segmentation(
     diameter,  # Cellpose diameter
     save_mask_as_png,  # Cellpose flag
     image_mpp=0.5,  # For Mesmer
+    flow_threshold=0.4,  # Cellpose flow error threshold
+    cellprob_threshold=0.0,  # Cellpose cell probability threshold
+    batch_size=8,  # Cellpose eval batch size
 ):
     """Internal helper function to perform cell segmentation using either Mesmer or Cellpose.
 
@@ -1825,11 +1691,18 @@ def _perform_segmentation(
         Whether to save Cellpose overlay as PNG
     image_mpp : float, optional
         Microns per pixel for Mesmer, by default 0.5
+    flow_threshold : float, optional
+        Cellpose flow error threshold, by default 0.4
+    cellprob_threshold : float, optional
+        Cellpose cell probability threshold, by default 0.0
+    batch_size : int, optional
+        Number of image patches evaluated simultaneously by Cellpose, by default 8
 
     Returns
     -------
     ndarray or None
-        2D integer-labeled segmentation mask if successful, None otherwise
+        2D integer-labeled segmentation mask, or None for invalid inputs
+        (missing channel, unexpected mask shape). Segmentation errors raise.
 
     Notes
     -----
@@ -1875,6 +1748,9 @@ def _perform_segmentation(
                 model=model,
                 custom_model=custom_model,
                 diameter=diameter,
+                flow_threshold=flow_threshold,
+                cellprob_threshold=cellprob_threshold,
+                batch_size=batch_size,
                 save_mask_as_png=save_mask_as_png,
             )
         else:
@@ -1896,21 +1772,13 @@ def _perform_segmentation(
         mask = mask.astype(np.int32)
         return mask
 
-    except Exception as e:
-        print(f"Error during _perform_segmentation ({seg_method}): {e}")
-        # Print traceback for debugging
-        import traceback
-
-        traceback.print_exc()
-        return None
     finally:
-        # Clean up GPU memory if TF/Cellpose was used
+        # Clean up Python memory
         if use_gpu and (seg_method == "mesmer" or seg_method == "cellpose"):
             try:
-                tf.keras.backend.clear_session()
                 gc.collect()
             except Exception as clear_e:
-                print(f"Warning: Error clearing TF session: {clear_e}")
+                print(f"Warning: Error clearing session memory: {clear_e}")
 
 
 def cell_segmentation(
@@ -1918,7 +1786,7 @@ def cell_segmentation(
     channel_file,  # Path to channel names file (if not input_format=="Channels")
     output_dir,  # Base directory for outputs
     output_fname="",  # Basename for output files
-    seg_method="mesmer",  # 'mesmer' or 'cellpose'
+    seg_method="cellpose",  # 'cellpose' only; 'mesmer' is removed and silently falls back to cellpose
     nuclei_channel="DAPI",  # Name of the nucleus channel
     input_format="Multichannel",  # 'Multichannel', 'Channels', 'CODEX'
     membrane_channel_list=None,  # List of channel names for membrane/whole-cell seg
@@ -1926,10 +1794,14 @@ def cell_segmentation(
     size_cutoff=0,  # Min object size for feature extraction
     compartment="whole-cell",  # Mesmer: 'whole-cell' or 'nuclear'. Cellpose: Ignored.
     plot_predictions=False,  # Plot Mesmer predictions
-    model="cyto3",  # Cellpose model name or path
+    model=None,  # Cellpose model name or path; None = auto-select ('cpsam' on cellpose>=4, 'cyto3' on cellpose 3.x)
     use_gpu=True,  # Use GPU if available
     diameter=None,  # Cellpose cell diameter estimate
+    flow_threshold=0.4,  # Cellpose flow error threshold
+    cellprob_threshold=0.0,  # Cellpose cell probability threshold
+    batch_size=8,  # Cellpose eval batch size
     save_mask_as_png=False,  # Save Cellpose overlay PNGs
+    save_mask=False,  # Save raw label mask(s) as .tif for later re-attachment to an AnnData (see hf.hf_attach_masks)
     model_path="./models",  # Path for Mesmer model download/load
     resize_factor=1,  # Factor to resize images before segmentation
     custom_model=False,  # True if 'model' is a path to a custom Cellpose model
@@ -1946,7 +1818,7 @@ def cell_segmentation(
     feature_memory_limit_gb=8,
     set_memory_growth=True,
 ):
-    """Perform cell segmentation using Mesmer or Cellpose with optional tiling and feature extraction.
+    """Perform cell segmentation using Cellpose with optional tiling and feature extraction.
 
     This function implements a complete segmentation pipeline including image loading,
     preprocessing, segmentation, mask stitching, and feature extraction. It handles large
@@ -1962,8 +1834,12 @@ def cell_segmentation(
         Base directory for output files
     output_fname : str, optional
         Basename for output files, by default auto-generated
-    seg_method : {'mesmer', 'cellpose'}, optional
-        Segmentation algorithm to use, by default 'mesmer'
+    seg_method : {'cellpose'}, optional
+        Segmentation algorithm to use, by default 'cellpose'. Mesmer has been
+        removed from SPACEc (DeepCell/TensorFlow dependency dropped). Passing
+        ``seg_method='mesmer'`` no longer runs Mesmer: it is silently
+        redirected to Cellpose, and a warning is printed to make this
+        behavior explicit.
     nuclei_channel : str, optional
         Name of the nuclei channel, by default 'DAPI'
     input_format : {'Multichannel', 'Channels', 'CODEX'}, optional
@@ -1975,19 +1851,45 @@ def cell_segmentation(
     size_cutoff : int, optional
         Minimum object size in pixels for feature extraction
     compartment : {'whole-cell', 'nuclear'}, optional
-        Segmentation compartment for Mesmer (ignored by Cellpose)
+        Ignored. Retained only for backward compatibility with the removed
+        Mesmer backend.
     plot_predictions : bool, optional
-        Whether to plot Mesmer predictions
+        Ignored. Retained only for backward compatibility with the removed
+        Mesmer backend.
     model : str, optional
-        Model name or path for Cellpose
+        Cellpose model name (e.g. 'cyto3', 'nuclei', 'cpsam') or path to a custom model
+        (with ``custom_model=True``). Defaults to None, which auto-selects the generalist
+        model for whichever cellpose is installed: 'cpsam' on cellpose>=4 (Cellpose-SAM),
+        'cyto3' on cellpose 3.x. Legacy 3.x model names (e.g. 'cyto3', 'nuclei') are still
+        accepted on cellpose>=4 but are remapped to 'cpsam' with a warning, since Cellpose-SAM
+        has no per-tissue model zoo. Custom models fine-tuned on cellpose 3.x cannot be loaded
+        by Cellpose-SAM (different backbone) — use :func:`spacec.hf.set_cellpose_version` to
+        check or switch which cellpose is installed.
     use_gpu : bool, optional
         Whether to use GPU acceleration
     diameter : float, optional
         Expected cell diameter for Cellpose in pixels (setting a value is recommended to speed up segmentation significantly - if you are unsure you can measure the average cell diameter in ImageJ)
+    flow_threshold : float, optional
+        Cellpose flow error threshold, by default 0.4. Higher values yield more masks
+        (less strict shape filtering).
+    cellprob_threshold : float, optional
+        Cellpose cell probability threshold, by default 0.0. Lower values yield more
+        and larger masks.
+    batch_size : int, optional
+        Number of image patches evaluated simultaneously by Cellpose, by default 8.
+        Lower this if you hit GPU out-of-memory errors, especially with Cellpose-SAM.
     save_mask_as_png : bool, optional
         Save Cellpose overlay as PNG
+    save_mask : bool, optional
+        If True, save the raw integer-label mask(s) ('masks', and
+        'masks_nuclei'/'masks_cytoplasm' if produced) as ``{output_fname}_mask*.tif``
+        files in ``output_dir``. Use :func:`spacec.hf.hf_load_masks` and
+        :func:`spacec.hf.hf_attach_masks` to re-attach them to an AnnData object built
+        later (e.g. from a multi-region dataset via :func:`spacec.pp.read_segdf`),
+        keyed by the same region identifier used there.
     model_path : str or Path, optional
-        Path for Mesmer model download/load
+        Ignored. Retained only for backward compatibility with the removed
+        Mesmer backend.
     resize_factor : float, optional
         Factor to resize images before segmentation
     custom_model : bool, optional
@@ -2001,7 +1903,8 @@ def cell_segmentation(
     tiling_threshold : int, optional
         Image size threshold to enable tiling
     image_mpp : float, optional
-        Microns per pixel (for Mesmer)
+        Ignored. Retained only for backward compatibility with the removed
+        Mesmer backend.
     stitch_sigma : float, optional
         Sigma for Gaussian blending during stitching
     remove_tile_border_objects : bool, optional
@@ -2019,15 +1922,25 @@ def cell_segmentation(
     -------
     dict or None
         Dictionary containing:
-            - 'img_ref': Reference image
-            - 'image_dict': Channel images
-            - 'masks': Primary segmentation mask
-            - 'masks_nuclei': Nuclear mask (if differentiated)
-            - 'masks_cytoplasm': Cytoplasm mask (if differentiated)
-            - 'features': DataFrame of extracted features
-            - 'features_nuclei/cytoplasm/whole_cell': Region-specific features
-            - 'features_combined': Combined features from all regions
-        Returns None on critical error
+
+        - 'img_ref': Reference image
+        - 'image_dict': Channel images
+        - 'masks': Primary segmentation mask
+        - 'masks_nuclei': Nuclear mask (if differentiated)
+        - 'masks_cytoplasm': Cytoplasm mask (if differentiated)
+        - 'features': DataFrame of extracted features
+        - 'features_nuclei/cytoplasm/whole_cell': Region-specific features
+        - 'features_combined': Combined features from all regions
+
+        Returns None if the image cannot be loaded or required channels are
+        missing.
+
+    Raises
+    ------
+    Exception
+        Any error during segmentation (e.g. missing or incompatible custom
+        Cellpose model) is re-raised instead of returning an empty result.
+        Feature-extraction errors only emit a warning; masks are still returned.
 
     Notes
     -----
@@ -2060,6 +1973,19 @@ def cell_segmentation(
         output_fname = f"{base}_{seg_method}"
     print(f"Output basename: {output_fname}")
     print(f"Segmentation method: {seg_method}")
+    if seg_method == "mesmer":
+        warnings.warn(
+            "seg_method='mesmer' was requested, but Mesmer has been removed "
+            "from SPACEc (DeepCell/TensorFlow dependency dropped). "
+            "Segmentation will run with Cellpose instead. Pass "
+            "seg_method='cellpose' to silence this warning.",
+            UserWarning,
+            stacklevel=2,
+        )
+        print(
+            "*** NOTICE: Mesmer is no longer available. Falling back to "
+            "Cellpose for segmentation. ***"
+        )
     print(f"Differentiate Nucleus/Cytoplasm: {differentiate_nucleus_cytoplasm}")
 
     # --- 2. Load Images ---
@@ -2079,8 +2005,7 @@ def cell_segmentation(
     segmentation_dict_prep, combined_membrane_channel_name = prepare_segmentation_dict(
         image_dict, nuclei_channel, membrane_channel_list
     )
-    # Check if cytoplasm channel exists for Cellpose (if needed later)
-    # Assuming cytoplasm_channel_list contains only one name for simplicity here
+    # Check that the cytoplasm channel exists (only the first entry of cytoplasm_channel_list is used)
     cytoplasm_channel_name = (
         cytoplasm_channel_list[0] if cytoplasm_channel_list else None
     )
@@ -2178,6 +2103,9 @@ def cell_segmentation(
                             model=model,
                             custom_model=custom_model,
                             diameter=diameter,
+                            flow_threshold=flow_threshold,
+                            cellprob_threshold=cellprob_threshold,
+                            batch_size=batch_size,
                             save_mask_as_png=save_mask_as_png,
                             image_mpp=image_mpp,
                         )
@@ -2231,6 +2159,9 @@ def cell_segmentation(
                         model=model,
                         custom_model=custom_model,
                         diameter=diameter,
+                        flow_threshold=flow_threshold,
+                        cellprob_threshold=cellprob_threshold,
+                        batch_size=batch_size,
                         save_mask_as_png=save_mask_as_png,
                         image_mpp=image_mpp,
                     )
@@ -2324,6 +2255,9 @@ def cell_segmentation(
                         model=model,
                         custom_model=custom_model,
                         diameter=diameter,
+                        flow_threshold=flow_threshold,
+                        cellprob_threshold=cellprob_threshold,
+                        batch_size=batch_size,
                         save_mask_as_png=save_mask_as_png,
                         image_mpp=image_mpp,
                     )
@@ -2373,6 +2307,9 @@ def cell_segmentation(
                     model=model,
                     custom_model=custom_model,
                     diameter=diameter,
+                    flow_threshold=flow_threshold,
+                    cellprob_threshold=cellprob_threshold,
+                    batch_size=batch_size,
                     save_mask_as_png=save_mask_as_png,
                     image_mpp=image_mpp,
                 )
@@ -2394,7 +2331,7 @@ def cell_segmentation(
         if "task_tile_masks" in locals():
             del task_tile_masks
         gc.collect()
-        return None  # Critical error
+        raise
 
     # Clean up resized segmentation dictionary
     del segmentation_dict_resized
@@ -2509,14 +2446,28 @@ def cell_segmentation(
                 print("Warning: No final mask found for feature extraction.")
 
     except Exception as e:
-        print(f"An error occurred during feature extraction: {e}")
-        # Continue to return masks even if features fail
+        # Continue to return masks even if features fail, but make it visible.
+        warnings.warn(
+            f"Feature extraction failed ({e}); returning masks without features.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
 
     # --- 7. Final Return ---
     print("\n--- Segmentation Pipeline Complete ---")
     results.update(
         final_masks
     )  # Add final masks ('masks', 'masks_nuclei', 'masks_cytoplasm')
-    # Clean up large image_dict before returning? Optional.
-    # del results['image_dict']; gc.collect()
+
+    if save_mask:
+        for mask_key, suffix in (
+            ("masks", ""),
+            ("masks_nuclei", "_nuclei"),
+            ("masks_cytoplasm", "_cytoplasm"),
+        ):
+            if final_masks.get(mask_key) is not None:
+                mask_path = output_dir / f"{output_fname}_mask{suffix}.tif"
+                tifffile.imwrite(mask_path, final_masks[mask_key], compression="zlib")
+                print(f"Saved {mask_key} to {mask_path}")
+
     return results

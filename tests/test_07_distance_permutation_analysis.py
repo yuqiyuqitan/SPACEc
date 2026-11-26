@@ -68,7 +68,7 @@ def test_distance_permutation_analysis():
             dist_table_filt,
             dist_data_filt,
             n=5,
-            colors=None,
+            palette=None,
             dodge=False,
             savefig=False,
             output_fname="",

@@ -15,6 +15,8 @@ API <api/modules>
 
 Tutorials <tutorials>
 Examples <examples>
+Cellpose Models <cellpose_models>
+Plotting Styles <style_guide>
 ```
 
 ```{toctree}

@@ -7,3 +7,6 @@ build-backend = "setuptools.build_meta"
 # For smarter version schemes and other configuration options,
 # check out https://github.com/pypa/setuptools_scm
 version_scheme = "no-guess-dev"
+# Used when git metadata is unavailable (zip download, copy without .git, or git
+# refusing the repo, e.g. "dubious ownership" on a WSL /mnt drive).
+fallback_version = "0.0.0"

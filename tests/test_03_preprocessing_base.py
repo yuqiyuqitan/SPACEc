@@ -37,6 +37,12 @@ def test_preprocessing():
             meta_list=["tonsillitis", "tonsil"],
         )
 
+        assert "unique_cell_id" in df_seg.columns
+        assert df_seg["unique_cell_id"].is_unique, (
+            "unique_cell_id must be unique across regions even though each "
+            "region's raw cell_id/label restarts near 1."
+        )
+
         # 2.2 Filter cells by DAPI intensity and area
 
         # Identify the lowest 1% for cell size and nuclear marker intensity to get a better idea of potential segmentation artifacts.
@@ -73,20 +79,19 @@ def test_preprocessing():
                 "region",
                 "unique_region",
                 "condition",
+                "unique_cell_id",
             ],  # This is a list of meta information that you would like to keep but don't want to normalize
             method="zscore",
         )  # choose from "zscore", "double_zscore", "MinMax", "ArcSin"
 
-        # ## 2.4 Remove noisy cells
-
-        # This section is used to remove noisy cells. This is very important to ensure proper identification of the cells via clustering.
+        # Remove noisy cells: important for proper cell identification via clustering.
 
         # get the column index for the last marker
         col_num_last_marker = dfz.columns.get_loc("GATA3")
 
         # This function helps to figure out what the cut-off should be
         # This is to remove top 1 % of all cells that are highly expressive for all antibodies
-        sp.pl.zcount_thres(
+        sp.pp.zcount_thres(
             dfz=dfz,
             col_num=col_num_last_marker,  # last antibody index
             cut_off=0.01,  # top 1% of cells

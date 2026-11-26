@@ -1,0 +1,47 @@
+# SPACEc presentation style
+# Larger fonts and heavier lines for slides, posters, and screen viewing.
+#
+# Usage:
+#   import matplotlib.pyplot as plt
+#   plt.style.use("spacec_presentation")
+
+# --- Typography ---
+font.family:        sans-serif
+font.size:          14
+axes.titlesize:     16
+axes.labelsize:     14
+xtick.labelsize:    12
+ytick.labelsize:    12
+figure.titlesize:   18
+
+# --- Ticks ---
+xtick.direction:    in
+ytick.direction:    in
+xtick.major.size:   5.0
+ytick.major.size:   5.0
+xtick.major.width:  1.0
+ytick.major.width:  1.0
+
+# --- Lines ---
+axes.linewidth:     1.5
+lines.linewidth:    2.0
+lines.markersize:   6
+patch.linewidth:    1.0
+patch.edgecolor:    1a1a1a
+
+# --- Colors ---
+axes.facecolor:     white
+figure.facecolor:   white
+axes.grid:          False
+
+# --- Legend ---
+legend.frameon:     True
+legend.fontsize:    12
+legend.markerscale: 1.5
+
+# --- Save ---
+figure.dpi:         150
+savefig.dpi:        150
+savefig.transparent: False
+savefig.bbox:       tight
+savefig.format:     pdf

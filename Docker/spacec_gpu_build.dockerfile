@@ -1,76 +1,58 @@
-FROM debian:bullseye-slim
+# Build with (from the repo root):
+#   $ docker build -f Docker/spacec_gpu_build.dockerfile -t spacec:gpu .
+# Run with:
+#   $ docker run --gpus all -p 8888:8888 -p 5100:5100 spacec:gpu
+ARG PYTHON_VERSION=3.12
+FROM python:${PYTHON_VERSION}-slim-bookworm
 
-ARG DEBIAN_FRONTEND=noninteractive
-
-# Update the package list and install dependencies
+# git: GitPython (an install_requires dep) clones STELLAR from Git at runtime.
+# build-essential/pkg-config: pyvips ships sdist-only, so pip compiles it here;
+#   do NOT also install a system libvips, or pyvips builds against the wrong
+#   headers and fails at runtime with "cannot load library libvips.42".
+# libglib2.0-0: needed by cv2 (pulled in transitively via cellpose).
+# fontconfig/fonts-*: needed by matplotlib for text rendering.
 RUN apt-get update && \
-    apt-get install -y \
+    apt-get install -y --no-install-recommends \
+    build-essential \
+    pkg-config \
+    git \
+    libglib2.0-0 \
     fontconfig \
     fonts-dejavu-core \
     fonts-droid-fallback \
     fonts-liberation \
     fonts-noto-mono \
-    ttf-bitstream-vera \
-    git \
-    wget && \
+    ttf-bitstream-vera && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Miniforge
-RUN apt-get update && \
-    apt-get install -y wget && \
-    wget "https://github.com/conda-forge/miniforge/releases/download/23.11.0-0/Miniforge3-23.11.0-0-Linux-x86_64.sh" && \
-    bash Miniforge3-*.sh -b -p /miniforge && \
-    rm Miniforge3-*.sh
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir spacec
 
-# Add Miniforge to PATH
-ENV PATH="/miniforge/bin:${PATH}"
+# The PyTorch wheels ship their own CUDA runtime and cuDNN, so no system
+# cudatoolkit/cudnn install is needed. Reinstall torch against a specific CUDA
+# build; bump TORCH_CUDA to track a newer CUDA release. torch<2.6 matches the
+# ceiling pinned in setup.cfg's install_requires.
+ARG TORCH_CUDA=cu124
+RUN pip install --no-cache-dir --force-reinstall \
+    "torch<2.6" torchvision --index-url https://download.pytorch.org/whl/${TORCH_CUDA}
 
-# Create a new conda environment with Python 3.10
-RUN conda create -n spacec python=3.10 -y
+# RAPIDS for GPU-accelerated clustering (sp.tl.clustering(..., clustering="leiden_gpu")).
+# Uses the rapids12 extra already declared in setup.cfg; pick rapids13 instead
+# if the host's CUDA major version is 13.
+RUN pip install --no-cache-dir "spacec[rapids12]" --extra-index-url=https://pypi.nvidia.com
 
-# Install mamba
-RUN conda install -n spacec -c conda-forge mamba -y
+# STELLAR is not installed here: setup.cfg's [stellar] extra still pins
+# torch==1.12.0+cu113, which conflicts with cellpose>=3 and the torch<2.6
+# floor above. Call sp.tl.install_stellar(CUDA=12) at runtime instead, which
+# installs a compatible modern torch/PyG stack.
 
-# Install libxml2
-RUN mamba install -n spacec -c conda-forge libxml2=2.13.5 -y
-
-# Install other dependencies
-RUN mamba install -n spacec -c conda-forge graphviz libvips pyvips openslide-python -y
-
-# Install gcc
-RUN apt-get update && \
-    apt-get install -y build-essential gcc && \
-    rm -rf /var/lib/apt/lists/*
-
-RUN mamba install -n spacec -c conda-forge cudatoolkit=11.2.2 cudnn=8.1.0.77 -y
-
-# Install SPACEc
-RUN mamba run -n spacec pip install spacec
-
-# Install additional Python packages
-RUN mamba run -n spacec pip install networkx==3.2.* protobuf==3.20.0 numpy==1.24.*
-
-# Install PyTorch
-RUN mamba run -n spacec pip install torch==1.12.1+cu113 torchvision==0.13.1+cu113 torchaudio==0.12.1 --extra-index-url https://download.pytorch.org/whl/cu113
-
-# UNCOMMENT THE FOLLOWING LINES IF YOU ARE USING STELLAR
-# RUN mamba run -n spacec pip install torch-scatter torch-sparse torch-cluster torch-spline-conv torch-geometric -f https://data.pyg.org/whl/torch-1.12.0+cu113.html
-
-# Install RAPIDS and related packages
-RUN mamba install -n spacec -c rapidsai -c conda-forge -c nvidia rapids=24.02 -y && \
-    mamba run -n spacec pip install rapids-singlecell==0.9.5 pandas==1.5.3
-
-# Clean up
-RUN mamba clean --all -f -y && \
-    rm -rf /root/.cache/pip
-
-# Copy notebooks into the image YOU CAN CHANGE THIS TO COPY YOUR OWN NOTEBOOKS
-COPY ../notebooks /notebooks
+# Copy notebooks into the image. YOU CAN CHANGE THIS TO COPY YOUR OWN NOTEBOOKS
+COPY notebooks /notebooks
 WORKDIR /notebooks
 
 # Expose relevant ports
 EXPOSE 8888
 EXPOSE 5100
 
-# Default command
-CMD ["conda", "run", "-n", "spacec", "jupyter", "lab", "--ip='0.0.0.0'", "--port=8888", "--no-browser", "--allow-root", "--NotebookApp.token=''"]
+# Default command. No auth token/password: intended for localhost port-forwarding only.
+CMD ["jupyter", "lab", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--allow-root", "--ServerApp.token=", "--ServerApp.password="]
