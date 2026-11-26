@@ -109,8 +109,8 @@ master_doc = "index"
 
 # General information about the project.
 project = "SPACEc"
-copyright = "2025, Yuqi Tan, Tim Kempchen, Martin Becker"
-author = "Yuqi Tan, Tim Kempchen, Martin Becker"
+copyright = "2025-2026, Yuqi Tan, Tim Kempchen, Martin Becker, Gemma van der Voort"
+author = "Yuqi Tan, Tim Kempchen, Martin Becker, Gemma van der Voort"
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
